@@ -7,47 +7,78 @@ import (
 	"time"
 )
 
-func TestOKX_FetchOHLCV_Spot(t *testing.T) {
+func TestOKX_FetchOHLCV(t *testing.T) {
 	ctx := context.Background()
 
-	// 创建 OKX 实例，使用代理
+	// Create OKX instance with proxy
 	exchange, err := NewOKX("", "", map[string]interface{}{
 		"proxy":        "http://127.0.0.1:7890",
-		"fetchMarkets": []string{"spot"},
+		"fetchMarkets": []string{"spot", "swap"},
 	})
 	if err != nil {
-		t.Fatalf("创建 OKX 实例失败: %v", err)
+		t.Fatalf("Failed to create OKX instance: %v", err)
 	}
 
-	// 加载市场信息（只加载现货）
+	// Load markets
 	if err := exchange.LoadMarkets(ctx, false); err != nil {
-		t.Fatalf("加载市场信息失败: %v", err)
+		t.Fatalf("Failed to load markets: %v", err)
 	}
 
-	// 测试获取现货 K 线
-	symbol := "BTC/USDT"
 	timeframe := "1h"
 	limit := 10
 
-	fmt.Printf("测试获取现货 K 线: %s, 时间框架: %s, 数量: %d\n", symbol, timeframe, limit)
+	// Test fetching spot OHLCV
+	symbol := "BTC/USDT"
+	fmt.Printf("Testing spot OHLCV: %s, timeframe: %s, limit: %d\n", symbol, timeframe, limit)
 
 	ohlcvs, err := exchange.FetchOHLCV(ctx, symbol, timeframe, time.Time{}, limit)
 	if err != nil {
-		t.Fatalf("获取 K 线失败: %v", err)
+		t.Fatalf("Failed to fetch OHLCV: %v", err)
 	}
 
 	if len(ohlcvs) == 0 {
-		t.Fatal("未获取到 K 线数据")
+		t.Fatal("No OHLCV data received")
 	}
 
-	fmt.Printf("成功获取 %d 条 K 线数据\n", len(ohlcvs))
+	fmt.Printf("Successfully fetched %d OHLCV candles\n", len(ohlcvs))
 
-	// 打印前几条数据
+	// Print first few candles
 	for i, ohlcv := range ohlcvs {
 		if i >= 3 {
 			break
 		}
-		fmt.Printf("K线 %d: 时间=%s, 开=%f, 高=%f, 低=%f, 收=%f, 量=%f\n",
+		fmt.Printf("Candle %d: time=%s, open=%f, high=%f, low=%f, close=%f, volume=%f\n",
+			i+1,
+			ohlcv.Timestamp.Format("2006-01-02 15:04:05"),
+			ohlcv.Open,
+			ohlcv.High,
+			ohlcv.Low,
+			ohlcv.Close,
+			ohlcv.Volume,
+		)
+	}
+
+	// Test fetching swap OHLCV
+	symbol = "BTC/USDT:USDT"
+	fmt.Printf("Testing swap OHLCV: %s, timeframe: %s, limit: %d\n", symbol, timeframe, limit)
+
+	ohlcvs, err = exchange.FetchOHLCV(ctx, symbol, timeframe, time.Time{}, limit)
+	if err != nil {
+		t.Fatalf("Failed to fetch OHLCV: %v", err)
+	}
+
+	if len(ohlcvs) == 0 {
+		t.Fatal("No OHLCV data received")
+	}
+
+	fmt.Printf("Successfully fetched %d OHLCV candles\n", len(ohlcvs))
+
+	// Print first few candles
+	for i, ohlcv := range ohlcvs {
+		if i >= 3 {
+			break
+		}
+		fmt.Printf("Candle %d: time=%s, open=%f, high=%f, low=%f, close=%f, volume=%f\n",
 			i+1,
 			ohlcv.Timestamp.Format("2006-01-02 15:04:05"),
 			ohlcv.Open,
@@ -59,54 +90,56 @@ func TestOKX_FetchOHLCV_Spot(t *testing.T) {
 	}
 }
 
-func TestOKX_FetchOHLCV_Swap(t *testing.T) {
+func TestOKX_FetchTicker(t *testing.T) {
 	ctx := context.Background()
 
-	// 创建 OKX 实例，使用代理
+	// Create OKX instance with proxy
 	exchange, err := NewOKX("", "", map[string]interface{}{
 		"proxy":        "http://127.0.0.1:7890",
-		"fetchMarkets": []string{"swap"},
+		"fetchMarkets": []string{"spot", "swap"},
 	})
 	if err != nil {
-		t.Fatalf("创建 OKX 实例失败: %v", err)
+		t.Fatalf("Failed to create OKX instance: %v", err)
 	}
 
-	// 加载市场信息（只加载永续合约）
+	// Load markets
 	if err := exchange.LoadMarkets(ctx, false); err != nil {
-		t.Fatalf("加载市场信息失败: %v", err)
+		t.Fatalf("Failed to load markets: %v", err)
 	}
 
-	// 测试获取永续合约 K 线
-	symbol := "BTC/USDT:USDT"
-	timeframe := "1h"
-	limit := 10
+	// Test fetching spot ticker
+	symbol := "BTC/USDT"
+	fmt.Printf("Testing spot ticker: %s\n", symbol)
 
-	fmt.Printf("测试获取永续合约 K 线: %s, 时间框架: %s, 数量: %d\n", symbol, timeframe, limit)
-
-	ohlcvs, err := exchange.FetchOHLCV(ctx, symbol, timeframe, time.Time{}, limit)
+	ticker, err := exchange.FetchTicker(ctx, symbol)
 	if err != nil {
-		t.Fatalf("获取 K 线失败: %v", err)
+		t.Fatalf("Failed to fetch ticker: %v", err)
 	}
 
-	if len(ohlcvs) == 0 {
-		t.Fatal("未获取到 K 线数据")
+	fmt.Printf("Spot ticker: bid=%f, ask=%f, last=%f, high24h=%f, low24h=%f, volume24h=%f\n",
+		ticker.Bid,
+		ticker.Ask,
+		ticker.Last,
+		ticker.High,
+		ticker.Low,
+		ticker.Volume,
+	)
+
+	// Test fetching swap ticker
+	symbol = "BTC/USDT:USDT"
+	fmt.Printf("Testing swap ticker: %s\n", symbol)
+
+	ticker, err = exchange.FetchTicker(ctx, symbol)
+	if err != nil {
+		t.Fatalf("Failed to fetch ticker: %v", err)
 	}
 
-	fmt.Printf("成功获取 %d 条 K 线数据\n", len(ohlcvs))
-
-	// 打印前几条数据
-	for i, ohlcv := range ohlcvs {
-		if i >= 3 {
-			break
-		}
-		fmt.Printf("K线 %d: 时间=%s, 开=%f, 高=%f, 低=%f, 收=%f, 量=%f\n",
-			i+1,
-			ohlcv.Timestamp.Format("2006-01-02 15:04:05"),
-			ohlcv.Open,
-			ohlcv.High,
-			ohlcv.Low,
-			ohlcv.Close,
-			ohlcv.Volume,
-		)
-	}
+	fmt.Printf("Swap ticker: bid=%f, ask=%f, last=%f, high24h=%f, low24h=%f, volume24h=%f\n",
+		ticker.Bid,
+		ticker.Ask,
+		ticker.Last,
+		ticker.High,
+		ticker.Low,
+		ticker.Volume,
+	)
 }

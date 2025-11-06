@@ -64,3 +64,46 @@ func OKXTimeframe(timeframe string) string {
 		return normalized
 	}
 }
+
+// BybitTimeframe 转换为Bybit时间框架格式
+// Bybit v5 API 使用特殊格式：1m->1, 3m->3, 5m->5, 15m->15, 30m->30, 1h->60, 2h->120, 4h->240, 6h->360, 12h->720, 1d->D, 1w->W, 1M->M
+func BybitTimeframe(timeframe string) string {
+	normalized := NormalizeTimeframe(timeframe)
+	switch normalized {
+	case "1m":
+		return "1"
+	case "3m":
+		return "3"
+	case "5m":
+		return "5"
+	case "15m":
+		return "15"
+	case "30m":
+		return "30"
+	case "1h":
+		return "60"
+	case "2h":
+		return "120"
+	case "4h":
+		return "240"
+	case "6h":
+		return "360"
+	case "12h":
+		return "720"
+	case "1d":
+		return "D"
+	case "1w":
+		return "W"
+	case "1M":
+		return "M"
+	default:
+		return normalized
+	}
+}
+
+// GateTimeframe 转换为Gate时间框架格式
+func GateTimeframe(timeframe string) string {
+	normalized := NormalizeTimeframe(timeframe)
+	// Gate使用相同格式，直接返回
+	return normalized
+}

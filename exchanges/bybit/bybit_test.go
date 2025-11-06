@@ -1,4 +1,4 @@
-package binance
+package bybit
 
 import (
 	"context"
@@ -7,16 +7,16 @@ import (
 	"time"
 )
 
-func TestBinance_FetchOHLCV(t *testing.T) {
+func TestBybit_FetchOHLCV(t *testing.T) {
 	ctx := context.Background()
 
-	// Create Binance instance with proxy
-	exchange, err := NewBinance("", "", map[string]interface{}{
+	// Create Bybit instance with proxy
+	exchange, err := NewBybit("", "", map[string]interface{}{
 		"proxy":        "http://127.0.0.1:7890",
 		"fetchMarkets": []string{"spot", "swap"},
 	})
 	if err != nil {
-		t.Fatalf("Failed to create Binance instance: %v", err)
+		t.Fatalf("Failed to create Bybit instance: %v", err)
 	}
 
 	// Load markets
@@ -90,16 +90,16 @@ func TestBinance_FetchOHLCV(t *testing.T) {
 	}
 }
 
-func TestBinance_FetchTicker(t *testing.T) {
+func TestBybit_FetchTicker(t *testing.T) {
 	ctx := context.Background()
 
-	// Create Binance instance with proxy
-	exchange, err := NewBinance("", "", map[string]interface{}{
+	// Create Bybit instance with proxy
+	exchange, err := NewBybit("", "", map[string]interface{}{
 		"proxy":        "http://127.0.0.1:7890",
 		"fetchMarkets": []string{"spot", "swap"},
 	})
 	if err != nil {
-		t.Fatalf("Failed to create Binance instance: %v", err)
+		t.Fatalf("Failed to create Bybit instance: %v", err)
 	}
 
 	// Load markets
