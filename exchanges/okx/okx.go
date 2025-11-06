@@ -347,13 +347,11 @@ func contains(slice []string, item string) bool {
 // FetchTicker 获取行情
 func (o *OKX) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error) {
 	// 获取市场信息
-	market, err := o.GetMarket(symbol)
+	// 获取交易所格式的 symbol ID
+	okxSymbol, err := o.GetMarketID(symbol)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get market ID: %w", err)
 	}
-
-	// 使用市场ID（OKX格式）
-	okxSymbol := market.ID
 
 	resp, err := o.client.Get(ctx, "/api/v5/market/ticker", map[string]interface{}{
 		"instId": okxSymbol,
@@ -472,12 +470,8 @@ func (o *OKX) FetchTickers(ctx context.Context, symbols ...string) (map[string]*
 			// 获取市场信息以确定标准化symbol
 			market, err := o.GetMarketByID(item.InstID)
 			if err != nil {
-				// 如果市场未加载，尝试从instId解析
-				normalizedSymbol := common.FromOKXSymbol(item.InstID)
-				if normalizedSymbol == item.InstID {
-					continue // 无法解析，跳过
-				}
-				market = &types.Market{Symbol: normalizedSymbol}
+				// 如果市场未加载，跳过（要求先加载市场）
+				continue
 			}
 			normalizedSymbol := market.Symbol
 
@@ -523,13 +517,11 @@ func (o *OKX) FetchTickers(ctx context.Context, symbols ...string) (map[string]*
 // FetchOHLCV 获取K线数据
 func (o *OKX) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error) {
 	// 获取市场信息
-	market, err := o.GetMarket(symbol)
+	// 获取交易所格式的 symbol ID
+	okxSymbol, err := o.GetMarketID(symbol)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get market ID: %w", err)
 	}
-
-	// 使用市场ID（OKX格式）
-	okxSymbol := market.ID
 
 	// 标准化时间框架
 	normalizedTimeframe := common.OKXTimeframe(timeframe)
@@ -654,8 +646,11 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 		return nil, err
 	}
 
-	// 使用市场ID（OKX格式）
-	okxSymbol := market.ID
+	// 获取交易所格式的 symbol ID
+	okxSymbol, err := o.GetMarketID(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("get market ID: %w", err)
+	}
 
 	// 确定交易模式
 	tdMode := "cash" // 现货
@@ -739,13 +734,11 @@ func (o *OKX) CancelOrder(ctx context.Context, orderID, symbol string) error {
 	}
 
 	// 获取市场信息
-	market, err := o.GetMarket(symbol)
+	// 获取交易所格式的 symbol ID
+	okxSymbol, err := o.GetMarketID(symbol)
 	if err != nil {
-		return err
+		return fmt.Errorf("get market ID: %w", err)
 	}
-
-	// 使用市场ID（OKX格式）
-	okxSymbol := market.ID
 
 	reqBody := map[string]interface{}{
 		"instId": okxSymbol,
@@ -771,13 +764,11 @@ func (o *OKX) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Or
 	}
 
 	// 获取市场信息
-	market, err := o.GetMarket(symbol)
+	// 获取交易所格式的 symbol ID
+	okxSymbol, err := o.GetMarketID(symbol)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get market ID: %w", err)
 	}
-
-	// 使用市场ID（OKX格式）
-	okxSymbol := market.ID
 
 	timestamp := common.GetISO8601Timestamp()
 	signature := o.signRequest("GET", "/api/v5/trade/order", timestamp, "")
@@ -886,7 +877,10 @@ func (o *OKX) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Orde
 			instType = "SWAP"
 		}
 		params["instType"] = instType
-		params["instId"] = market.ID
+		params["instId"], err = o.GetMarketID(symbol)
+		if err != nil {
+			return nil, fmt.Errorf("get market ID: %w", err)
+		}
 	} else {
 		// 未指定symbol，获取所有类型
 		params["instType"] = "SPOT,SWAP"
@@ -930,7 +924,14 @@ func (o *OKX) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Orde
 
 	orders := make([]*types.Order, 0, len(result.Data))
 	for _, item := range result.Data {
-		normalizedSymbol := common.FromOKXSymbol(item.InstID)
+		// 获取市场信息以确定标准化symbol
+		market, err := o.GetMarketByID(item.InstID)
+		if err != nil {
+			// 如果市场未加载，跳过（要求先加载市场）
+			continue
+		}
+		normalizedSymbol := market.Symbol
+
 		if symbol != "" && normalizedSymbol != symbol {
 			continue
 		}
@@ -969,14 +970,11 @@ func (o *OKX) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Orde
 
 // FetchTrades 获取交易记录
 func (o *OKX) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
-	// 获取市场信息
-	market, err := o.GetMarket(symbol)
+	// 获取交易所格式的 symbol ID
+	okxSymbol, err := o.GetMarketID(symbol)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get market ID: %w", err)
 	}
-
-	// 使用市场ID（OKX格式）
-	okxSymbol := market.ID
 
 	params := map[string]interface{}{
 		"instId": okxSymbol,
@@ -1046,8 +1044,11 @@ func (o *OKX) FetchMyTrades(ctx context.Context, symbol string, since time.Time,
 		return nil, err
 	}
 
-	// 使用市场ID（OKX格式）
-	okxSymbol := market.ID
+	// 获取交易所格式的 symbol ID
+	okxSymbol, err := o.GetMarketID(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("get market ID: %w", err)
+	}
 
 	// 确定instType
 	instType := "SPOT"
@@ -1272,6 +1273,19 @@ func (o *OKX) GetMarketByID(id string) (*types.Market, error) {
 		}
 	}
 	return nil, exlink.ErrMarketNotFound
+}
+
+// GetMarketID 获取OKX格式的 symbol ID
+// 优先从已加载的市场中查找，如果未找到则使用后备转换函数
+func (o *OKX) GetMarketID(symbol string) (string, error) {
+	// 优先从已加载的市场中查找
+	market, ok := o.BaseExchange.GetMarketsMap()[symbol]
+	if ok {
+		return market.ID, nil
+	}
+
+	// 如果市场未加载，使用后备转换函数
+	return common.ToOKXSymbol(symbol)
 }
 
 // SetLeverage 设置杠杆

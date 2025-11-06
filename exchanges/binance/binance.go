@@ -170,8 +170,8 @@ func (b *Binance) loadSpotMarkets(ctx context.Context) ([]*types.Market, error) 
 		normalizedSymbol := common.NormalizeSymbol(s.BaseAsset, s.QuoteAsset)
 
 		market := &types.Market{
-			ID:     normalizedSymbol,
-			Symbol: normalizedSymbol, // 使用标准化格式
+			ID:     s.Symbol,         // Binance 原始格式 (BTCUSDT)
+			Symbol: normalizedSymbol, // 标准化格式 (BTC/USDT)
 			Base:   s.BaseAsset,
 			Quote:  s.QuoteAsset,
 			Type:   types.MarketTypeSpot,
@@ -354,22 +354,21 @@ func (b *Binance) FetchTicker(ctx context.Context, symbol string) (*types.Ticker
 		return nil, err
 	}
 
-	var binanceSymbol string
+	// 获取交易所格式的 symbol ID
+	binanceSymbol, err := b.GetMarketID(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("get market ID: %w", err)
+	}
+
 	var resp []byte
 	var apiErr error
-
 	if market.Contract && market.Linear {
 		// 永续合约（U本位）- 使用fapi
-		binanceSymbol = market.ID
 		resp, apiErr = b.fapiClient.Get(ctx, "/fapi/v1/ticker/24hr", map[string]interface{}{
 			"symbol": binanceSymbol,
 		})
 	} else {
 		// 现货
-		binanceSymbol, err = common.ToBinanceSymbol(symbol)
-		if err != nil {
-			return nil, fmt.Errorf("invalid symbol format: %w", err)
-		}
 		resp, apiErr = b.client.Get(ctx, "/api/v3/ticker/24hr", map[string]interface{}{
 			"symbol": binanceSymbol,
 		})
@@ -487,10 +486,6 @@ func (b *Binance) FetchOHLCV(ctx context.Context, symbol string, timeframe strin
 		return nil, err
 	}
 
-	var binanceSymbol string
-	var resp []byte
-	var apiErr error
-
 	// 标准化时间框架
 	normalizedTimeframe := common.BinanceTimeframe(timeframe)
 
@@ -502,18 +497,25 @@ func (b *Binance) FetchOHLCV(ctx context.Context, symbol string, timeframe strin
 		params["startTime"] = since.UnixMilli()
 	}
 
+	// 获取交易所格式的 symbol ID（优先使用 market.ID）
+	binanceSymbol := market.ID
+	if binanceSymbol == "" {
+		// 如果 market.ID 为空，使用后备转换函数
+		var err error
+		binanceSymbol, err = common.ToBinanceSymbol(symbol)
+		if err != nil {
+			return nil, fmt.Errorf("get market ID: %w", err)
+		}
+	}
+	params["symbol"] = binanceSymbol
+
+	var resp []byte
+	var apiErr error
 	if market.Contract && market.Linear {
 		// 永续合约（U本位）- 使用fapi
-		binanceSymbol = market.ID
-		params["symbol"] = binanceSymbol
 		resp, apiErr = b.fapiClient.Get(ctx, "/fapi/v1/klines", params)
 	} else {
 		// 现货
-		binanceSymbol, err = common.ToBinanceSymbol(symbol)
-		if err != nil {
-			return nil, fmt.Errorf("invalid symbol format: %w", err)
-		}
-		params["symbol"] = binanceSymbol
 		resp, apiErr = b.client.Get(ctx, "/api/v3/klines", params)
 	}
 
@@ -631,20 +633,13 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 		"timestamp": timestamp,
 	}
 
-	if market.Contract && market.Linear {
-		// 永续合约（U本位）- 使用fapi
-		binanceSymbol = market.ID
-		reqParams["symbol"] = binanceSymbol
-		reqParams["quantity"] = strconv.FormatFloat(amount, 'f', -1, 64)
-	} else {
-		// 现货
-		binanceSymbol, err = common.ToBinanceSymbol(symbol)
-		if err != nil {
-			return nil, fmt.Errorf("invalid symbol format: %w", err)
-		}
-		reqParams["symbol"] = binanceSymbol
-		reqParams["quantity"] = strconv.FormatFloat(amount, 'f', -1, 64)
+	// 获取交易所格式的 symbol ID
+	binanceSymbol, err = b.GetMarketID(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("get market ID: %w", err)
 	}
+	reqParams["symbol"] = binanceSymbol
+	reqParams["quantity"] = strconv.FormatFloat(amount, 'f', -1, 64)
 
 	if orderType == types.OrderTypeLimit {
 		reqParams["price"] = strconv.FormatFloat(price, 'f', -1, 64)
@@ -728,10 +723,10 @@ func (b *Binance) CancelOrder(ctx context.Context, orderID, symbol string) error
 		return exlink.ErrAuthenticationRequired
 	}
 
-	// 转换为Binance格式
-	binanceSymbol, err := common.ToBinanceSymbol(symbol)
+	// 获取交易所格式的 symbol ID
+	binanceSymbol, err := b.GetMarketID(symbol)
 	if err != nil {
-		return fmt.Errorf("invalid symbol format: %w", err)
+		return fmt.Errorf("get market ID: %w", err)
 	}
 
 	timestamp := common.GetTimestamp()
@@ -755,10 +750,10 @@ func (b *Binance) FetchOrder(ctx context.Context, orderID, symbol string) (*type
 		return nil, exlink.ErrAuthenticationRequired
 	}
 
-	// 转换为Binance格式
-	binanceSymbol, err := common.ToBinanceSymbol(symbol)
+	// 获取交易所格式的 symbol ID
+	binanceSymbol, err := b.GetMarketID(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("invalid symbol format: %w", err)
+		return nil, fmt.Errorf("get market ID: %w", err)
 	}
 
 	timestamp := common.GetTimestamp()
@@ -853,10 +848,10 @@ func (b *Binance) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.
 		"timestamp": timestamp,
 	}
 	if symbol != "" {
-		// 转换为Binance格式
-		binanceSymbol, err := common.ToBinanceSymbol(symbol)
+		// 获取交易所格式的 symbol ID
+		binanceSymbol, err := b.GetMarketID(symbol)
 		if err != nil {
-			return nil, fmt.Errorf("invalid symbol format: %w", err)
+			return nil, fmt.Errorf("get market ID: %w", err)
 		}
 		params["symbol"] = binanceSymbol
 	}
@@ -935,10 +930,10 @@ func (b *Binance) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.
 
 // FetchTrades 获取交易记录
 func (b *Binance) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
-	// 转换为Binance格式
-	binanceSymbol, err := common.ToBinanceSymbol(symbol)
+	// 获取交易所格式的 symbol ID
+	binanceSymbol, err := b.GetMarketID(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("invalid symbol format: %w", err)
+		return nil, fmt.Errorf("get market ID: %w", err)
 	}
 
 	params := map[string]interface{}{
@@ -998,10 +993,10 @@ func (b *Binance) FetchMyTrades(ctx context.Context, symbol string, since time.T
 		return nil, exlink.ErrAuthenticationRequired
 	}
 
-	// 转换为Binance格式
-	binanceSymbol, err := common.ToBinanceSymbol(symbol)
+	// 获取交易所格式的 symbol ID
+	binanceSymbol, err := b.GetMarketID(symbol)
 	if err != nil {
-		return nil, fmt.Errorf("invalid symbol format: %w", err)
+		return nil, fmt.Errorf("get market ID: %w", err)
 	}
 
 	timestamp := common.GetTimestamp()
@@ -1180,6 +1175,19 @@ func (b *Binance) GetMarketByID(id string) (*types.Market, error) {
 		}
 	}
 	return nil, exlink.ErrMarketNotFound
+}
+
+// GetMarketID 获取Binance格式的 symbol ID
+// 优先从已加载的市场中查找，如果未找到则使用后备转换函数
+func (b *Binance) GetMarketID(symbol string) (string, error) {
+	// 优先从已加载的市场中查找
+	market, ok := b.GetMarketsMap()[symbol]
+	if ok {
+		return market.ID, nil
+	}
+
+	// 如果市场未加载，使用后备转换函数
+	return common.ToBinanceSymbol(symbol)
 }
 
 // SetLeverage 设置杠杆

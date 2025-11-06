@@ -28,29 +28,73 @@ func ParseSymbol(symbol string) (base, quote string, err error) {
 	return strings.ToUpper(parts[0]), strings.ToUpper(parts[1]), nil
 }
 
-// ToBinanceSymbol 转换为Binance格式 (BTC/USDT -> BTCUSDT)
+// ParseContractSymbol 解析合约交易对 (BTC/USDT:USDT -> base, quote, settle)
+func ParseContractSymbol(symbol string) (base, quote, settle string, err error) {
+	// 检查是否包含结算货币（合约格式）
+	if strings.Contains(symbol, ":") {
+		parts := strings.Split(symbol, ":")
+		if len(parts) != 2 {
+			return "", "", "", fmt.Errorf("invalid contract symbol format: %s, expected BASE/QUOTE:SETTLE", symbol)
+		}
+		base, quote, err = ParseSymbol(parts[0])
+		if err != nil {
+			return "", "", "", err
+		}
+		settle = strings.ToUpper(parts[1])
+		return base, quote, settle, nil
+	}
+	// 非合约格式，只解析 base 和 quote
+	base, quote, err = ParseSymbol(symbol)
+	if err != nil {
+		return "", "", "", err
+	}
+	return base, quote, "", nil
+}
+
+// ToBinanceSymbol 转换为Binance格式
+// 现货: BTC/USDT -> BTCUSDT
+// 合约: BTC/USDT:USDT -> BTCUSDT
 func ToBinanceSymbol(symbol string) (string, error) {
-	base, quote, err := ParseSymbol(symbol)
+	base, quote, _, err := ParseContractSymbol(symbol)
 	if err != nil {
 		return "", err
 	}
 	return base + quote, nil
 }
 
-// ToOKXSymbol 转换为OKX格式 (BTC/USDT -> BTC-USDT)
+// ToOKXSymbol 转换为OKX格式
+// 现货: BTC/USDT -> BTC-USDT
+// 合约: BTC/USDT:USDT -> BTC-USDT-SWAP
 func ToOKXSymbol(symbol string) (string, error) {
-	base, quote, err := ParseSymbol(symbol)
+	base, quote, settle, err := ParseContractSymbol(symbol)
 	if err != nil {
 		return "", err
+	}
+	// 如果是合约，添加 -SWAP 后缀
+	if settle != "" {
+		return base + "-" + quote + "-SWAP", nil
 	}
 	return base + "-" + quote, nil
 }
 
-// FromOKXSymbol 从OKX格式转换 (BTC-USDT -> BTC/USDT)
-func FromOKXSymbol(symbol string) string {
-	parts := strings.Split(symbol, "-")
-	if len(parts) == 2 {
-		return NormalizeSymbol(parts[0], parts[1])
+// ToGateSymbol 转换为Gate格式
+// 现货: BTC/USDT -> BTC_USDT
+// 合约: BTC/USDT:USDT -> BTC_USDT
+func ToGateSymbol(symbol string) (string, error) {
+	base, quote, _, err := ParseContractSymbol(symbol)
+	if err != nil {
+		return "", err
 	}
-	return symbol
+	return base + "_" + quote, nil
+}
+
+// ToBybitSymbol 转换为Bybit格式
+// 现货: BTC/USDT -> BTCUSDT
+// 合约: BTC/USDT:USDT -> BTCUSDT
+func ToBybitSymbol(symbol string) (string, error) {
+	base, quote, _, err := ParseContractSymbol(symbol)
+	if err != nil {
+		return "", err
+	}
+	return base + quote, nil
 }
