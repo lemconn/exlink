@@ -149,7 +149,7 @@ func (g *Gate) loadSpotMarkets(ctx context.Context) ([]*types.Market, error) {
 		normalizedSymbol := common.NormalizeSymbol(s.Base, s.Quote)
 
 		market := &types.Market{
-			ID:     s.ID,            // Gate 原始格式 (BTC_USDT)
+			ID:     s.ID,             // Gate 原始格式 (BTC_USDT)
 			Symbol: normalizedSymbol, // 标准化格式 (BTC/USDT)
 			Base:   s.Base,
 			Quote:  s.Quote,
@@ -182,13 +182,13 @@ func (g *Gate) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
 	}
 
 	var data []struct {
-		Name            string `json:"name"`
-		Type            string `json:"type"`
+		Name             string `json:"name"`
+		Type             string `json:"type"`
 		QuantoMultiplier string `json:"quanto_multiplier"`
-		OrderPriceRound string `json:"order_price_round"`
-		OrderSizeMin    int    `json:"order_size_min"`
-		OrderSizeMax    int    `json:"order_size_max"`
-		InDelisting     bool   `json:"in_delisting"`
+		OrderPriceRound  string `json:"order_price_round"`
+		OrderSizeMin     int    `json:"order_size_min"`
+		OrderSizeMax     int    `json:"order_size_max"`
+		InDelisting      bool   `json:"in_delisting"`
 	}
 
 	if err := json.Unmarshal(resp, &data); err != nil {
@@ -320,19 +320,19 @@ func (g *Gate) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, e
 
 	if market.Contract {
 		var data []struct {
-			Contract        string `json:"contract"`
-			Last            string `json:"last"`
-			ChangePercentage string `json:"change_percentage"`
-			TotalSize       string `json:"total_size"`
-			Volume24h       string `json:"volume_24h"`
-			Volume24hBase   string `json:"volume_24h_base"`
-			Volume24hQuote  string `json:"volume_24h_quote"`
-			Volume24hSettle string `json:"volume_24h_settle"`
-			MarkPrice       string `json:"mark_price"`
-			FundingRate     string `json:"funding_rate"`
+			Contract              string `json:"contract"`
+			Last                  string `json:"last"`
+			ChangePercentage      string `json:"change_percentage"`
+			TotalSize             string `json:"total_size"`
+			Volume24h             string `json:"volume_24h"`
+			Volume24hBase         string `json:"volume_24h_base"`
+			Volume24hQuote        string `json:"volume_24h_quote"`
+			Volume24hSettle       string `json:"volume_24h_settle"`
+			MarkPrice             string `json:"mark_price"`
+			FundingRate           string `json:"funding_rate"`
 			FundingRateIndicative string `json:"funding_rate_indicative"`
-			IndexPrice      string `json:"index_price"`
-			QuantoBaseRate  string `json:"quanto_base_rate"`
+			IndexPrice            string `json:"index_price"`
+			QuantoBaseRate        string `json:"quanto_base_rate"`
 		}
 		if err := json.Unmarshal(resp, &data); err != nil {
 			return nil, fmt.Errorf("unmarshal ticker: %w", err)
@@ -354,15 +354,15 @@ func (g *Gate) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, e
 		return ticker, nil
 	} else {
 		var data []struct {
-			CurrencyPair    string `json:"currency_pair"`
-			Last            string `json:"last"`
-			LowestAsk       string `json:"lowest_ask"`
-			HighestBid      string `json:"highest_bid"`
+			CurrencyPair     string `json:"currency_pair"`
+			Last             string `json:"last"`
+			LowestAsk        string `json:"lowest_ask"`
+			HighestBid       string `json:"highest_bid"`
 			ChangePercentage string `json:"change_percentage"`
-			BaseVolume      string `json:"base_volume"`
-			QuoteVolume     string `json:"quote_volume"`
-			High24h         string `json:"high_24h"`
-			Low24h          string `json:"low_24h"`
+			BaseVolume       string `json:"base_volume"`
+			QuoteVolume      string `json:"quote_volume"`
+			High24h          string `json:"high_24h"`
+			Low24h           string `json:"low_24h"`
 		}
 		if err := json.Unmarshal(resp, &data); err != nil {
 			return nil, fmt.Errorf("unmarshal ticker: %w", err)
@@ -400,15 +400,15 @@ func (g *Gate) FetchTickers(ctx context.Context, symbols ...string) (map[string]
 	resp, err := g.client.Get(ctx, "/api/v4/spot/tickers", nil)
 	if err == nil {
 		var data []struct {
-			CurrencyPair    string `json:"currency_pair"`
-			Last            string `json:"last"`
-			LowestAsk       string `json:"lowest_ask"`
-			HighestBid      string `json:"highest_bid"`
+			CurrencyPair     string `json:"currency_pair"`
+			Last             string `json:"last"`
+			LowestAsk        string `json:"lowest_ask"`
+			HighestBid       string `json:"highest_bid"`
 			ChangePercentage string `json:"change_percentage"`
-			BaseVolume      string `json:"base_volume"`
-			QuoteVolume     string `json:"quote_volume"`
-			High24h         string `json:"high_24h"`
-			Low24h          string `json:"low_24h"`
+			BaseVolume       string `json:"base_volume"`
+			QuoteVolume      string `json:"quote_volume"`
+			High24h          string `json:"high_24h"`
+			Low24h           string `json:"low_24h"`
 		}
 		if err := json.Unmarshal(resp, &data); err == nil {
 			for _, item := range data {
@@ -456,11 +456,11 @@ func (g *Gate) FetchTickers(ctx context.Context, symbols ...string) (map[string]
 	resp, err = g.client.Get(ctx, "/api/v4/futures/usdt/tickers", nil)
 	if err == nil {
 		var data []struct {
-			Contract        string `json:"contract"`
-			Last            string `json:"last"`
+			Contract         string `json:"contract"`
+			Last             string `json:"last"`
 			ChangePercentage string `json:"change_percentage"`
-			Volume24hBase   string `json:"volume_24h_base"`
-			Volume24hQuote  string `json:"volume_24h_quote"`
+			Volume24hBase    string `json:"volume_24h_base"`
+			Volume24hQuote   string `json:"volume_24h_quote"`
 		}
 		if err := json.Unmarshal(resp, &data); err == nil {
 			for _, item := range data {
@@ -610,7 +610,7 @@ func (g *Gate) FetchOHLCV(ctx context.Context, symbol string, timeframe string, 
 				ts = v
 			}
 			ohlcv.Timestamp = time.Unix(ts, 0)
-			
+
 			// 解析价格和成交量（Gate 返回的是字符串）
 			// item[1] = quote_volume (跳过)
 			// item[2] = close
@@ -626,7 +626,7 @@ func (g *Gate) FetchOHLCV(ctx context.Context, symbol string, timeframe string, 
 				f, _ := strconv.ParseFloat(fmt.Sprintf("%v", v), 64)
 				return f
 			}
-			
+
 			ohlcv.Close = parseFloat(item[2])
 			ohlcv.High = parseFloat(item[3])
 			ohlcv.Low = parseFloat(item[4])
@@ -640,49 +640,660 @@ func (g *Gate) FetchOHLCV(ctx context.Context, symbol string, timeframe string, 
 	return ohlcvs, nil
 }
 
-// 以下方法需要实现但暂时返回错误，后续可以完善
+// signRequest Gate.io 签名方法
+func (g *Gate) signRequest(method, path string, queryString, body string) string {
+	timestamp := common.GetTimestampSeconds()
+	bodyHash := common.HashSHA512(body)
+
+	// Gate.io 签名格式: method\n/api/v4/path\nqueryString\nbodyHash\ntimestamp
+	payload := fmt.Sprintf("%s\n/api/v4%s\n%s\n%s\n%d",
+		strings.ToUpper(method), path, queryString, bodyHash, timestamp)
+
+	return common.SignHMAC512(payload, g.secretKey)
+}
+
+// signAndRequest 签名并发送请求
+func (g *Gate) signAndRequest(ctx context.Context, method, path string, params map[string]interface{}, body map[string]interface{}) ([]byte, error) {
+	if g.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	// 构建查询字符串
+	queryString := ""
+	if len(params) > 0 {
+		queryString = common.BuildQueryString(params)
+	}
+
+	// 构建请求体
+	bodyStr := ""
+	if body != nil {
+		bodyBytes, _ := json.Marshal(body)
+		bodyStr = string(bodyBytes)
+	}
+
+	// 签名
+	timestamp := common.GetTimestampSeconds()
+	signature := g.signRequest(method, path, queryString, bodyStr)
+
+	// 设置请求头
+	g.client.SetHeader("KEY", g.apiKey)
+	g.client.SetHeader("Timestamp", strconv.FormatInt(timestamp, 10))
+	g.client.SetHeader("SIGN", signature)
+	g.client.SetHeader("Content-Type", "application/json")
+
+	// 发送请求
+	if method == "GET" || method == "DELETE" {
+		return g.client.Get(ctx, path, params)
+	} else {
+		return g.client.Post(ctx, path, body)
+	}
+}
+
+// FetchBalance 获取余额
 func (g *Gate) FetchBalance(ctx context.Context) (types.Balances, error) {
-	return nil, fmt.Errorf("not implemented")
+	if g.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	// Gate.io 现货余额
+	resp, err := g.signAndRequest(ctx, "GET", "/api/v4/spot/accounts", nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch balance: %w", err)
+	}
+
+	var data []struct {
+		Currency  string `json:"currency"`
+		Available string `json:"available"`
+		Locked    string `json:"locked"`
+	}
+
+	if err := json.Unmarshal(resp, &data); err != nil {
+		return nil, fmt.Errorf("unmarshal balance: %w", err)
+	}
+
+	balances := make(types.Balances)
+	for _, bal := range data {
+		free, _ := strconv.ParseFloat(bal.Available, 64)
+		locked, _ := strconv.ParseFloat(bal.Locked, 64)
+		total := free + locked
+
+		balances[bal.Currency] = &types.Balance{
+			Currency:  bal.Currency,
+			Free:      free,
+			Used:      locked,
+			Total:     total,
+			Available: free,
+		}
+	}
+
+	return balances, nil
 }
 
+// CreateOrder 创建订单
 func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price float64, params map[string]interface{}) (*types.Order, error) {
-	return nil, fmt.Errorf("not implemented")
+	if g.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	market, err := g.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	gateSymbol, err := g.GetMarketID(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("get market ID: %w", err)
+	}
+
+	reqBody := map[string]interface{}{
+		"currency_pair": gateSymbol,
+		"side":          strings.ToLower(string(side)),
+		"amount":        strconv.FormatFloat(amount, 'f', -1, 64),
+	}
+
+	if orderType == types.OrderTypeLimit {
+		reqBody["type"] = "limit"
+		reqBody["price"] = strconv.FormatFloat(price, 'f', -1, 64)
+		reqBody["time_in_force"] = "gtc"
+	} else {
+		reqBody["type"] = "market"
+	}
+
+	// 合并额外参数
+	for k, v := range params {
+		reqBody[k] = v
+	}
+
+	var path string
+	if market.Contract {
+		settle := strings.ToLower(market.Settle)
+		path = fmt.Sprintf("/api/v4/futures/%s/orders", settle)
+		reqBody["contract"] = gateSymbol
+		delete(reqBody, "currency_pair")
+	} else {
+		path = "/api/v4/spot/orders"
+	}
+
+	resp, err := g.signAndRequest(ctx, "POST", path, nil, reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("create order: %w", err)
+	}
+
+	var data struct {
+		ID           string `json:"id"`
+		Status       string `json:"status"`
+		CurrencyPair string `json:"currency_pair"`
+		Contract     string `json:"contract"`
+		Type         string `json:"type"`
+		Side         string `json:"side"`
+		Amount       string `json:"amount"`
+		Price        string `json:"price"`
+		Left         string `json:"left"`
+		FillPrice    string `json:"fill_price"`
+		FilledTotal  string `json:"filled_total"`
+		CreateTime   string `json:"create_time"`
+		CreateTimeMs int64  `json:"create_time_ms"`
+	}
+
+	if err := json.Unmarshal(resp, &data); err != nil {
+		return nil, fmt.Errorf("unmarshal order: %w", err)
+	}
+
+	order := &types.Order{
+		ID:        data.ID,
+		Symbol:    symbol,
+		Amount:    amount,
+		Price:     price,
+		Timestamp: time.Now(),
+	}
+
+	if data.Price != "" {
+		order.Price, _ = strconv.ParseFloat(data.Price, 64)
+	}
+	if data.Amount != "" {
+		order.Amount, _ = strconv.ParseFloat(data.Amount, 64)
+	}
+	if data.Left != "" {
+		left, _ := strconv.ParseFloat(data.Left, 64)
+		order.Remaining = left
+		order.Filled = order.Amount - left
+	}
+
+	if strings.ToLower(data.Side) == "buy" {
+		order.Side = types.OrderSideBuy
+	} else {
+		order.Side = types.OrderSideSell
+	}
+
+	if strings.ToLower(data.Type) == "market" {
+		order.Type = types.OrderTypeMarket
+	} else {
+		order.Type = types.OrderTypeLimit
+	}
+
+	// 转换状态
+	switch data.Status {
+	case "open":
+		order.Status = types.OrderStatusOpen
+	case "closed":
+		order.Status = types.OrderStatusFilled
+	case "cancelled":
+		order.Status = types.OrderStatusCanceled
+	default:
+		order.Status = types.OrderStatusNew
+	}
+
+	return order, nil
 }
 
+// CancelOrder 取消订单
 func (g *Gate) CancelOrder(ctx context.Context, orderID, symbol string) error {
-	return fmt.Errorf("not implemented")
+	if g.secretKey == "" {
+		return exlink.ErrAuthenticationRequired
+	}
+
+	market, err := g.GetMarket(symbol)
+	if err != nil {
+		return err
+	}
+
+	var path string
+	if market.Contract {
+		settle := strings.ToLower(market.Settle)
+		path = fmt.Sprintf("/api/v4/futures/%s/orders/%s", settle, orderID)
+	} else {
+		path = fmt.Sprintf("/api/v4/spot/orders/%s", orderID)
+	}
+
+	_, err = g.signAndRequest(ctx, "DELETE", path, nil, nil)
+	return err
 }
 
+// FetchOrder 查询订单
 func (g *Gate) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
-	return nil, fmt.Errorf("not implemented")
+	if g.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	market, err := g.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	var path string
+	if market.Contract {
+		settle := strings.ToLower(market.Settle)
+		path = fmt.Sprintf("/api/v4/futures/%s/orders/%s", settle, orderID)
+	} else {
+		path = fmt.Sprintf("/api/v4/spot/orders/%s", orderID)
+	}
+
+	resp, err := g.signAndRequest(ctx, "GET", path, nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch order: %w", err)
+	}
+
+	var data struct {
+		ID           string `json:"id"`
+		Status       string `json:"status"`
+		CurrencyPair string `json:"currency_pair"`
+		Contract     string `json:"contract"`
+		Type         string `json:"type"`
+		Side         string `json:"side"`
+		Amount       string `json:"amount"`
+		Price        string `json:"price"`
+		Left         string `json:"left"`
+		FillPrice    string `json:"fill_price"`
+		FilledTotal  string `json:"filled_total"`
+		CreateTime   string `json:"create_time"`
+	}
+
+	if err := json.Unmarshal(resp, &data); err != nil {
+		return nil, fmt.Errorf("unmarshal order: %w", err)
+	}
+
+	order := &types.Order{
+		ID:        data.ID,
+		Symbol:    symbol,
+		Timestamp: time.Now(),
+	}
+
+	order.Price, _ = strconv.ParseFloat(data.Price, 64)
+	order.Amount, _ = strconv.ParseFloat(data.Amount, 64)
+	if data.Left != "" {
+		left, _ := strconv.ParseFloat(data.Left, 64)
+		order.Remaining = left
+		order.Filled = order.Amount - left
+	}
+
+	if strings.ToLower(data.Side) == "buy" {
+		order.Side = types.OrderSideBuy
+	} else {
+		order.Side = types.OrderSideSell
+	}
+
+	if strings.ToLower(data.Type) == "market" {
+		order.Type = types.OrderTypeMarket
+	} else {
+		order.Type = types.OrderTypeLimit
+	}
+
+	// 转换状态
+	switch data.Status {
+	case "open":
+		order.Status = types.OrderStatusOpen
+	case "closed":
+		order.Status = types.OrderStatusFilled
+	case "cancelled":
+		order.Status = types.OrderStatusCanceled
+	default:
+		order.Status = types.OrderStatusNew
+	}
+
+	return order, nil
 }
 
+// FetchOrders 查询订单列表
 func (g *Gate) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	return nil, fmt.Errorf("not implemented")
+	// Gate.io 没有直接的 fetchOrders API，需要通过 fetchOpenOrders 和 fetchClosedOrders 组合
+	return nil, fmt.Errorf("not implemented: use FetchOpenOrders or implement custom logic")
 }
 
+// FetchOpenOrders 查询未成交订单
 func (g *Gate) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	return nil, fmt.Errorf("not implemented")
+	if g.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	market, err := g.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	gateSymbol, err := g.GetMarketID(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("get market ID: %w", err)
+	}
+
+	var path string
+	params := map[string]interface{}{}
+	if market.Contract {
+		settle := strings.ToLower(market.Settle)
+		path = fmt.Sprintf("/api/v4/futures/%s/orders", settle)
+		params["contract"] = gateSymbol
+	} else {
+		path = "/api/v4/spot/open_orders"
+		params["currency_pair"] = gateSymbol
+	}
+
+	resp, err := g.signAndRequest(ctx, "GET", path, params, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch open orders: %w", err)
+	}
+
+	var data []struct {
+		ID           string `json:"id"`
+		Status       string `json:"status"`
+		CurrencyPair string `json:"currency_pair"`
+		Contract     string `json:"contract"`
+		Type         string `json:"type"`
+		Side         string `json:"side"`
+		Amount       string `json:"amount"`
+		Price        string `json:"price"`
+		Left         string `json:"left"`
+		CreateTime   string `json:"create_time"`
+	}
+
+	if err := json.Unmarshal(resp, &data); err != nil {
+		return nil, fmt.Errorf("unmarshal orders: %w", err)
+	}
+
+	orders := make([]*types.Order, 0, len(data))
+	for _, item := range data {
+		order := &types.Order{
+			ID:        item.ID,
+			Symbol:    symbol,
+			Timestamp: time.Now(),
+		}
+
+		order.Price, _ = strconv.ParseFloat(item.Price, 64)
+		order.Amount, _ = strconv.ParseFloat(item.Amount, 64)
+		if item.Left != "" {
+			left, _ := strconv.ParseFloat(item.Left, 64)
+			order.Remaining = left
+			order.Filled = order.Amount - left
+		}
+
+		if strings.ToLower(item.Side) == "buy" {
+			order.Side = types.OrderSideBuy
+		} else {
+			order.Side = types.OrderSideSell
+		}
+
+		if strings.ToLower(item.Type) == "market" {
+			order.Type = types.OrderTypeMarket
+		} else {
+			order.Type = types.OrderTypeLimit
+		}
+
+		switch item.Status {
+		case "open":
+			order.Status = types.OrderStatusOpen
+		default:
+			order.Status = types.OrderStatusNew
+		}
+
+		orders = append(orders, order)
+	}
+
+	return orders, nil
 }
 
+// FetchTrades 获取交易记录
 func (g *Gate) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
-	return nil, fmt.Errorf("not implemented")
+	market, err := g.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	gateSymbol, err := g.GetMarketID(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("get market ID: %w", err)
+	}
+
+	var path string
+	params := map[string]interface{}{}
+	if market.Contract {
+		settle := strings.ToLower(market.Settle)
+		path = fmt.Sprintf("/api/v4/futures/%s/trades", settle)
+		params["contract"] = gateSymbol
+	} else {
+		path = "/api/v4/spot/trades"
+		params["currency_pair"] = gateSymbol
+	}
+
+	if limit > 0 {
+		params["limit"] = limit
+	}
+
+	resp, err := g.client.Get(ctx, path, params)
+	if err != nil {
+		return nil, fmt.Errorf("fetch trades: %w", err)
+	}
+
+	var data []struct {
+		ID        string `json:"id"`
+		Price     string `json:"price"`
+		Amount    string `json:"amount"`
+		Side      string `json:"side"`
+		Timestamp string `json:"create_time"`
+	}
+
+	if err := json.Unmarshal(resp, &data); err != nil {
+		return nil, fmt.Errorf("unmarshal trades: %w", err)
+	}
+
+	trades := make([]*types.Trade, 0, len(data))
+	for _, item := range data {
+		trade := &types.Trade{
+			ID:        item.ID,
+			Symbol:    symbol,
+			Timestamp: time.Now(),
+		}
+
+		trade.Price, _ = strconv.ParseFloat(item.Price, 64)
+		trade.Amount, _ = strconv.ParseFloat(item.Amount, 64)
+
+		if strings.ToLower(item.Side) == "buy" {
+			trade.Side = "buy"
+		} else {
+			trade.Side = "sell"
+		}
+
+		trades = append(trades, trade)
+	}
+
+	return trades, nil
 }
 
+// FetchMyTrades 获取我的交易记录
 func (g *Gate) FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
-	return nil, fmt.Errorf("not implemented")
+	if g.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	market, err := g.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	gateSymbol, err := g.GetMarketID(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("get market ID: %w", err)
+	}
+
+	var path string
+	params := map[string]interface{}{}
+	if market.Contract {
+		settle := strings.ToLower(market.Settle)
+		path = fmt.Sprintf("/api/v4/futures/%s/my_trades", settle)
+		params["contract"] = gateSymbol
+	} else {
+		path = "/api/v4/spot/my_trades"
+		params["currency_pair"] = gateSymbol
+	}
+
+	if limit > 0 {
+		params["limit"] = limit
+	}
+
+	resp, err := g.signAndRequest(ctx, "GET", path, params, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch my trades: %w", err)
+	}
+
+	var data []struct {
+		ID        string `json:"id"`
+		Price     string `json:"price"`
+		Amount    string `json:"amount"`
+		Side      string `json:"side"`
+		Timestamp string `json:"create_time"`
+	}
+
+	if err := json.Unmarshal(resp, &data); err != nil {
+		return nil, fmt.Errorf("unmarshal trades: %w", err)
+	}
+
+	trades := make([]*types.Trade, 0, len(data))
+	for _, item := range data {
+		trade := &types.Trade{
+			ID:        item.ID,
+			Symbol:    symbol,
+			Timestamp: time.Now(),
+		}
+
+		trade.Price, _ = strconv.ParseFloat(item.Price, 64)
+		trade.Amount, _ = strconv.ParseFloat(item.Amount, 64)
+
+		if strings.ToLower(item.Side) == "buy" {
+			trade.Side = "buy"
+		} else {
+			trade.Side = "sell"
+		}
+
+		trades = append(trades, trade)
+	}
+
+	return trades, nil
 }
 
+// FetchPositions 获取持仓
 func (g *Gate) FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error) {
-	return nil, fmt.Errorf("not implemented")
+	if g.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	// Gate.io 合约持仓
+	resp, err := g.signAndRequest(ctx, "GET", "/api/v4/futures/usdt/positions", nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch positions: %w", err)
+	}
+
+	var data []struct {
+		Contract      string `json:"contract"`
+		Size          int64  `json:"size"`
+		Value         string `json:"value"`
+		EntryPrice    string `json:"entry_price"`
+		MarkPrice     string `json:"mark_price"`
+		UnrealisedPnl string `json:"unrealised_pnl"`
+	}
+
+	if err := json.Unmarshal(resp, &data); err != nil {
+		return nil, fmt.Errorf("unmarshal positions: %w", err)
+	}
+
+	positions := make([]*types.Position, 0)
+	for _, item := range data {
+		if len(symbols) > 0 {
+			market, err := g.GetMarketByID(item.Contract)
+			if err != nil {
+				continue
+			}
+			found := false
+			for _, s := range symbols {
+				if s == market.Symbol {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		market, err := g.GetMarketByID(item.Contract)
+		if err != nil {
+			continue
+		}
+
+		position := &types.Position{
+			Symbol:    market.Symbol,
+			Amount:    float64(item.Size),
+			Timestamp: time.Now(),
+		}
+
+		position.EntryPrice, _ = strconv.ParseFloat(item.EntryPrice, 64)
+		position.MarkPrice, _ = strconv.ParseFloat(item.MarkPrice, 64)
+		position.UnrealizedPnl, _ = strconv.ParseFloat(item.UnrealisedPnl, 64)
+
+		if item.Size > 0 {
+			position.Side = types.PositionSideLong
+		} else if item.Size < 0 {
+			position.Side = types.PositionSideShort
+			position.Amount = -position.Amount
+		}
+
+		positions = append(positions, position)
+	}
+
+	return positions, nil
 }
 
+// SetLeverage 设置杠杆
 func (g *Gate) SetLeverage(ctx context.Context, symbol string, leverage int) error {
-	return fmt.Errorf("not implemented")
+	if g.secretKey == "" {
+		return exlink.ErrAuthenticationRequired
+	}
+
+	market, err := g.GetMarket(symbol)
+	if err != nil {
+		return err
+	}
+
+	if !market.Contract {
+		return fmt.Errorf("leverage only supported for contracts")
+	}
+
+	settle := strings.ToLower(market.Settle)
+	gateSymbol, err := g.GetMarketID(symbol)
+	if err != nil {
+		return fmt.Errorf("get market ID: %w", err)
+	}
+
+	reqBody := map[string]interface{}{
+		"contract": gateSymbol,
+		"leverage": strconv.Itoa(leverage),
+	}
+
+	path := fmt.Sprintf("/api/v4/futures/%s/positions/%s/leverage", settle, gateSymbol)
+	_, err = g.signAndRequest(ctx, "POST", path, nil, reqBody)
+	return err
 }
 
+// SetMarginMode 设置保证金模式
 func (g *Gate) SetMarginMode(ctx context.Context, symbol string, mode string) error {
-	return fmt.Errorf("not implemented")
+	// Gate.io 不支持通过 API 设置保证金模式，需要在网页端设置
+	return fmt.Errorf("not supported: Gate.io does not support setting margin mode via API")
 }
 
 func (g *Gate) GetMarkets(ctx context.Context, marketType types.MarketType) ([]*types.Market, error) {
@@ -694,4 +1305,3 @@ func (g *Gate) GetMarkets(ctx context.Context, marketType types.MarketType) ([]*
 	}
 	return markets, nil
 }
-

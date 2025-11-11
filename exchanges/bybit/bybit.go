@@ -129,10 +129,10 @@ func (b *Bybit) loadSpotMarkets(ctx context.Context) ([]*types.Market, error) {
 		Result  struct {
 			Category string `json:"category"`
 			List     []struct {
-				Symbol      string `json:"symbol"`
-				BaseCoin    string `json:"baseCoin"`
-				QuoteCoin   string `json:"quoteCoin"`
-				Status      string `json:"status"`
+				Symbol        string `json:"symbol"`
+				BaseCoin      string `json:"baseCoin"`
+				QuoteCoin     string `json:"quoteCoin"`
+				Status        string `json:"status"`
 				LotSizeFilter struct {
 					BasePrecision  string `json:"basePrecision"`
 					QuotePrecision string `json:"quotePrecision"`
@@ -166,7 +166,7 @@ func (b *Bybit) loadSpotMarkets(ctx context.Context) ([]*types.Market, error) {
 		normalizedSymbol := common.NormalizeSymbol(s.BaseCoin, s.QuoteCoin)
 
 		market := &types.Market{
-			ID:     s.Symbol,        // Bybit 原始格式 (BTCUSDT)
+			ID:     s.Symbol,         // Bybit 原始格式 (BTCUSDT)
 			Symbol: normalizedSymbol, // 标准化格式 (BTC/USDT)
 			Base:   s.BaseCoin,
 			Quote:  s.QuoteCoin,
@@ -214,10 +214,10 @@ func (b *Bybit) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
 		Result  struct {
 			Category string `json:"category"`
 			List     []struct {
-				Symbol    string `json:"symbol"`
-				BaseCoin  string `json:"baseCoin"`
-				QuoteCoin string `json:"quoteCoin"`
-				Status    string `json:"status"`
+				Symbol        string `json:"symbol"`
+				BaseCoin      string `json:"baseCoin"`
+				QuoteCoin     string `json:"quoteCoin"`
+				Status        string `json:"status"`
 				LotSizeFilter struct {
 					BasePrecision  string `json:"basePrecision"`
 					QuotePrecision string `json:"quotePrecision"`
@@ -370,16 +370,16 @@ func (b *Bybit) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, 
 		Result  struct {
 			Category string `json:"category"`
 			List     []struct {
-				Symbol        string `json:"symbol"`
-				Bid1Price     string `json:"bid1Price"`
-				Ask1Price     string `json:"ask1Price"`
-				LastPrice     string `json:"lastPrice"`
-				PrevPrice24h  string `json:"prevPrice24h"`
-				HighPrice24h  string `json:"highPrice24h"`
-				LowPrice24h   string `json:"lowPrice24h"`
-				Volume24h     string `json:"volume24h"`
-				Turnover24h   string `json:"turnover24h"`
-				Price24hPcnt  string `json:"price24hPcnt"`
+				Symbol       string `json:"symbol"`
+				Bid1Price    string `json:"bid1Price"`
+				Ask1Price    string `json:"ask1Price"`
+				LastPrice    string `json:"lastPrice"`
+				PrevPrice24h string `json:"prevPrice24h"`
+				HighPrice24h string `json:"highPrice24h"`
+				LowPrice24h  string `json:"lowPrice24h"`
+				Volume24h    string `json:"volume24h"`
+				Turnover24h  string `json:"turnover24h"`
+				Price24hPcnt string `json:"price24hPcnt"`
 			} `json:"list"`
 		} `json:"result"`
 	}
@@ -434,16 +434,16 @@ func (b *Bybit) FetchTickers(ctx context.Context, symbols ...string) (map[string
 			RetMsg  string `json:"retMsg"`
 			Result  struct {
 				List []struct {
-					Symbol        string `json:"symbol"`
-					Bid1Price     string `json:"bid1Price"`
-					Ask1Price     string `json:"ask1Price"`
-					LastPrice     string `json:"lastPrice"`
-					PrevPrice24h  string `json:"prevPrice24h"`
-					HighPrice24h  string `json:"highPrice24h"`
-					LowPrice24h   string `json:"lowPrice24h"`
-					Volume24h     string `json:"volume24h"`
-					Turnover24h   string `json:"turnover24h"`
-					Price24hPcnt  string `json:"price24hPcnt"`
+					Symbol       string `json:"symbol"`
+					Bid1Price    string `json:"bid1Price"`
+					Ask1Price    string `json:"ask1Price"`
+					LastPrice    string `json:"lastPrice"`
+					PrevPrice24h string `json:"prevPrice24h"`
+					HighPrice24h string `json:"highPrice24h"`
+					LowPrice24h  string `json:"lowPrice24h"`
+					Volume24h    string `json:"volume24h"`
+					Turnover24h  string `json:"turnover24h"`
+					Price24hPcnt string `json:"price24hPcnt"`
 				} `json:"list"`
 			} `json:"result"`
 		}
@@ -500,16 +500,16 @@ func (b *Bybit) FetchTickers(ctx context.Context, symbols ...string) (map[string
 			RetMsg  string `json:"retMsg"`
 			Result  struct {
 				List []struct {
-					Symbol        string `json:"symbol"`
-					Bid1Price     string `json:"bid1Price"`
-					Ask1Price     string `json:"ask1Price"`
-					LastPrice     string `json:"lastPrice"`
-					PrevPrice24h  string `json:"prevPrice24h"`
-					HighPrice24h  string `json:"highPrice24h"`
-					LowPrice24h   string `json:"lowPrice24h"`
-					Volume24h     string `json:"volume24h"`
-					Turnover24h   string `json:"turnover24h"`
-					Price24hPcnt  string `json:"price24hPcnt"`
+					Symbol       string `json:"symbol"`
+					Bid1Price    string `json:"bid1Price"`
+					Ask1Price    string `json:"ask1Price"`
+					LastPrice    string `json:"lastPrice"`
+					PrevPrice24h string `json:"prevPrice24h"`
+					HighPrice24h string `json:"highPrice24h"`
+					LowPrice24h  string `json:"lowPrice24h"`
+					Volume24h    string `json:"volume24h"`
+					Turnover24h  string `json:"turnover24h"`
+					Price24hPcnt string `json:"price24hPcnt"`
 				} `json:"list"`
 			} `json:"result"`
 		}
@@ -631,49 +631,748 @@ func (b *Bybit) FetchOHLCV(ctx context.Context, symbol string, timeframe string,
 	return ohlcvs, nil
 }
 
-// 以下方法需要实现但暂时返回错误，后续可以完善
+// signRequest Bybit 签名方法 (v5 API)
+func (b *Bybit) signRequest(method, path string, params map[string]interface{}, body map[string]interface{}) (string, string) {
+	timestamp := strconv.FormatInt(common.GetTimestamp(), 10)
+	recvWindow := "5000" // 默认接收窗口
+
+	// 构建查询字符串
+	queryString := ""
+	if len(params) > 0 {
+		queryString = common.BuildQueryString(params)
+	}
+
+	// 构建请求体
+	bodyStr := ""
+	if body != nil {
+		bodyBytes, _ := json.Marshal(body)
+		bodyStr = string(bodyBytes)
+	}
+
+	// Bybit v5 签名格式: timestamp + apiKey + recvWindow + (body or queryString)
+	authBase := timestamp + b.apiKey + recvWindow
+	var authFull string
+	if method == "POST" {
+		authFull = authBase + bodyStr
+	} else {
+		authFull = authBase + queryString
+	}
+
+	signature := common.SignHMAC256(authFull, b.secretKey)
+	return signature, timestamp
+}
+
+// signAndRequest 签名并发送请求
+func (b *Bybit) signAndRequest(ctx context.Context, method, path string, params map[string]interface{}, body map[string]interface{}) ([]byte, error) {
+	if b.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	signature, timestamp := b.signRequest(method, path, params, body)
+	recvWindow := "5000"
+
+	// 设置请求头
+	b.client.SetHeader("X-BAPI-API-KEY", b.apiKey)
+	b.client.SetHeader("X-BAPI-TIMESTAMP", timestamp)
+	b.client.SetHeader("X-BAPI-RECV-WINDOW", recvWindow)
+	b.client.SetHeader("X-BAPI-SIGN", signature)
+	b.client.SetHeader("Content-Type", "application/json")
+
+	// 发送请求
+	if method == "GET" || method == "DELETE" {
+		return b.client.Get(ctx, path, params)
+	} else {
+		return b.client.Post(ctx, path, body)
+	}
+}
+
+// FetchBalance 获取余额
 func (b *Bybit) FetchBalance(ctx context.Context) (types.Balances, error) {
-	return nil, fmt.Errorf("not implemented")
+	if b.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	// Bybit v5 统一账户余额
+	resp, err := b.signAndRequest(ctx, "GET", "/v5/account/wallet-balance", map[string]interface{}{
+		"accountType": "UNIFIED",
+	}, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch balance: %w", err)
+	}
+
+	var result struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
+			List []struct {
+				Coin []struct {
+					Coin                string `json:"coin"`
+					Equity              string `json:"equity"`
+					AvailableToWithdraw string `json:"availableToWithdraw"`
+					WalletBalance       string `json:"walletBalance"`
+				} `json:"coin"`
+			} `json:"list"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal balance: %w", err)
+	}
+
+	if result.RetCode != 0 {
+		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
+	}
+
+	balances := make(types.Balances)
+	if len(result.Result.List) > 0 {
+		for _, coin := range result.Result.List[0].Coin {
+			equity, _ := strconv.ParseFloat(coin.Equity, 64)
+			available, _ := strconv.ParseFloat(coin.AvailableToWithdraw, 64)
+			walletBalance, _ := strconv.ParseFloat(coin.WalletBalance, 64)
+
+			balances[coin.Coin] = &types.Balance{
+				Currency:  coin.Coin,
+				Total:     equity,
+				Free:      available,
+				Used:      walletBalance - available,
+				Available: available,
+			}
+		}
+	}
+
+	return balances, nil
 }
 
+// CreateOrder 创建订单
 func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price float64, params map[string]interface{}) (*types.Order, error) {
-	return nil, fmt.Errorf("not implemented")
+	if b.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	market, err := b.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	bybitSymbol, err := b.GetMarketID(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("get market ID: %w", err)
+	}
+
+	// 确定 category
+	category := "spot"
+	if market.Contract && market.Linear {
+		category = "linear"
+	}
+
+	reqBody := map[string]interface{}{
+		"category": category,
+		"symbol":   bybitSymbol,
+		"side":     strings.ToUpper(string(side)),
+		"qty":      strconv.FormatFloat(amount, 'f', -1, 64),
+	}
+
+	if orderType == types.OrderTypeLimit {
+		reqBody["orderType"] = "Limit"
+		reqBody["price"] = strconv.FormatFloat(price, 'f', -1, 64)
+		reqBody["timeInForce"] = "GTC"
+	} else {
+		reqBody["orderType"] = "Market"
+	}
+
+	// 合并额外参数
+	for k, v := range params {
+		reqBody[k] = v
+	}
+
+	resp, err := b.signAndRequest(ctx, "POST", "/v5/order/create", nil, reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("create order: %w", err)
+	}
+
+	var result struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
+			OrderID     string `json:"orderId"`
+			OrderLinkID string `json:"orderLinkId"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal order: %w", err)
+	}
+
+	if result.RetCode != 0 {
+		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
+	}
+
+	order := &types.Order{
+		ID:            result.Result.OrderID,
+		ClientOrderID: result.Result.OrderLinkID,
+		Symbol:        symbol,
+		Type:          orderType,
+		Side:          side,
+		Amount:        amount,
+		Price:         price,
+		Timestamp:     time.Now(),
+		Status:        types.OrderStatusNew,
+	}
+
+	return order, nil
 }
 
+// CancelOrder 取消订单
 func (b *Bybit) CancelOrder(ctx context.Context, orderID, symbol string) error {
-	return fmt.Errorf("not implemented")
+	if b.secretKey == "" {
+		return exlink.ErrAuthenticationRequired
+	}
+
+	market, err := b.GetMarket(symbol)
+	if err != nil {
+		return err
+	}
+
+	bybitSymbol, err := b.GetMarketID(symbol)
+	if err != nil {
+		return fmt.Errorf("get market ID: %w", err)
+	}
+
+	category := "spot"
+	if market.Contract && market.Linear {
+		category = "linear"
+	}
+
+	reqBody := map[string]interface{}{
+		"category": category,
+		"symbol":   bybitSymbol,
+		"orderId":  orderID,
+	}
+
+	_, err = b.signAndRequest(ctx, "POST", "/v5/order/cancel", nil, reqBody)
+	return err
 }
 
+// FetchOrder 查询订单
 func (b *Bybit) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
-	return nil, fmt.Errorf("not implemented")
+	if b.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	market, err := b.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	bybitSymbol, err := b.GetMarketID(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("get market ID: %w", err)
+	}
+
+	category := "spot"
+	if market.Contract && market.Linear {
+		category = "linear"
+	}
+
+	params := map[string]interface{}{
+		"category": category,
+		"symbol":   bybitSymbol,
+		"orderId":  orderID,
+	}
+
+	resp, err := b.signAndRequest(ctx, "GET", "/v5/order/history", params, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch order: %w", err)
+	}
+
+	var result struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
+			List []struct {
+				OrderID     string `json:"orderId"`
+				OrderLinkID string `json:"orderLinkId"`
+				OrderStatus string `json:"orderStatus"`
+				Side        string `json:"side"`
+				OrderType   string `json:"orderType"`
+				Price       string `json:"price"`
+				Qty         string `json:"qty"`
+				CumExecQty  string `json:"cumExecQty"`
+				CreatedTime string `json:"createdTime"`
+			} `json:"list"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal order: %w", err)
+	}
+
+	if result.RetCode != 0 {
+		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
+	}
+
+	if len(result.Result.List) == 0 {
+		return nil, fmt.Errorf("order not found")
+	}
+
+	item := result.Result.List[0]
+	order := &types.Order{
+		ID:            item.OrderID,
+		ClientOrderID: item.OrderLinkID,
+		Symbol:        symbol,
+		Timestamp:     time.Now(),
+	}
+
+	order.Price, _ = strconv.ParseFloat(item.Price, 64)
+	order.Amount, _ = strconv.ParseFloat(item.Qty, 64)
+	order.Filled, _ = strconv.ParseFloat(item.CumExecQty, 64)
+	order.Remaining = order.Amount - order.Filled
+
+	if strings.ToUpper(item.Side) == "BUY" {
+		order.Side = types.OrderSideBuy
+	} else {
+		order.Side = types.OrderSideSell
+	}
+
+	if strings.ToUpper(item.OrderType) == "MARKET" {
+		order.Type = types.OrderTypeMarket
+	} else {
+		order.Type = types.OrderTypeLimit
+	}
+
+	// 转换状态
+	switch item.OrderStatus {
+	case "New":
+		order.Status = types.OrderStatusNew
+	case "PartiallyFilled":
+		order.Status = types.OrderStatusPartiallyFilled
+	case "Filled":
+		order.Status = types.OrderStatusFilled
+	case "Cancelled":
+		order.Status = types.OrderStatusCanceled
+	default:
+		order.Status = types.OrderStatusNew
+	}
+
+	return order, nil
 }
 
+// FetchOrders 查询订单列表
 func (b *Bybit) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	return nil, fmt.Errorf("not implemented")
+	// Bybit v5 没有直接的 fetchOrders，需要通过其他端点组合
+	return nil, fmt.Errorf("not implemented: use FetchOpenOrders or implement custom logic")
 }
 
+// FetchOpenOrders 查询未成交订单
 func (b *Bybit) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	return nil, fmt.Errorf("not implemented")
+	if b.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	market, err := b.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	bybitSymbol, err := b.GetMarketID(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("get market ID: %w", err)
+	}
+
+	category := "spot"
+	if market.Contract && market.Linear {
+		category = "linear"
+	}
+
+	params := map[string]interface{}{
+		"category": category,
+		"symbol":   bybitSymbol,
+	}
+
+	resp, err := b.signAndRequest(ctx, "GET", "/v5/order/realtime", params, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch open orders: %w", err)
+	}
+
+	var result struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
+			List []struct {
+				OrderID     string `json:"orderId"`
+				OrderLinkID string `json:"orderLinkId"`
+				OrderStatus string `json:"orderStatus"`
+				Side        string `json:"side"`
+				OrderType   string `json:"orderType"`
+				Price       string `json:"price"`
+				Qty         string `json:"qty"`
+				CumExecQty  string `json:"cumExecQty"`
+			} `json:"list"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal orders: %w", err)
+	}
+
+	if result.RetCode != 0 {
+		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
+	}
+
+	orders := make([]*types.Order, 0, len(result.Result.List))
+	for _, item := range result.Result.List {
+		order := &types.Order{
+			ID:            item.OrderID,
+			ClientOrderID: item.OrderLinkID,
+			Symbol:        symbol,
+			Timestamp:     time.Now(),
+		}
+
+		order.Price, _ = strconv.ParseFloat(item.Price, 64)
+		order.Amount, _ = strconv.ParseFloat(item.Qty, 64)
+		order.Filled, _ = strconv.ParseFloat(item.CumExecQty, 64)
+		order.Remaining = order.Amount - order.Filled
+
+		if strings.ToUpper(item.Side) == "BUY" {
+			order.Side = types.OrderSideBuy
+		} else {
+			order.Side = types.OrderSideSell
+		}
+
+		if strings.ToUpper(item.OrderType) == "MARKET" {
+			order.Type = types.OrderTypeMarket
+		} else {
+			order.Type = types.OrderTypeLimit
+		}
+
+		switch item.OrderStatus {
+		case "New":
+			order.Status = types.OrderStatusNew
+		case "PartiallyFilled":
+			order.Status = types.OrderStatusPartiallyFilled
+		default:
+			order.Status = types.OrderStatusOpen
+		}
+
+		orders = append(orders, order)
+	}
+
+	return orders, nil
 }
 
+// FetchTrades 获取交易记录
 func (b *Bybit) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
-	return nil, fmt.Errorf("not implemented")
+	market, err := b.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	bybitSymbol, err := b.GetMarketID(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("get market ID: %w", err)
+	}
+
+	category := "spot"
+	if market.Contract && market.Linear {
+		category = "linear"
+	}
+
+	params := map[string]interface{}{
+		"category": category,
+		"symbol":   bybitSymbol,
+		"limit":    limit,
+	}
+
+	if !since.IsZero() {
+		params["startTime"] = since.UnixMilli()
+	}
+
+	resp, err := b.client.Get(ctx, "/v5/market/recent-trade", params)
+	if err != nil {
+		return nil, fmt.Errorf("fetch trades: %w", err)
+	}
+
+	var result struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
+			List []struct {
+				ExecTime string `json:"execTime"`
+				Symbol   string `json:"symbol"`
+				Price    string `json:"price"`
+				Size     string `json:"size"`
+				Side     string `json:"side"`
+			} `json:"list"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal trades: %w", err)
+	}
+
+	if result.RetCode != 0 {
+		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
+	}
+
+	trades := make([]*types.Trade, 0, len(result.Result.List))
+	for _, item := range result.Result.List {
+		trade := &types.Trade{
+			Symbol:    symbol,
+			Timestamp: time.Now(),
+		}
+
+		trade.Price, _ = strconv.ParseFloat(item.Price, 64)
+		trade.Amount, _ = strconv.ParseFloat(item.Size, 64)
+
+		if strings.ToUpper(item.Side) == "BUY" {
+			trade.Side = "buy"
+		} else {
+			trade.Side = "sell"
+		}
+
+		trades = append(trades, trade)
+	}
+
+	return trades, nil
 }
 
+// FetchMyTrades 获取我的交易记录
 func (b *Bybit) FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
-	return nil, fmt.Errorf("not implemented")
+	if b.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	market, err := b.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	bybitSymbol, err := b.GetMarketID(symbol)
+	if err != nil {
+		return nil, fmt.Errorf("get market ID: %w", err)
+	}
+
+	category := "spot"
+	if market.Contract && market.Linear {
+		category = "linear"
+	}
+
+	params := map[string]interface{}{
+		"category": category,
+		"symbol":   bybitSymbol,
+		"limit":    limit,
+	}
+
+	if !since.IsZero() {
+		params["startTime"] = since.UnixMilli()
+	}
+
+	resp, err := b.signAndRequest(ctx, "GET", "/v5/execution/list", params, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch my trades: %w", err)
+	}
+
+	var result struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
+			List []struct {
+				ExecTime string `json:"execTime"`
+				Symbol   string `json:"symbol"`
+				Price    string `json:"execPrice"`
+				Size     string `json:"execQty"`
+				Side     string `json:"side"`
+			} `json:"list"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal trades: %w", err)
+	}
+
+	if result.RetCode != 0 {
+		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
+	}
+
+	trades := make([]*types.Trade, 0, len(result.Result.List))
+	for _, item := range result.Result.List {
+		trade := &types.Trade{
+			Symbol:    symbol,
+			Timestamp: time.Now(),
+		}
+
+		trade.Price, _ = strconv.ParseFloat(item.Price, 64)
+		trade.Amount, _ = strconv.ParseFloat(item.Size, 64)
+
+		if strings.ToUpper(item.Side) == "BUY" {
+			trade.Side = "buy"
+		} else {
+			trade.Side = "sell"
+		}
+
+		trades = append(trades, trade)
+	}
+
+	return trades, nil
 }
 
+// FetchPositions 获取持仓
 func (b *Bybit) FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error) {
-	return nil, fmt.Errorf("not implemented")
+	if b.secretKey == "" {
+		return nil, exlink.ErrAuthenticationRequired
+	}
+
+	params := map[string]interface{}{
+		"category": "linear",
+	}
+
+	if len(symbols) > 0 {
+		// Bybit 需要 symbol 参数
+		bybitSymbol, err := b.GetMarketID(symbols[0])
+		if err == nil {
+			params["symbol"] = bybitSymbol
+		}
+	}
+
+	resp, err := b.signAndRequest(ctx, "GET", "/v5/position/list", params, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch positions: %w", err)
+	}
+
+	var result struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
+			List []struct {
+				Symbol        string `json:"symbol"`
+				Side          string `json:"side"`
+				Size          string `json:"size"`
+				EntryPrice    string `json:"avgPrice"`
+				MarkPrice     string `json:"markPrice"`
+				UnrealisedPnl string `json:"unrealisedPnl"`
+			} `json:"list"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal positions: %w", err)
+	}
+
+	if result.RetCode != 0 {
+		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
+	}
+
+	positions := make([]*types.Position, 0)
+	for _, item := range result.Result.List {
+		size, _ := strconv.ParseFloat(item.Size, 64)
+		if size == 0 {
+			continue
+		}
+
+		market, err := b.GetMarketByID(item.Symbol)
+		if err != nil {
+			continue
+		}
+
+		if len(symbols) > 0 {
+			found := false
+			for _, s := range symbols {
+				if s == market.Symbol {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		position := &types.Position{
+			Symbol:    market.Symbol,
+			Amount:    size,
+			Timestamp: time.Now(),
+		}
+
+		position.EntryPrice, _ = strconv.ParseFloat(item.EntryPrice, 64)
+		position.MarkPrice, _ = strconv.ParseFloat(item.MarkPrice, 64)
+		position.UnrealizedPnl, _ = strconv.ParseFloat(item.UnrealisedPnl, 64)
+
+		if strings.ToUpper(item.Side) == "BUY" {
+			position.Side = types.PositionSideLong
+		} else {
+			position.Side = types.PositionSideShort
+		}
+
+		positions = append(positions, position)
+	}
+
+	return positions, nil
 }
 
+// SetLeverage 设置杠杆
 func (b *Bybit) SetLeverage(ctx context.Context, symbol string, leverage int) error {
-	return fmt.Errorf("not implemented")
+	if b.secretKey == "" {
+		return exlink.ErrAuthenticationRequired
+	}
+
+	market, err := b.GetMarket(symbol)
+	if err != nil {
+		return err
+	}
+
+	if !market.Contract {
+		return fmt.Errorf("leverage only supported for contracts")
+	}
+
+	bybitSymbol, err := b.GetMarketID(symbol)
+	if err != nil {
+		return fmt.Errorf("get market ID: %w", err)
+	}
+
+	reqBody := map[string]interface{}{
+		"category":     "linear",
+		"symbol":       bybitSymbol,
+		"buyLeverage":  strconv.Itoa(leverage),
+		"sellLeverage": strconv.Itoa(leverage),
+	}
+
+	_, err = b.signAndRequest(ctx, "POST", "/v5/position/set-leverage", nil, reqBody)
+	return err
 }
 
+// SetMarginMode 设置保证金模式
 func (b *Bybit) SetMarginMode(ctx context.Context, symbol string, mode string) error {
-	return fmt.Errorf("not implemented")
+	if b.secretKey == "" {
+		return exlink.ErrAuthenticationRequired
+	}
+
+	market, err := b.GetMarket(symbol)
+	if err != nil {
+		return err
+	}
+
+	if !market.Contract {
+		return fmt.Errorf("margin mode only supported for contracts")
+	}
+
+	// 验证模式
+	if mode != "isolated" && mode != "cross" {
+		return fmt.Errorf("invalid margin mode: %s, must be 'isolated' or 'cross'", mode)
+	}
+
+	bybitSymbol, err := b.GetMarketID(symbol)
+	if err != nil {
+		return fmt.Errorf("get market ID: %w", err)
+	}
+
+	reqBody := map[string]interface{}{
+		"category":  "linear",
+		"symbol":    bybitSymbol,
+		"tradeMode": strings.ToUpper(mode),
+	}
+
+	_, err = b.signAndRequest(ctx, "POST", "/v5/position/switch-mode", nil, reqBody)
+	return err
 }
 
 func (b *Bybit) GetMarkets(ctx context.Context, marketType types.MarketType) ([]*types.Market, error) {
@@ -685,4 +1384,3 @@ func (b *Bybit) GetMarkets(ctx context.Context, marketType types.MarketType) ([]
 	}
 	return markets, nil
 }
-
