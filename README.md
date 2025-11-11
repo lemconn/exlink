@@ -61,7 +61,7 @@ func main() {
     ctx := context.Background()
     
     // Create exchange instance (no API keys needed for public data)
-    exchange, err := exlink.NewExchange("binance", "", "", nil)
+    exchange, err := exlink.NewExchange("binance")
     if err != nil {
         log.Fatal(err)
     }
@@ -83,9 +83,8 @@ func main() {
 // Create authenticated exchange instance
 exchange, err := exlink.NewExchange(
     "binance",
-    "your-api-key",
-    "your-secret-key",
-    nil,
+    exlink.WithAPIKey("your-api-key"),
+    exlink.WithSecretKey("your-secret-key"),
 )
 if err != nil {
     log.Fatal(err)
@@ -107,25 +106,21 @@ fmt.Printf("BTC Balance: %.8f\n", btcBalance.Free)
 // Create exchange with options
 exchange, err := exlink.NewExchange(
     "binance",
-    "your-api-key",
-    "your-secret-key",
-    map[string]interface{}{
-        "sandbox": true,                                    // Enable sandbox mode
-        "proxy":   "http://proxy.example.com:8080",        // Set proxy
-        "fetchMarkets": []string{"spot", "swap"},          // Load specific market types
-    },
+    exlink.WithAPIKey("your-api-key"),
+    exlink.WithSecretKey("your-secret-key"),
+    exlink.WithSandbox(true),                              // Enable sandbox mode
+    exlink.WithProxy("http://proxy.example.com:8080"),    // Set proxy
+    exlink.WithFetchMarkets([]string{"spot", "swap"}),    // Load specific market types
 )
 
 // OKX requires passphrase for authenticated requests
 exchange, err := exlink.NewExchange(
     "okx",
-    "your-api-key",
-    "your-secret-key",
-    map[string]interface{}{
-        "passphrase": "your-passphrase",                   // Required for OKX
-        "sandbox":    true,                                // Enable sandbox mode
-        "proxy":      "http://proxy.example.com:8080",    // Set proxy
-    },
+    exlink.WithAPIKey("your-api-key"),
+    exlink.WithSecretKey("your-secret-key"),
+    exlink.WithPassphrase("your-passphrase"),             // Required for OKX
+    exlink.WithSandbox(true),                              // Enable sandbox mode
+    exlink.WithProxy("http://proxy.example.com:8080"),    // Set proxy
 )
 ```
 
