@@ -19,16 +19,21 @@ ExLink is a Go library similar to Python's ccxt, providing a standardized interf
 
 ## API Support Matrix
 
-| Exchange | Spot | Swap | Ticker | OHLCV | Balance | Orders | Trades | Positions | Leverage |
-|----------|------|------|--------|-------|---------|--------|--------|-----------|----------|
-| Binance  | ✅   | ✅   | ✅     | ✅    | ✅      | ✅     | ✅     | ✅        | ✅       |
-| OKX      | ✅   | ✅   | ✅     | ✅    | ✅      | ✅     | ✅     | ✅        | ✅       |
-| Bybit    | ✅   | ✅   | ✅     | ✅    | ⚠️      | ⚠️     | ⚠️     | ⚠️        | ⚠️       |
-| Gate.io  | ✅   | ✅   | ✅     | ✅    | ⚠️      | ⚠️     | ⚠️     | ⚠️        | ⚠️       |
+| Exchange | Spot | Swap | Ticker | OHLCV | Balance | Orders | Trades | Positions | Leverage | Margin Mode |
+|----------|------|------|--------|-------|---------|--------|--------|-----------|----------|-------------|
+| Binance  | ✅   | ✅   | ✅     | ✅    | ✅      | ✅     | ✅     | ✅        | ✅       | ✅          |
+| OKX      | ✅   | ✅   | ✅     | ✅    | ✅      | ✅     | ✅     | ✅        | ✅       | ✅          |
+| Bybit    | ✅   | ✅   | ✅     | ✅    | ✅      | ✅     | ✅     | ✅        | ✅       | ✅          |
+| Gate.io  | ✅   | ✅   | ✅     | ✅    | ✅      | ✅     | ✅     | ✅        | ✅       | ❌          |
 
 **Legend:**
 - ✅ Fully implemented
-- ⚠️ Placeholder (returns "not implemented" error)
+- ❌ Not supported by exchange API
+
+**Notes:**
+- **Orders**: Includes `CreateOrder`, `CancelOrder`, `FetchOrder`, and `FetchOpenOrders`. `FetchOrders` (all orders) is not directly supported by Gate.io and Bybit APIs.
+- **Trades**: Includes `FetchTrades` (public trades) and `FetchMyTrades` (user trades).
+- **Gate.io Margin Mode**: Gate.io does not support setting margin mode via API. It must be configured on the web interface.
 
 ## Quick Start
 
@@ -136,6 +141,85 @@ ticker, err := exchange.FetchTicker(ctx, "BTC/USDT")
 // For perpetual contracts
 ticker, err := exchange.FetchTicker(ctx, "BTC/USDT:USDT")
 // Binance: BTCUSDT, OKX: BTC-USDT-SWAP, Gate: BTC_USDT, Bybit: BTCUSDT
+```
+
+### Order Management
+
+```go
+import (
+    "github.com/lemconn/exlink"
+    "github.com/lemconn/exlink/types"
+)
+
+// Create a limit order
+order, err := exchange.CreateOrder(ctx, "BTC/USDT", types.OrderSideBuy, types.OrderTypeLimit, 0.001, 50000, nil)
+if err != nil {
+    log.Fatal(err)
+}
+fmt.Printf("Order created: %s\n", order.ID)
+
+// Fetch order status
+order, err = exchange.FetchOrder(ctx, order.ID, "BTC/USDT")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Cancel order
+err = exchange.CancelOrder(ctx, order.ID, "BTC/USDT")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Fetch open orders
+openOrders, err := exchange.FetchOpenOrders(ctx, "BTC/USDT")
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### Trading History
+
+```go
+import (
+    "time"
+    "github.com/lemconn/exlink"
+)
+
+// Fetch public trades
+trades, err := exchange.FetchTrades(ctx, "BTC/USDT", time.Time{}, 100)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Fetch my trades (requires authentication)
+myTrades, err := exchange.FetchMyTrades(ctx, "BTC/USDT", time.Time{}, 100)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+### Contract Trading
+
+```go
+import "github.com/lemconn/exlink"
+
+// Fetch positions
+positions, err := exchange.FetchPositions(ctx, "BTC/USDT:USDT")
+if err != nil {
+    log.Fatal(err)
+}
+
+// Set leverage (contracts only)
+err = exchange.SetLeverage(ctx, "BTC/USDT:USDT", 10)
+if err != nil {
+    log.Fatal(err)
+}
+
+// Set margin mode (contracts only, not supported by Gate.io)
+err = exchange.SetMarginMode(ctx, "BTC/USDT:USDT", "isolated")
+if err != nil {
+    log.Fatal(err)
+}
 ```
 
 ### More Examples

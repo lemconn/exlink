@@ -3,6 +3,7 @@ package common
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
@@ -77,4 +78,17 @@ func GetTimestampSeconds() int64 {
 // GetISO8601Timestamp 获取ISO8601格式的时间戳（用于OKX）
 func GetISO8601Timestamp() string {
 	return time.Now().UTC().Format(time.RFC3339)
+}
+
+// SignHMAC512 HMAC-SHA512签名（hex编码，用于Gate.io）
+func SignHMAC512(message, secret string) string {
+	mac := hmac.New(sha512.New, []byte(secret))
+	mac.Write([]byte(message))
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+// HashSHA512 SHA512哈希
+func HashSHA512(data string) string {
+	hash := sha512.Sum512([]byte(data))
+	return hex.EncodeToString(hash[:])
 }
