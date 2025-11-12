@@ -10,6 +10,14 @@ import (
 	"github.com/lemconn/exlink/exchanges/bybit"
 	"github.com/lemconn/exlink/exchanges/gate"
 	"github.com/lemconn/exlink/exchanges/okx"
+	"github.com/lemconn/exlink/types"
+)
+
+// 市场类型常量别名（方便使用）
+const (
+	MarketSpot   = types.MarketTypeSpot   // 现货市场
+	MarketSwap   = types.MarketTypeSwap   // 永续合约市场
+	MarketFuture = types.MarketTypeFuture // 永续合约市场（同义于 MarketSwap）
 )
 
 // ExchangeOptions 交易所配置选项
@@ -20,7 +28,7 @@ type ExchangeOptions struct {
 	Sandbox      bool
 	Proxy        string
 	BaseURL      string
-	FetchMarkets []string
+	FetchMarkets []types.MarketType
 	Options      map[string]interface{} // 其他自定义选项
 }
 
@@ -70,7 +78,7 @@ func WithBaseURL(baseURL string) Option {
 }
 
 // WithFetchMarkets 设置要加载的市场类型
-func WithFetchMarkets(markets []string) Option {
+func WithFetchMarkets(markets ...types.MarketType) Option {
 	return func(opts *ExchangeOptions) {
 		opts.FetchMarkets = markets
 	}
@@ -140,7 +148,12 @@ func NewExchange(name string, opts ...Option) (base.Exchange, error) {
 		optionsMap["baseURL"] = options.BaseURL
 	}
 	if len(options.FetchMarkets) > 0 {
-		optionsMap["fetchMarkets"] = options.FetchMarkets
+		// 转换为字符串数组以兼容现有的 ExchangeFactory
+		marketStrings := make([]string, len(options.FetchMarkets))
+		for i, mt := range options.FetchMarkets {
+			marketStrings[i] = string(mt)
+		}
+		optionsMap["fetchMarkets"] = marketStrings
 	}
 	if options.Passphrase != "" {
 		optionsMap["passphrase"] = options.Passphrase

@@ -109,7 +109,7 @@ exchange, err := exlink.NewExchange(
     exlink.WithSecretKey("your-secret-key"),
     exlink.WithSandbox(true),                              // Enable sandbox mode
     exlink.WithProxy("http://proxy.example.com:8080"),    // Set proxy
-    exlink.WithFetchMarkets([]string{"spot", "swap"}),    // Load specific market types
+    exlink.WithFetchMarkets(exlink.MarketSpot, exlink.MarketSwap), // Load specific market types
 )
 
 // OKX requires passphrase for authenticated requests
