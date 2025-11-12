@@ -3,18 +3,30 @@ package bybit
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 )
 
+func getProxyURL() string {
+	return os.Getenv("PROXY_URL")
+}
+
+func getOptions() map[string]interface{} {
+	options := map[string]interface{}{
+		"fetchMarkets": []string{"spot", "swap"},
+	}
+	if proxyURL := getProxyURL(); proxyURL != "" {
+		options["proxy"] = proxyURL
+	}
+	return options
+}
+
 func TestBybit_FetchOHLCV(t *testing.T) {
 	ctx := context.Background()
 
-	// Create Bybit instance with proxy
-	exchange, err := NewBybit("", "", map[string]interface{}{
-		"proxy":        "http://127.0.0.1:7890",
-		"fetchMarkets": []string{"spot", "swap"},
-	})
+	// Create Bybit instance
+	exchange, err := NewBybit("", "", getOptions())
 	if err != nil {
 		t.Fatalf("Failed to create Bybit instance: %v", err)
 	}
@@ -93,11 +105,8 @@ func TestBybit_FetchOHLCV(t *testing.T) {
 func TestBybit_FetchTicker(t *testing.T) {
 	ctx := context.Background()
 
-	// Create Bybit instance with proxy
-	exchange, err := NewBybit("", "", map[string]interface{}{
-		"proxy":        "http://127.0.0.1:7890",
-		"fetchMarkets": []string{"spot", "swap"},
-	})
+	// Create Bybit instance
+	exchange, err := NewBybit("", "", getOptions())
 	if err != nil {
 		t.Fatalf("Failed to create Bybit instance: %v", err)
 	}

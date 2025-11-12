@@ -3,18 +3,30 @@ package binance
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 )
 
+func getProxyURL() string {
+	return os.Getenv("PROXY_URL")
+}
+
+func getOptions() map[string]interface{} {
+	options := map[string]interface{}{
+		"fetchMarkets": []string{"spot", "swap"},
+	}
+	if proxyURL := getProxyURL(); proxyURL != "" {
+		options["proxy"] = proxyURL
+	}
+	return options
+}
+
 func TestBinance_FetchOHLCV(t *testing.T) {
 	ctx := context.Background()
 
-	// Create Binance instance with proxy
-	exchange, err := NewBinance("", "", map[string]interface{}{
-		"proxy":        "http://127.0.0.1:7890",
-		"fetchMarkets": []string{"spot", "swap"},
-	})
+	// Create Binance instance
+	exchange, err := NewBinance("", "", getOptions())
 	if err != nil {
 		t.Fatalf("Failed to create Binance instance: %v", err)
 	}
@@ -93,11 +105,8 @@ func TestBinance_FetchOHLCV(t *testing.T) {
 func TestBinance_FetchTicker(t *testing.T) {
 	ctx := context.Background()
 
-	// Create Binance instance with proxy
-	exchange, err := NewBinance("", "", map[string]interface{}{
-		"proxy":        "http://127.0.0.1:7890",
-		"fetchMarkets": []string{"spot", "swap"},
-	})
+	// Create Binance instance
+	exchange, err := NewBinance("", "", getOptions())
 	if err != nil {
 		t.Fatalf("Failed to create Binance instance: %v", err)
 	}

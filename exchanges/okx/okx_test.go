@@ -3,18 +3,30 @@ package okx
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 )
 
+func getProxyURL() string {
+	return os.Getenv("PROXY_URL")
+}
+
+func getOptions() map[string]interface{} {
+	options := map[string]interface{}{
+		"fetchMarkets": []string{"spot", "swap"},
+	}
+	if proxyURL := getProxyURL(); proxyURL != "" {
+		options["proxy"] = proxyURL
+	}
+	return options
+}
+
 func TestOKX_FetchOHLCV(t *testing.T) {
 	ctx := context.Background()
 
-	// Create OKX instance with proxy
-	exchange, err := NewOKX("", "", map[string]interface{}{
-		"proxy":        "http://127.0.0.1:7890",
-		"fetchMarkets": []string{"spot", "swap"},
-	})
+	// Create OKX instance
+	exchange, err := NewOKX("", "", getOptions())
 	if err != nil {
 		t.Fatalf("Failed to create OKX instance: %v", err)
 	}
@@ -93,11 +105,8 @@ func TestOKX_FetchOHLCV(t *testing.T) {
 func TestOKX_FetchTicker(t *testing.T) {
 	ctx := context.Background()
 
-	// Create OKX instance with proxy
-	exchange, err := NewOKX("", "", map[string]interface{}{
-		"proxy":        "http://127.0.0.1:7890",
-		"fetchMarkets": []string{"spot", "swap"},
-	})
+	// Create OKX instance
+	exchange, err := NewOKX("", "", getOptions())
 	if err != nil {
 		t.Fatalf("Failed to create OKX instance: %v", err)
 	}
