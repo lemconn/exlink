@@ -85,15 +85,22 @@ func (b *Bybit) LoadMarkets(ctx context.Context, reload bool) error {
 	markets := make([]*types.Market, 0)
 
 	// 获取要加载的市场类型
-	fetchMarketsTypes := []string{"spot"}
-	if v, ok := b.GetOption("fetchMarkets").([]string); ok && len(v) > 0 {
+	fetchMarketsTypes := []types.MarketType{types.MarketTypeSpot}
+	if v, ok := b.GetOption("fetchMarkets").([]types.MarketType); ok && len(v) > 0 {
 		fetchMarketsTypes = v
+	} else if v, ok := b.GetOption("fetchMarkets").([]string); ok && len(v) > 0 {
+		// 向后兼容：支持字符串数组
+		fetchMarketsTypes = make([]types.MarketType, len(v))
+		for i, s := range v {
+			fetchMarketsTypes[i] = types.MarketType(s)
+		}
 	} else if v, ok := b.GetOption("fetchMarkets").(string); ok {
-		fetchMarketsTypes = []string{v}
+		// 向后兼容：支持单个字符串
+		fetchMarketsTypes = []types.MarketType{types.MarketType(v)}
 	}
 
 	// 加载现货市场
-	if contains(fetchMarketsTypes, "spot") {
+	if containsMarketType(fetchMarketsTypes, types.MarketTypeSpot) {
 		spotMarkets, err := b.loadSpotMarkets(ctx)
 		if err != nil {
 			return fmt.Errorf("load spot markets: %w", err)
@@ -102,7 +109,7 @@ func (b *Bybit) LoadMarkets(ctx context.Context, reload bool) error {
 	}
 
 	// 加载永续合约市场（linear）
-	if contains(fetchMarketsTypes, "swap") || contains(fetchMarketsTypes, "linear") {
+	if containsMarketType(fetchMarketsTypes, types.MarketTypeSwap) || containsMarketType(fetchMarketsTypes, types.MarketTypeFuture) {
 		swapMarkets, err := b.loadSwapMarkets(ctx)
 		if err != nil {
 			return fmt.Errorf("load swap markets: %w", err)
@@ -308,6 +315,16 @@ func getPrecisionDigits(value float64) int {
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
 		if s == item {
+			return true
+		}
+	}
+	return false
+}
+
+// containsMarketType 检查 MarketType 切片是否包含指定值
+func containsMarketType(slice []types.MarketType, item types.MarketType) bool {
+	for _, mt := range slice {
+		if mt == item {
 			return true
 		}
 	}
