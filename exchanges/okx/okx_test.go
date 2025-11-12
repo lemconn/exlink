@@ -3,7 +3,9 @@ package okx
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -22,6 +24,42 @@ func getOptions() map[string]interface{} {
 	return options
 }
 
+// isNetworkError checks if the error is a network-related error
+func isNetworkError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errStr := err.Error()
+	
+	// Check for HTTP errors that indicate network/access issues
+	if strings.Contains(errStr, "http error 403") ||
+		strings.Contains(errStr, "http error 429") ||
+		strings.Contains(errStr, "CloudFront") ||
+		strings.Contains(errStr, "block access from your country") {
+		return true
+	}
+	
+	// Check for network connection errors
+	if _, ok := err.(*net.OpError); ok {
+		return true
+	}
+	if strings.Contains(errStr, "connection refused") ||
+		strings.Contains(errStr, "timeout") ||
+		strings.Contains(errStr, "no such host") ||
+		strings.Contains(errStr, "network is unreachable") {
+		return true
+	}
+	
+	return false
+}
+
+// skipIfNetworkError skips the test if it's a network error and no proxy is configured
+func skipIfNetworkError(t *testing.T, err error) {
+	if err != nil && isNetworkError(err) && getProxyURL() == "" {
+		t.Skipf("Skipping test due to network error (no proxy configured): %v", err)
+	}
+}
+
 func TestOKX_FetchOHLCV(t *testing.T) {
 	ctx := context.Background()
 
@@ -33,6 +71,7 @@ func TestOKX_FetchOHLCV(t *testing.T) {
 
 	// Load markets
 	if err := exchange.LoadMarkets(ctx, false); err != nil {
+		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to load markets: %v", err)
 	}
 
@@ -45,6 +84,7 @@ func TestOKX_FetchOHLCV(t *testing.T) {
 
 	ohlcvs, err := exchange.FetchOHLCV(ctx, symbol, timeframe, time.Time{}, limit)
 	if err != nil {
+		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to fetch OHLCV: %v", err)
 	}
 
@@ -113,6 +153,7 @@ func TestOKX_FetchTicker(t *testing.T) {
 
 	// Load markets
 	if err := exchange.LoadMarkets(ctx, false); err != nil {
+		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to load markets: %v", err)
 	}
 
@@ -122,6 +163,7 @@ func TestOKX_FetchTicker(t *testing.T) {
 
 	ticker, err := exchange.FetchTicker(ctx, symbol)
 	if err != nil {
+		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to fetch ticker: %v", err)
 	}
 
