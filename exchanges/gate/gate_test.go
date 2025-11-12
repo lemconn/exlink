@@ -3,18 +3,30 @@ package gate
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 	"time"
 )
 
+func getProxyURL() string {
+	return os.Getenv("PROXY_URL")
+}
+
+func getOptions() map[string]interface{} {
+	options := map[string]interface{}{
+		"fetchMarkets": []string{"spot", "swap"},
+	}
+	if proxyURL := getProxyURL(); proxyURL != "" {
+		options["proxy"] = proxyURL
+	}
+	return options
+}
+
 func TestGate_FetchOHLCV(t *testing.T) {
 	ctx := context.Background()
 
-	// Create Gate instance with proxy
-	exchange, err := NewGate("", "", map[string]interface{}{
-		"proxy":        "http://127.0.0.1:7890",
-		"fetchMarkets": []string{"spot", "swap"},
-	})
+	// Create Gate instance
+	exchange, err := NewGate("", "", getOptions())
 	if err != nil {
 		t.Fatalf("Failed to create Gate instance: %v", err)
 	}
@@ -93,11 +105,8 @@ func TestGate_FetchOHLCV(t *testing.T) {
 func TestGate_FetchTicker(t *testing.T) {
 	ctx := context.Background()
 
-	// Create Gate instance with proxy
-	exchange, err := NewGate("", "", map[string]interface{}{
-		"proxy":        "http://127.0.0.1:7890",
-		"fetchMarkets": []string{"spot", "swap"},
-	})
+	// Create Gate instance
+	exchange, err := NewGate("", "", getOptions())
 	if err != nil {
 		t.Fatalf("Failed to create Gate instance: %v", err)
 	}
