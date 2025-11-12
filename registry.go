@@ -20,6 +20,14 @@ const (
 	MarketFuture = types.MarketTypeFuture // 永续合约市场（同义于 MarketSwap）
 )
 
+// 交易所名称常量
+const (
+	ExchangeBinance = "binance" // Binance 交易所
+	ExchangeBybit   = "bybit"   // Bybit 交易所
+	ExchangeOKX     = "okx"     // OKX 交易所
+	ExchangeGate    = "gate"    // Gate.io 交易所
+)
+
 // ExchangeOptions 交易所配置选项
 type ExchangeOptions struct {
 	APIKey       string
@@ -111,10 +119,10 @@ var globalRegistry = &Registry{
 
 // init 初始化函数，注册所有支持的交易所
 func init() {
-	Register("binance", binance.NewBinance)
-	Register("bybit", bybit.NewBybit)
-	Register("okx", okx.NewOKX)
-	Register("gate", gate.NewGate)
+	Register(ExchangeBinance, binance.NewBinance)
+	Register(ExchangeBybit, bybit.NewBybit)
+	Register(ExchangeOKX, okx.NewOKX)
+	Register(ExchangeGate, gate.NewGate)
 }
 
 // Register 注册交易所
