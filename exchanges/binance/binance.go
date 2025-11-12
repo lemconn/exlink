@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lemconn/exlink"
+	"github.com/lemconn/exlink/base"
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/types"
 )
@@ -23,7 +23,7 @@ const (
 
 // Binance Binance交易所实现
 type Binance struct {
-	*exlink.BaseExchange
+	*base.BaseExchange
 	client     *common.HTTPClient
 	fapiClient *common.HTTPClient // 永续合约API客户端
 	apiKey     string
@@ -31,7 +31,7 @@ type Binance struct {
 }
 
 // NewBinance 创建Binance交易所实例
-func NewBinance(apiKey, secretKey string, options map[string]interface{}) (exlink.Exchange, error) {
+func NewBinance(apiKey, secretKey string, options map[string]interface{}) (base.Exchange, error) {
 	baseURL := binanceBaseURL
 	sandbox := false
 	proxyURL := ""
@@ -56,7 +56,7 @@ func NewBinance(apiKey, secretKey string, options map[string]interface{}) (exlin
 	}
 
 	exchange := &Binance{
-		BaseExchange: exlink.NewBaseExchange(binanceName),
+		BaseExchange: base.NewBaseExchange(binanceName),
 		client:       common.NewHTTPClient(baseURL),
 		fapiClient:   common.NewHTTPClient(fapiBaseURL),
 		apiKey:       apiKey,
@@ -563,7 +563,7 @@ func (b *Binance) FetchOHLCV(ctx context.Context, symbol string, timeframe strin
 // FetchBalance 获取余额
 func (b *Binance) FetchBalance(ctx context.Context) (types.Balances, error) {
 	if b.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	timestamp := common.GetTimestamp()
@@ -613,7 +613,7 @@ func (b *Binance) FetchBalance(ctx context.Context) (types.Balances, error) {
 // CreateOrder 创建订单
 func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price float64, params map[string]interface{}) (*types.Order, error) {
 	if b.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	// 获取市场信息以判断使用哪个API
@@ -720,7 +720,7 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 // CancelOrder 取消订单
 func (b *Binance) CancelOrder(ctx context.Context, orderID, symbol string) error {
 	if b.secretKey == "" {
-		return exlink.ErrAuthenticationRequired
+		return base.ErrAuthenticationRequired
 	}
 
 	// 获取交易所格式的 symbol ID
@@ -747,7 +747,7 @@ func (b *Binance) CancelOrder(ctx context.Context, orderID, symbol string) error
 // FetchOrder 查询订单
 func (b *Binance) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
 	if b.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	// 获取交易所格式的 symbol ID
@@ -840,7 +840,7 @@ func (b *Binance) FetchOrders(ctx context.Context, symbol string, since time.Tim
 // FetchOpenOrders 查询未成交订单
 func (b *Binance) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
 	if b.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	timestamp := common.GetTimestamp()
@@ -990,7 +990,7 @@ func (b *Binance) FetchTrades(ctx context.Context, symbol string, since time.Tim
 // FetchMyTrades 获取我的交易记录
 func (b *Binance) FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
 	if b.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	// 获取交易所格式的 symbol ID
@@ -1071,7 +1071,7 @@ func (b *Binance) FetchMyTrades(ctx context.Context, symbol string, since time.T
 // FetchPositions 获取持仓（合约）
 func (b *Binance) FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error) {
 	if b.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	timestamp := common.GetTimestamp()
@@ -1174,7 +1174,7 @@ func (b *Binance) GetMarketByID(id string) (*types.Market, error) {
 			return market, nil
 		}
 	}
-	return nil, exlink.ErrMarketNotFound
+	return nil, base.ErrMarketNotFound
 }
 
 // GetMarketID 获取Binance格式的 symbol ID
@@ -1193,7 +1193,7 @@ func (b *Binance) GetMarketID(symbol string) (string, error) {
 // SetLeverage 设置杠杆
 func (b *Binance) SetLeverage(ctx context.Context, symbol string, leverage int) error {
 	if b.secretKey == "" {
-		return exlink.ErrAuthenticationRequired
+		return base.ErrAuthenticationRequired
 	}
 
 	market, err := b.GetMarket(symbol)
@@ -1223,7 +1223,7 @@ func (b *Binance) SetLeverage(ctx context.Context, symbol string, leverage int) 
 // SetMarginMode 设置保证金模式
 func (b *Binance) SetMarginMode(ctx context.Context, symbol string, mode string) error {
 	if b.secretKey == "" {
-		return exlink.ErrAuthenticationRequired
+		return base.ErrAuthenticationRequired
 	}
 
 	market, err := b.GetMarket(symbol)

@@ -1,4 +1,4 @@
-package exlink
+package base
 
 import (
 	"context"
@@ -131,3 +131,4 @@ func (e *BaseExchange) GetMarketID(symbol string) (string, error) {
 	// 由于 BaseExchange 不知道具体的转换函数，我们返回错误，让具体交易所实现
 	return "", ErrMarketNotFound
 }
+

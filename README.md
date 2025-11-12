@@ -54,7 +54,6 @@ import (
     "log"
     
     "github.com/lemconn/exlink"
-    _ "github.com/lemconn/exlink/exchanges/binance" // Import to register exchange
 )
 
 func main() {
@@ -226,31 +225,43 @@ For more complex usage examples, see the [examples](./examples) directory.
 To add support for a new exchange:
 
 1. Create a new package under `exchanges/` directory
-2. Implement the `Exchange` interface
-3. Register the exchange in the `init()` function
+2. Implement the `Exchange` interface from `base` package
+3. Add the registration in `registry.go`'s `init()` function
 
 Example:
 
 ```go
 package myexchange
 
-import "github.com/lemconn/exlink"
+import (
+    "github.com/lemconn/exlink/base"
+    "github.com/lemconn/exlink/common"
+    "github.com/lemconn/exlink/types"
+)
 
 type MyExchange struct {
-    *exlink.BaseExchange
+    *base.BaseExchange
     // ... other fields
 }
 
-func NewMyExchange(apiKey, secretKey string, options map[string]interface{}) (exlink.Exchange, error) {
+func NewMyExchange(apiKey, secretKey string, options map[string]interface{}) (base.Exchange, error) {
     // ... initialization logic
     return &MyExchange{
-        BaseExchange: exlink.NewBaseExchange("myexchange"),
+        BaseExchange: base.NewBaseExchange("myexchange"),
         // ...
     }, nil
 }
+```
 
+Then add the registration in `registry.go`:
+
+```go
 func init() {
-    exlink.Register("myexchange", NewMyExchange)
+    Register("binance", binance.NewBinance)
+    Register("bybit", bybit.NewBybit)
+    Register("okx", okx.NewOKX)
+    Register("gate", gate.NewGate)
+    Register("myexchange", myexchange.NewMyExchange) // Add your exchange here
 }
 ```
 

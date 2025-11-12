@@ -4,6 +4,12 @@ import (
 	"context"
 	"fmt"
 	"sync"
+
+	"github.com/lemconn/exlink/base"
+	"github.com/lemconn/exlink/exchanges/binance"
+	"github.com/lemconn/exlink/exchanges/bybit"
+	"github.com/lemconn/exlink/exchanges/gate"
+	"github.com/lemconn/exlink/exchanges/okx"
 )
 
 // ExchangeOptions 交易所配置选项
@@ -81,18 +87,26 @@ func WithOption(key string, value interface{}) Option {
 }
 
 // ExchangeFactory 交易所工厂函数
-type ExchangeFactory func(apiKey, secretKey string, options map[string]interface{}) (Exchange, error)
+type ExchangeFactory func(apiKey, secretKey string, options map[string]interface{}) (base.Exchange, error)
 
 // Registry 交易所注册表
 type Registry struct {
 	mu        sync.RWMutex
 	factories map[string]ExchangeFactory
-	exchanges map[string]Exchange
+	exchanges map[string]base.Exchange
 }
 
 var globalRegistry = &Registry{
 	factories: make(map[string]ExchangeFactory),
-	exchanges: make(map[string]Exchange),
+	exchanges: make(map[string]base.Exchange),
+}
+
+// init 初始化函数，注册所有支持的交易所
+func init() {
+	Register("binance", binance.NewBinance)
+	Register("bybit", bybit.NewBybit)
+	Register("okx", okx.NewOKX)
+	Register("gate", gate.NewGate)
 }
 
 // Register 注册交易所
@@ -103,7 +117,7 @@ func Register(name string, factory ExchangeFactory) {
 }
 
 // NewExchange 创建交易所实例（使用 Functional Options Pattern）
-func NewExchange(name string, opts ...Option) (Exchange, error) {
+func NewExchange(name string, opts ...Option) (base.Exchange, error) {
 	// 初始化默认选项
 	options := &ExchangeOptions{
 		Options: make(map[string]interface{}),
@@ -141,7 +155,7 @@ func NewExchange(name string, opts ...Option) (Exchange, error) {
 	globalRegistry.mu.RUnlock()
 
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", ErrExchangeNotSupported, name)
+		return nil, fmt.Errorf("%w: %s", base.ErrExchangeNotSupported, name)
 	}
 
 	exchange, err := factory(options.APIKey, options.SecretKey, optionsMap)

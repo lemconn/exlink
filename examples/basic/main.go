@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/lemconn/exlink"
-	_ "github.com/lemconn/exlink/exchanges/binance" // 导入以注册交易所
 )
 
 func main() {

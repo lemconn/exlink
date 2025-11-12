@@ -1,4 +1,4 @@
-package exlink
+package base
 
 import "errors"
 
@@ -20,3 +20,4 @@ var (
 	// ErrRateLimitExceeded 请求频率超限
 	ErrRateLimitExceeded = errors.New("rate limit exceeded")
 )
+

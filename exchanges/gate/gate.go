@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lemconn/exlink"
+	"github.com/lemconn/exlink/base"
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/types"
 )
@@ -21,14 +21,14 @@ const (
 
 // Gate Gate交易所实现
 type Gate struct {
-	*exlink.BaseExchange
+	*base.BaseExchange
 	client    *common.HTTPClient
 	apiKey    string
 	secretKey string
 }
 
 // NewGate 创建Gate交易所实例
-func NewGate(apiKey, secretKey string, options map[string]interface{}) (exlink.Exchange, error) {
+func NewGate(apiKey, secretKey string, options map[string]interface{}) (base.Exchange, error) {
 	baseURL := gateBaseURL
 	sandbox := false
 	proxyURL := ""
@@ -48,7 +48,7 @@ func NewGate(apiKey, secretKey string, options map[string]interface{}) (exlink.E
 	}
 
 	exchange := &Gate{
-		BaseExchange: exlink.NewBaseExchange(gateName),
+		BaseExchange: base.NewBaseExchange(gateName),
 		client:       common.NewHTTPClient(baseURL),
 		apiKey:       apiKey,
 		secretKey:    secretKey,
@@ -284,7 +284,7 @@ func (g *Gate) GetMarketByID(id string) (*types.Market, error) {
 			return market, nil
 		}
 	}
-	return nil, exlink.ErrMarketNotFound
+	return nil, base.ErrMarketNotFound
 }
 
 // FetchTicker 获取行情
@@ -655,7 +655,7 @@ func (g *Gate) signRequest(method, path string, queryString, body string) string
 // signAndRequest 签名并发送请求
 func (g *Gate) signAndRequest(ctx context.Context, method, path string, params map[string]interface{}, body map[string]interface{}) ([]byte, error) {
 	if g.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	// 构建查询字符串
@@ -692,7 +692,7 @@ func (g *Gate) signAndRequest(ctx context.Context, method, path string, params m
 // FetchBalance 获取余额
 func (g *Gate) FetchBalance(ctx context.Context) (types.Balances, error) {
 	if g.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	// Gate.io 现货余额
@@ -732,7 +732,7 @@ func (g *Gate) FetchBalance(ctx context.Context) (types.Balances, error) {
 // CreateOrder 创建订单
 func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price float64, params map[string]interface{}) (*types.Order, error) {
 	if g.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	market, err := g.GetMarket(symbol)
@@ -849,7 +849,7 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 // CancelOrder 取消订单
 func (g *Gate) CancelOrder(ctx context.Context, orderID, symbol string) error {
 	if g.secretKey == "" {
-		return exlink.ErrAuthenticationRequired
+		return base.ErrAuthenticationRequired
 	}
 
 	market, err := g.GetMarket(symbol)
@@ -872,7 +872,7 @@ func (g *Gate) CancelOrder(ctx context.Context, orderID, symbol string) error {
 // FetchOrder 查询订单
 func (g *Gate) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
 	if g.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	market, err := g.GetMarket(symbol)
@@ -962,7 +962,7 @@ func (g *Gate) FetchOrders(ctx context.Context, symbol string, since time.Time, 
 // FetchOpenOrders 查询未成交订单
 func (g *Gate) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
 	if g.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	market, err := g.GetMarket(symbol)
@@ -1119,7 +1119,7 @@ func (g *Gate) FetchTrades(ctx context.Context, symbol string, since time.Time, 
 // FetchMyTrades 获取我的交易记录
 func (g *Gate) FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
 	if g.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	market, err := g.GetMarket(symbol)
@@ -1190,7 +1190,7 @@ func (g *Gate) FetchMyTrades(ctx context.Context, symbol string, since time.Time
 // FetchPositions 获取持仓
 func (g *Gate) FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error) {
 	if g.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	// Gate.io 合约持仓
@@ -1262,7 +1262,7 @@ func (g *Gate) FetchPositions(ctx context.Context, symbols ...string) ([]*types.
 // SetLeverage 设置杠杆
 func (g *Gate) SetLeverage(ctx context.Context, symbol string, leverage int) error {
 	if g.secretKey == "" {
-		return exlink.ErrAuthenticationRequired
+		return base.ErrAuthenticationRequired
 	}
 
 	market, err := g.GetMarket(symbol)
