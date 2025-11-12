@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lemconn/exlink"
+	"github.com/lemconn/exlink/base"
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/types"
 )
@@ -21,14 +21,14 @@ const (
 
 // Bybit Bybit交易所实现
 type Bybit struct {
-	*exlink.BaseExchange
+	*base.BaseExchange
 	client    *common.HTTPClient
 	apiKey    string
 	secretKey string
 }
 
 // NewBybit 创建Bybit交易所实例
-func NewBybit(apiKey, secretKey string, options map[string]interface{}) (exlink.Exchange, error) {
+func NewBybit(apiKey, secretKey string, options map[string]interface{}) (base.Exchange, error) {
 	baseURL := bybitBaseURL
 	sandbox := false
 	proxyURL := ""
@@ -48,7 +48,7 @@ func NewBybit(apiKey, secretKey string, options map[string]interface{}) (exlink.
 	}
 
 	exchange := &Bybit{
-		BaseExchange: exlink.NewBaseExchange(bybitName),
+		BaseExchange: base.NewBaseExchange(bybitName),
 		client:       common.NewHTTPClient(baseURL),
 		apiKey:       apiKey,
 		secretKey:    secretKey,
@@ -334,7 +334,7 @@ func (b *Bybit) GetMarketByID(id string) (*types.Market, error) {
 			return market, nil
 		}
 	}
-	return nil, exlink.ErrMarketNotFound
+	return nil, base.ErrMarketNotFound
 }
 
 // FetchTicker 获取行情
@@ -665,7 +665,7 @@ func (b *Bybit) signRequest(method, path string, params map[string]interface{}, 
 // signAndRequest 签名并发送请求
 func (b *Bybit) signAndRequest(ctx context.Context, method, path string, params map[string]interface{}, body map[string]interface{}) ([]byte, error) {
 	if b.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	signature, timestamp := b.signRequest(method, path, params, body)
@@ -689,7 +689,7 @@ func (b *Bybit) signAndRequest(ctx context.Context, method, path string, params 
 // FetchBalance 获取余额
 func (b *Bybit) FetchBalance(ctx context.Context) (types.Balances, error) {
 	if b.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	// Bybit v5 统一账户余额
@@ -746,7 +746,7 @@ func (b *Bybit) FetchBalance(ctx context.Context) (types.Balances, error) {
 // CreateOrder 创建订单
 func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price float64, params map[string]interface{}) (*types.Order, error) {
 	if b.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	market, err := b.GetMarket(symbol)
@@ -825,7 +825,7 @@ func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.Order
 // CancelOrder 取消订单
 func (b *Bybit) CancelOrder(ctx context.Context, orderID, symbol string) error {
 	if b.secretKey == "" {
-		return exlink.ErrAuthenticationRequired
+		return base.ErrAuthenticationRequired
 	}
 
 	market, err := b.GetMarket(symbol)
@@ -856,7 +856,7 @@ func (b *Bybit) CancelOrder(ctx context.Context, orderID, symbol string) error {
 // FetchOrder 查询订单
 func (b *Bybit) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
 	if b.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	market, err := b.GetMarket(symbol)
@@ -966,7 +966,7 @@ func (b *Bybit) FetchOrders(ctx context.Context, symbol string, since time.Time,
 // FetchOpenOrders 查询未成交订单
 func (b *Bybit) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
 	if b.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	market, err := b.GetMarket(symbol)
@@ -1139,7 +1139,7 @@ func (b *Bybit) FetchTrades(ctx context.Context, symbol string, since time.Time,
 // FetchMyTrades 获取我的交易记录
 func (b *Bybit) FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
 	if b.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	market, err := b.GetMarket(symbol)
@@ -1219,7 +1219,7 @@ func (b *Bybit) FetchMyTrades(ctx context.Context, symbol string, since time.Tim
 // FetchPositions 获取持仓
 func (b *Bybit) FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error) {
 	if b.secretKey == "" {
-		return nil, exlink.ErrAuthenticationRequired
+		return nil, base.ErrAuthenticationRequired
 	}
 
 	params := map[string]interface{}{
@@ -1312,7 +1312,7 @@ func (b *Bybit) FetchPositions(ctx context.Context, symbols ...string) ([]*types
 // SetLeverage 设置杠杆
 func (b *Bybit) SetLeverage(ctx context.Context, symbol string, leverage int) error {
 	if b.secretKey == "" {
-		return exlink.ErrAuthenticationRequired
+		return base.ErrAuthenticationRequired
 	}
 
 	market, err := b.GetMarket(symbol)
@@ -1343,7 +1343,7 @@ func (b *Bybit) SetLeverage(ctx context.Context, symbol string, leverage int) er
 // SetMarginMode 设置保证金模式
 func (b *Bybit) SetMarginMode(ctx context.Context, symbol string, mode string) error {
 	if b.secretKey == "" {
-		return exlink.ErrAuthenticationRequired
+		return base.ErrAuthenticationRequired
 	}
 
 	market, err := b.GetMarket(symbol)
