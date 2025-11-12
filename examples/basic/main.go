@@ -13,7 +13,7 @@ func main() {
 	ctx := context.Background()
 
 	// 创建交易所实例（不需要API密钥也可以获取公开数据）
-	exchange, err := exlink.NewExchange("binance")
+	exchange, err := exlink.NewExchange(exlink.ExchangeBinance)
 	if err != nil {
 		log.Fatal(err)
 	}

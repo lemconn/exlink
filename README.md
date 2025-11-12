@@ -60,7 +60,7 @@ func main() {
     ctx := context.Background()
     
     // Create exchange instance (no API keys needed for public data)
-    exchange, err := exlink.NewExchange("binance")
+    exchange, err := exlink.NewExchange(exlink.ExchangeBinance)
     if err != nil {
         log.Fatal(err)
     }
@@ -81,7 +81,7 @@ func main() {
 ```go
 // Create authenticated exchange instance
 exchange, err := exlink.NewExchange(
-    "binance",
+    exlink.ExchangeBinance,
     exlink.WithAPIKey("your-api-key"),
     exlink.WithSecretKey("your-secret-key"),
 )
@@ -104,7 +104,7 @@ fmt.Printf("BTC Balance: %.8f\n", btcBalance.Free)
 ```go
 // Create exchange with options
 exchange, err := exlink.NewExchange(
-    "binance",
+    exlink.ExchangeBinance,
     exlink.WithAPIKey("your-api-key"),
     exlink.WithSecretKey("your-secret-key"),
     exlink.WithSandbox(true),                              // Enable sandbox mode
@@ -114,7 +114,7 @@ exchange, err := exlink.NewExchange(
 
 // OKX requires passphrase for authenticated requests
 exchange, err := exlink.NewExchange(
-    "okx",
+    exlink.ExchangeOKX,
     exlink.WithAPIKey("your-api-key"),
     exlink.WithSecretKey("your-secret-key"),
     exlink.WithPassphrase("your-passphrase"),             // Required for OKX
@@ -256,21 +256,32 @@ func NewMyExchange(apiKey, secretKey string, options map[string]interface{}) (ba
 Then add the registration in `registry.go`:
 
 ```go
+// 首先定义常量
+const ExchangeMyExchange = "myexchange"
+
 func init() {
-    Register("binance", binance.NewBinance)
-    Register("bybit", bybit.NewBybit)
-    Register("okx", okx.NewOKX)
-    Register("gate", gate.NewGate)
-    Register("myexchange", myexchange.NewMyExchange) // Add your exchange here
+    Register(ExchangeBinance, binance.NewBinance)
+    Register(ExchangeBybit, bybit.NewBybit)
+    Register(ExchangeOKX, okx.NewOKX)
+    Register(ExchangeGate, gate.NewGate)
+    Register(ExchangeMyExchange, myexchange.NewMyExchange) // Add your exchange here
 }
 ```
 
 ## Core Concepts
 
+### Exchange Names
+
+- `ExchangeBinance`: Binance exchange
+- `ExchangeBybit`: Bybit exchange
+- `ExchangeOKX`: OKX exchange
+- `ExchangeGate`: Gate.io exchange
+
 ### Market Types
 
-- `MarketTypeSpot`: Spot market
-- `MarketTypeFuture`: Perpetual swap market
+- `MarketSpot`: Spot market
+- `MarketSwap`: Perpetual swap market
+- `MarketFuture`: Perpetual swap market (synonym for MarketSwap)
 
 ### Order Types
 
