@@ -119,6 +119,7 @@ func TestBybit_FetchOHLCV(t *testing.T) {
 
 	ohlcvs, err = exchange.FetchOHLCV(ctx, symbol, timeframe, time.Time{}, limit)
 	if err != nil {
+		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to fetch OHLCV: %v", err)
 	}
 
@@ -185,6 +186,7 @@ func TestBybit_FetchTicker(t *testing.T) {
 
 	ticker, err = exchange.FetchTicker(ctx, symbol)
 	if err != nil {
+		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to fetch ticker: %v", err)
 	}
 
