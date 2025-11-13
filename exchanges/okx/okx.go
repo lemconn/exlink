@@ -67,6 +67,11 @@ func NewOKX(apiKey, secretKey string, options map[string]interface{}) (base.Exch
 		}
 	}
 
+	// 设置调试模式
+	if v, ok := options["debug"].(bool); ok && v {
+		exchange.client.SetDebug(true)
+	}
+
 	// 设置请求头
 	if apiKey != "" {
 		exchange.client.SetHeader("OK-ACCESS-KEY", apiKey)
@@ -77,7 +82,7 @@ func NewOKX(apiKey, secretKey string, options map[string]interface{}) (base.Exch
 
 	// 设置其他选项
 	for k, v := range options {
-		if k != "baseURL" && k != "sandbox" && k != "proxy" && k != "passphrase" {
+		if k != "baseURL" && k != "sandbox" && k != "proxy" && k != "passphrase" && k != "debug" {
 			exchange.SetOption(k, v)
 		}
 	}
