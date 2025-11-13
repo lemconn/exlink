@@ -17,6 +17,7 @@ func getProxyURL() string {
 func getOptions() map[string]interface{} {
 	options := map[string]interface{}{
 		"fetchMarkets": []string{"spot", "swap"},
+		"sandbox":      true, // 使用模拟盘
 	}
 	if proxyURL := getProxyURL(); proxyURL != "" {
 		options["proxy"] = proxyURL
