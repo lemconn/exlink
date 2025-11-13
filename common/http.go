@@ -137,7 +137,8 @@ func (c *HTTPClient) Request(ctx context.Context, method, path string, params ma
 		fmt.Printf("[DEBUG] Request:\n")
 		fmt.Printf("  Method: %s\n", method)
 		fmt.Printf("  URL: %s\n", url)
-		fmt.Printf("  Headers: %v\n", c.headers)
+		headersJSON, _ := json.Marshal(c.headers)
+		fmt.Printf("  Headers: %s\n", string(headersJSON))
 		if body != nil {
 			bodyBytes, _ := json.Marshal(body)
 			fmt.Printf("  Body: %s\n", string(bodyBytes))
