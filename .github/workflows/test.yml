@@ -40,7 +40,13 @@ jobs:
     - name: Run tests
       env:
         PROXY_URL: ${{ secrets.PROXY_URL }}
+        BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
+        BINANCE_SECRET_KEY: ${{ secrets.BINANCE_SECRET_KEY }}
         OKX_API_KEY: ${{ secrets.OKX_API_KEY }}
         OKX_SECRET_KEY: ${{ secrets.OKX_SECRET_KEY }}
         OKX_PASSPHRASE: ${{ secrets.OKX_PASSPHRASE }}
+        GATE_API_KEY: ${{ secrets.GATE_API_KEY }}
+        GATE_SECRET_KEY: ${{ secrets.GATE_SECRET_KEY }}
+        BYBIT_API_KEY: ${{ secrets.BYBIT_API_KEY }}
+        BYBIT_SECRET_KEY: ${{ secrets.BYBIT_SECRET_KEY }}
       run: make test
