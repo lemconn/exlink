@@ -40,4 +40,7 @@ jobs:
     - name: Run tests
       env:
         PROXY_URL: ${{ secrets.PROXY_URL }}
+        OKX_API_KEY: ${{ secrets.OKX_API_KEY }}
+        OKX_SECRET_KEY: ${{ secrets.OKX_SECRET_KEY }}
+        OKX_PASSPHRASE: ${{ secrets.OKX_PASSPHRASE }}
       run: make test
