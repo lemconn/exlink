@@ -1,14 +1,18 @@
 # ExLink - Unified Cryptocurrency Exchange API Library for Go
 
+[![ci](https://github.com/lemconn/exlink/actions/workflows/test.yml/badge.svg?branch=master)](https://github.com/lemconn/exlink/actions/workflows/test.yml)
+[![GoDoc](https://godoc.org/github.com/lemconn/exlink?status.svg)](https://godoc.org/github.com/lemconn/exlink) 
+[![Go Report Card](https://goreportcard.com/badge/github.com/lemconn/exlink)](https://goreportcard.com/report/github.com/lemconn/exlink)
+
 ExLink is a Go library similar to Python's ccxt, providing a standardized interface to access multiple cryptocurrency exchange APIs.
 
 ## Features
 
-- 🎯 **Unified Interface**: Standardized API interface supporting multiple exchanges
-- 📊 **Spot & Derivatives**: Support for spot trading and perpetual contracts
-- 🔒 **Type Safe**: Complete type definitions with compile-time checking
-- 🚀 **Easy to Extend**: Simple interface implementation for adding new exchanges
-- 📦 **Modular Design**: Clear code structure, easy to maintain
+- **Unified Interface**: Standardized API interface supporting multiple exchanges
+- **Spot & Derivatives**: Support for spot trading and perpetual contracts
+- **Type Safe**: Complete type definitions with compile-time checking
+- **Easy to Extend**: Simple interface implementation for adding new exchanges
+- **Modular Design**: Clear code structure, easy to maintain
 
 ## Supported Exchanges
 
