@@ -601,7 +601,7 @@ func (o *OKX) FetchBalance(ctx context.Context) (types.Balances, error) {
 
 	// OKX需要签名
 	timestamp := common.GetISO8601Timestamp()
-	signature := o.signRequest("GET", "/api/v5/account/balance", timestamp, "")
+	signature := o.signRequest("GET", "/api/v5/account/balance", timestamp, "", nil)
 
 	o.client.SetHeader("OK-ACCESS-SIGN", signature)
 	o.client.SetHeader("OK-ACCESS-TIMESTAMP", timestamp)
@@ -697,7 +697,7 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 
 	bodyStr, _ := json.Marshal(reqBody)
 	timestamp := common.GetISO8601Timestamp()
-	signature := o.signRequest("POST", "/api/v5/trade/order", timestamp, string(bodyStr))
+	signature := o.signRequest("POST", "/api/v5/trade/order", timestamp, string(bodyStr), nil)
 
 	o.client.SetHeader("OK-ACCESS-SIGN", signature)
 	o.client.SetHeader("OK-ACCESS-TIMESTAMP", timestamp)
@@ -764,7 +764,7 @@ func (o *OKX) CancelOrder(ctx context.Context, orderID, symbol string) error {
 
 	bodyStr, _ := json.Marshal(reqBody)
 	timestamp := common.GetISO8601Timestamp()
-	signature := o.signRequest("POST", "/api/v5/trade/cancel-order", timestamp, string(bodyStr))
+	signature := o.signRequest("POST", "/api/v5/trade/cancel-order", timestamp, string(bodyStr), nil)
 
 	o.client.SetHeader("OK-ACCESS-SIGN", signature)
 	o.client.SetHeader("OK-ACCESS-TIMESTAMP", timestamp)
@@ -787,17 +787,18 @@ func (o *OKX) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Or
 		return nil, fmt.Errorf("get market ID: %w", err)
 	}
 
+	orderParams := map[string]interface{}{
+		"instId": okxSymbol,
+		"ordId":  orderID,
+	}
 	timestamp := common.GetISO8601Timestamp()
-	signature := o.signRequest("GET", "/api/v5/trade/order", timestamp, "")
+	signature := o.signRequest("GET", "/api/v5/trade/order", timestamp, "", orderParams)
 
 	o.client.SetHeader("OK-ACCESS-SIGN", signature)
 	o.client.SetHeader("OK-ACCESS-TIMESTAMP", timestamp)
 	o.client.SetHeader("OK-ACCESS-PASSPHRASE", o.passphrase)
 
-	resp, err := o.client.Get(ctx, "/api/v5/trade/order", map[string]interface{}{
-		"instId": okxSymbol,
-		"ordId":  orderID,
-	})
+	resp, err := o.client.Get(ctx, "/api/v5/trade/order", orderParams)
 	if err != nil {
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
@@ -904,7 +905,7 @@ func (o *OKX) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Orde
 	}
 
 	timestamp := common.GetISO8601Timestamp()
-	signature := o.signRequest("GET", "/api/v5/trade/orders-pending", timestamp, "")
+	signature := o.signRequest("GET", "/api/v5/trade/orders-pending", timestamp, "", params)
 
 	o.client.SetHeader("OK-ACCESS-SIGN", signature)
 	o.client.SetHeader("OK-ACCESS-TIMESTAMP", timestamp)
@@ -1083,7 +1084,7 @@ func (o *OKX) FetchMyTrades(ctx context.Context, symbol string, since time.Time,
 	}
 
 	timestamp := common.GetISO8601Timestamp()
-	signature := o.signRequest("GET", "/api/v5/trade/fills", timestamp, "")
+	signature := o.signRequest("GET", "/api/v5/trade/fills", timestamp, "", params)
 
 	o.client.SetHeader("OK-ACCESS-SIGN", signature)
 	o.client.SetHeader("OK-ACCESS-TIMESTAMP", timestamp)
@@ -1171,7 +1172,7 @@ func (o *OKX) FetchPositions(ctx context.Context, symbols ...string) ([]*types.P
 	}
 
 	timestamp := common.GetISO8601Timestamp()
-	signature := o.signRequest("GET", "/api/v5/account/positions", timestamp, "")
+	signature := o.signRequest("GET", "/api/v5/account/positions", timestamp, "", params)
 
 	o.client.SetHeader("OK-ACCESS-SIGN", signature)
 	o.client.SetHeader("OK-ACCESS-TIMESTAMP", timestamp)
@@ -1327,7 +1328,7 @@ func (o *OKX) SetLeverage(ctx context.Context, symbol string, leverage int) erro
 
 	bodyStr, _ := json.Marshal(reqBody)
 	timestamp := common.GetISO8601Timestamp()
-	signature := o.signRequest("POST", "/api/v5/account/set-leverage", timestamp, string(bodyStr))
+	signature := o.signRequest("POST", "/api/v5/account/set-leverage", timestamp, string(bodyStr), nil)
 
 	o.client.SetHeader("OK-ACCESS-SIGN", signature)
 	o.client.SetHeader("OK-ACCESS-TIMESTAMP", timestamp)
@@ -1364,7 +1365,7 @@ func (o *OKX) SetMarginMode(ctx context.Context, symbol string, mode string) err
 
 	bodyStr, _ := json.Marshal(reqBody)
 	timestamp := common.GetISO8601Timestamp()
-	signature := o.signRequest("POST", "/api/v5/account/set-margin-mode", timestamp, string(bodyStr))
+	signature := o.signRequest("POST", "/api/v5/account/set-margin-mode", timestamp, string(bodyStr), nil)
 
 	o.client.SetHeader("OK-ACCESS-SIGN", signature)
 	o.client.SetHeader("OK-ACCESS-TIMESTAMP", timestamp)
@@ -1390,7 +1391,21 @@ func (o *OKX) GetMarkets(ctx context.Context, marketType types.MarketType) ([]*t
 }
 
 // signRequest OKX签名
-func (o *OKX) signRequest(method, path string, timestamp string, body string) string {
-	message := timestamp + method + path + body
+// 根据OKX API文档，签名格式为：timestamp + method + requestPath + (queryString for GET or body for POST)
+// 对于GET请求，如果有查询参数，需要将查询字符串（包括?）添加到签名中
+func (o *OKX) signRequest(method, path string, timestamp string, body string, params map[string]interface{}) string {
+	message := timestamp + method + path
+	
+	// 对于GET请求，如果有查询参数，需要包含在签名中
+	if method == "GET" && len(params) > 0 {
+		queryString := common.BuildQueryString(params)
+		if queryString != "" {
+			message += "?" + queryString
+		}
+	} else if body != "" {
+		// POST/PUT/DELETE请求使用body
+		message += body
+	}
+	
 	return common.SignHMAC256Base64(message, o.secretKey)
 }
