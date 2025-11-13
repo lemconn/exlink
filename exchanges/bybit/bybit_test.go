@@ -8,16 +8,26 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/lemconn/exlink/types"
 )
 
 func getProxyURL() string {
 	return os.Getenv("PROXY_URL")
 }
 
+func getBybitAPIKey() string {
+	return os.Getenv("BYBIT_API_KEY")
+}
+
+func getBybitSecretKey() string {
+	return os.Getenv("BYBIT_SECRET_KEY")
+}
+
 func getOptions() map[string]interface{} {
 	options := map[string]interface{}{
 		"fetchMarkets": []string{"spot", "swap"},
-		"sandbox":      true, // 使用模拟盘
+		"sandbox":      true, // Use sandbox mode
 	}
 	if proxyURL := getProxyURL(); proxyURL != "" {
 		options["proxy"] = proxyURL
@@ -199,4 +209,264 @@ func TestBybit_FetchTicker(t *testing.T) {
 		ticker.Low,
 		ticker.Volume,
 	)
+}
+
+// TestBybit_CreateContractOrder_BuyOpenLong tests buying to open a long position
+func TestBybit_CreateContractOrder_BuyOpenLong(t *testing.T) {
+	ctx := context.Background()
+
+	// Read API credentials from environment variables
+	apiKey := getBybitAPIKey()
+	secretKey := getBybitSecretKey()
+	if apiKey == "" || secretKey == "" {
+		t.Skip("Bybit API credentials not set in environment variables")
+	}
+
+	// Create Bybit instance
+	options := getOptions()
+	exchange, err := NewBybit(apiKey, secretKey, options)
+	if err != nil {
+		t.Fatalf("Failed to create Bybit instance: %v", err)
+	}
+
+	// Load markets
+	if err := exchange.LoadMarkets(ctx, false); err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to load markets: %v", err)
+	}
+
+	symbol := "SOL/USDT:USDT"
+	amount := 0.1 // Order amount
+
+	// Fetch current price (optional, using market order here)
+	ticker, err := exchange.FetchTicker(ctx, symbol)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to fetch ticker: %v", err)
+	}
+
+	fmt.Printf("Testing buy open long: %s, amount: %f\n", symbol, amount)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+
+	// Buy to open long: side="Buy", reduceOnly=false (default) for opening
+	params := map[string]interface{}{
+		"reduceOnly": false, // Open position
+	}
+
+	// Use market order
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, params)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to create buy open long order: %v", err)
+	}
+
+	fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		order.ID, order.Symbol, order.Side, order.Amount)
+
+	// Wait a bit for order processing
+	time.Sleep(2 * time.Second)
+
+	// Query order status
+	fetchedOrder, err := exchange.FetchOrder(ctx, order.ID, symbol)
+	if err != nil {
+		t.Logf("Warning: Failed to fetch order: %v", err)
+	} else {
+		fmt.Printf("Order status: ID=%s, Status=%s, Filled=%f, Remaining=%f\n",
+			fetchedOrder.ID, fetchedOrder.Status, fetchedOrder.Filled, fetchedOrder.Remaining)
+	}
+}
+
+// TestBybit_CreateContractOrder_SellCloseLong tests selling to close a long position
+func TestBybit_CreateContractOrder_SellCloseLong(t *testing.T) {
+	ctx := context.Background()
+
+	// Read API credentials from environment variables
+	apiKey := getBybitAPIKey()
+	secretKey := getBybitSecretKey()
+	if apiKey == "" || secretKey == "" {
+		t.Skip("Bybit API credentials not set in environment variables")
+	}
+
+	// Create Bybit instance
+	options := getOptions()
+	exchange, err := NewBybit(apiKey, secretKey, options)
+	if err != nil {
+		t.Fatalf("Failed to create Bybit instance: %v", err)
+	}
+
+	// Load markets
+	if err := exchange.LoadMarkets(ctx, false); err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to load markets: %v", err)
+	}
+
+	symbol := "SOL/USDT:USDT"
+	amount := 0.1 // Order amount
+
+	// Fetch current price
+	ticker, err := exchange.FetchTicker(ctx, symbol)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to fetch ticker: %v", err)
+	}
+
+	fmt.Printf("Testing sell close long: %s, amount: %f\n", symbol, amount)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+
+	// Sell to close long: side="Sell", reduceOnly=true to close
+	params := map[string]interface{}{
+		"reduceOnly": true, // Close position
+	}
+
+	// Use market order
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, params)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to create sell close long order: %v", err)
+	}
+
+	fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		order.ID, order.Symbol, order.Side, order.Amount)
+
+	// Wait a bit for order processing
+	time.Sleep(2 * time.Second)
+
+	// Query order status
+	fetchedOrder, err := exchange.FetchOrder(ctx, order.ID, symbol)
+	if err != nil {
+		t.Logf("Warning: Failed to fetch order: %v", err)
+	} else {
+		fmt.Printf("Order status: ID=%s, Status=%s, Filled=%f, Remaining=%f\n",
+			fetchedOrder.ID, fetchedOrder.Status, fetchedOrder.Filled, fetchedOrder.Remaining)
+	}
+}
+
+// TestBybit_CreateContractOrder_SellOpenShort tests selling to open a short position
+func TestBybit_CreateContractOrder_SellOpenShort(t *testing.T) {
+	ctx := context.Background()
+
+	// Read API credentials from environment variables
+	apiKey := getBybitAPIKey()
+	secretKey := getBybitSecretKey()
+	if apiKey == "" || secretKey == "" {
+		t.Skip("Bybit API credentials not set in environment variables")
+	}
+
+	// Create Bybit instance
+	options := getOptions()
+	exchange, err := NewBybit(apiKey, secretKey, options)
+	if err != nil {
+		t.Fatalf("Failed to create Bybit instance: %v", err)
+	}
+
+	// Load markets
+	if err := exchange.LoadMarkets(ctx, false); err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to load markets: %v", err)
+	}
+
+	symbol := "SOL/USDT:USDT"
+	amount := 0.1 // Order amount
+
+	// Fetch current price
+	ticker, err := exchange.FetchTicker(ctx, symbol)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to fetch ticker: %v", err)
+	}
+
+	fmt.Printf("Testing sell open short: %s, amount: %f\n", symbol, amount)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+
+	// Sell to open short: side="Sell", reduceOnly=false (default) for opening
+	params := map[string]interface{}{
+		"reduceOnly": false, // Open position
+	}
+
+	// Use market order
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, params)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to create sell open short order: %v", err)
+	}
+
+	fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		order.ID, order.Symbol, order.Side, order.Amount)
+
+	// Wait a bit for order processing
+	time.Sleep(2 * time.Second)
+
+	// Query order status
+	fetchedOrder, err := exchange.FetchOrder(ctx, order.ID, symbol)
+	if err != nil {
+		t.Logf("Warning: Failed to fetch order: %v", err)
+	} else {
+		fmt.Printf("Order status: ID=%s, Status=%s, Filled=%f, Remaining=%f\n",
+			fetchedOrder.ID, fetchedOrder.Status, fetchedOrder.Filled, fetchedOrder.Remaining)
+	}
+}
+
+// TestBybit_CreateContractOrder_BuyCloseShort tests buying to close a short position
+func TestBybit_CreateContractOrder_BuyCloseShort(t *testing.T) {
+	ctx := context.Background()
+
+	// Read API credentials from environment variables
+	apiKey := getBybitAPIKey()
+	secretKey := getBybitSecretKey()
+	if apiKey == "" || secretKey == "" {
+		t.Skip("Bybit API credentials not set in environment variables")
+	}
+
+	// Create Bybit instance
+	options := getOptions()
+	exchange, err := NewBybit(apiKey, secretKey, options)
+	if err != nil {
+		t.Fatalf("Failed to create Bybit instance: %v", err)
+	}
+
+	// Load markets
+	if err := exchange.LoadMarkets(ctx, false); err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to load markets: %v", err)
+	}
+
+	symbol := "SOL/USDT:USDT"
+	amount := 0.1 // Order amount
+
+	// Fetch current price
+	ticker, err := exchange.FetchTicker(ctx, symbol)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to fetch ticker: %v", err)
+	}
+
+	fmt.Printf("Testing buy close short: %s, amount: %f\n", symbol, amount)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+
+	// Buy to close short: side="Buy", reduceOnly=true to close
+	params := map[string]interface{}{
+		"reduceOnly": true, // Close position
+	}
+
+	// Use market order
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, params)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to create buy close short order: %v", err)
+	}
+
+	fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		order.ID, order.Symbol, order.Side, order.Amount)
+
+	// Wait a bit for order processing
+	time.Sleep(2 * time.Second)
+
+	// Query order status
+	fetchedOrder, err := exchange.FetchOrder(ctx, order.ID, symbol)
+	if err != nil {
+		t.Logf("Warning: Failed to fetch order: %v", err)
+	} else {
+		fmt.Printf("Order status: ID=%s, Status=%s, Filled=%f, Remaining=%f\n",
+			fetchedOrder.ID, fetchedOrder.Status, fetchedOrder.Filled, fetchedOrder.Remaining)
+	}
 }
