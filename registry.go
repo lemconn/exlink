@@ -37,6 +37,7 @@ type ExchangeOptions struct {
 	Proxy        string
 	BaseURL      string
 	FetchMarkets []types.MarketType
+	Debug        bool
 	Options      map[string]interface{} // 其他自定义选项
 }
 
@@ -89,6 +90,13 @@ func WithBaseURL(baseURL string) Option {
 func WithFetchMarkets(markets ...types.MarketType) Option {
 	return func(opts *ExchangeOptions) {
 		opts.FetchMarkets = markets
+	}
+}
+
+// WithDebug 设置是否启用调试模式
+func WithDebug(debug bool) Option {
+	return func(opts *ExchangeOptions) {
+		opts.Debug = debug
 	}
 }
 
@@ -165,6 +173,9 @@ func NewExchange(name string, opts ...Option) (base.Exchange, error) {
 	}
 	if options.Passphrase != "" {
 		optionsMap["passphrase"] = options.Passphrase
+	}
+	if options.Debug {
+		optionsMap["debug"] = options.Debug
 	}
 	// 合并自定义选项
 	for k, v := range options.Options {

@@ -17,6 +17,7 @@ type HTTPClient struct {
 	baseURL string
 	headers map[string]string
 	proxy   string
+	debug   bool
 }
 
 // NewHTTPClient 创建HTTP客户端
@@ -74,6 +75,11 @@ func (c *HTTPClient) SetTimeout(timeout time.Duration) {
 	c.client.Timeout = timeout
 }
 
+// SetDebug 设置是否启用调试模式
+func (c *HTTPClient) SetDebug(debug bool) {
+	c.debug = debug
+}
+
 // Get 发送GET请求
 func (c *HTTPClient) Get(ctx context.Context, path string, params map[string]interface{}) ([]byte, error) {
 	return c.Request(ctx, http.MethodGet, path, params, nil)
@@ -126,6 +132,19 @@ func (c *HTTPClient) Request(ctx context.Context, method, path string, params ma
 		req.Header.Set("Content-Type", "application/json")
 	}
 
+	// 调试输出：请求信息
+	if c.debug {
+		fmt.Printf("[DEBUG] Request:\n")
+		fmt.Printf("  Method: %s\n", method)
+		fmt.Printf("  URL: %s\n", url)
+		fmt.Printf("  Headers: %v\n", c.headers)
+		if body != nil {
+			bodyBytes, _ := json.Marshal(body)
+			fmt.Printf("  Body: %s\n", string(bodyBytes))
+		}
+		fmt.Println()
+	}
+
 	// 发送请求
 	resp, err := c.client.Do(req)
 	if err != nil {
@@ -137,6 +156,14 @@ func (c *HTTPClient) Request(ctx context.Context, method, path string, params ma
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
+	}
+
+	// 调试输出：响应信息
+	if c.debug {
+		fmt.Printf("[DEBUG] Response:\n")
+		fmt.Printf("  Status: %d %s\n", resp.StatusCode, resp.Status)
+		fmt.Printf("  Body: %s\n", string(respBody))
+		fmt.Println()
 	}
 
 	// 检查状态码
