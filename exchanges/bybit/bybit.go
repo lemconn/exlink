@@ -16,7 +16,7 @@ import (
 const (
 	bybitName       = "bybit"
 	bybitBaseURL    = "https://api.bybit.com"
-	bybitSandboxURL = "https://api-testnet.bybit.com"
+	bybitSandboxURL = "https://api-demo.bybit.com"
 )
 
 // Bybit Bybit交易所实现
