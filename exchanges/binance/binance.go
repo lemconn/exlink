@@ -16,9 +16,9 @@ import (
 const (
 	binanceName           = "binance"
 	binanceBaseURL        = "https://api.binance.com"
-	binanceSandboxURL     = "https://testnet.binance.vision"
+	binanceSandboxURL     = "https://demo-api.binance.com"
 	binanceFapiBaseURL    = "https://fapi.binance.com"
-	binanceFapiSandboxURL = "https://testnet.binancefuture.com"
+	binanceFapiSandboxURL = "https://demo-fapi.binance.com"
 )
 
 // Binance Binance交易所实现
