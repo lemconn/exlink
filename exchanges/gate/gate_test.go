@@ -46,11 +46,7 @@ func isNetworkError(err error) bool {
 	// Check for HTTP errors that indicate network/access issues
 	if strings.Contains(errStr, "http error 403") ||
 		strings.Contains(errStr, "http error 429") ||
-		strings.Contains(errStr, "http error 451") ||
-		strings.Contains(errStr, "CloudFront") ||
-		strings.Contains(errStr, "block access from your country") ||
-		strings.Contains(errStr, "Service unavailable from a restricted location") ||
-		strings.Contains(errStr, "restricted location") {
+		strings.Contains(errStr, "http error 451") {
 		return true
 	}
 
@@ -58,6 +54,7 @@ func isNetworkError(err error) bool {
 	if _, ok := err.(*net.OpError); ok {
 		return true
 	}
+	
 	if strings.Contains(errStr, "connection refused") ||
 		strings.Contains(errStr, "timeout") ||
 		strings.Contains(errStr, "no such host") ||
@@ -513,5 +510,125 @@ func TestGate_FetchBalance(t *testing.T) {
 			fmt.Printf("Currency: %s, Total: %f, Free: %f, Used: %f\n",
 				currency, balance.Total, balance.Free, balance.Used)
 		}
+	}
+}
+
+// TestGate_CreateSpotOrder_Buy tests buying spot
+func TestGate_CreateSpotOrder_Buy(t *testing.T) {
+	ctx := context.Background()
+
+	// Read API credentials from environment variables
+	apiKey := getGateAPIKey()
+	secretKey := getGateSecretKey()
+	if apiKey == "" || secretKey == "" {
+		t.Skip("Gate API credentials not set in environment variables")
+	}
+
+	// Create Gate instance
+	options := getOptions()
+	exchange, err := NewGate(apiKey, secretKey, options)
+	if err != nil {
+		t.Fatalf("Failed to create Gate instance: %v", err)
+	}
+
+	// Load markets
+	if err := exchange.LoadMarkets(ctx, false); err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to load markets: %v", err)
+	}
+
+	symbol := "SOL/USDT"
+	amount := 0.01 // Order amount
+
+	// Fetch current price
+	ticker, err := exchange.FetchTicker(ctx, symbol)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to fetch ticker: %v", err)
+	}
+
+	fmt.Printf("Testing spot buy: %s, amount: %f\n", symbol, amount)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+
+	// Use market order for spot buy
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, nil)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to create spot buy order: %v", err)
+	}
+
+	fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		order.ID, order.Symbol, order.Side, order.Amount)
+
+	// Wait a bit for order processing
+	time.Sleep(2 * time.Second)
+
+	// Query order status
+	fetchedOrder, err := exchange.FetchOrder(ctx, order.ID, symbol)
+	if err != nil {
+		t.Logf("Warning: Failed to fetch order: %v", err)
+	} else {
+		fmt.Printf("Order status: ID=%s, Status=%s, Filled=%f, Remaining=%f\n",
+			fetchedOrder.ID, fetchedOrder.Status, fetchedOrder.Filled, fetchedOrder.Remaining)
+	}
+}
+
+// TestGate_CreateSpotOrder_Sell tests selling spot
+func TestGate_CreateSpotOrder_Sell(t *testing.T) {
+	ctx := context.Background()
+
+	// Read API credentials from environment variables
+	apiKey := getGateAPIKey()
+	secretKey := getGateSecretKey()
+	if apiKey == "" || secretKey == "" {
+		t.Skip("Gate API credentials not set in environment variables")
+	}
+
+	// Create Gate instance
+	options := getOptions()
+	exchange, err := NewGate(apiKey, secretKey, options)
+	if err != nil {
+		t.Fatalf("Failed to create Gate instance: %v", err)
+	}
+
+	// Load markets
+	if err := exchange.LoadMarkets(ctx, false); err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to load markets: %v", err)
+	}
+
+	symbol := "SOL/USDT"
+	amount := 0.01 // Order amount
+
+	// Fetch current price
+	ticker, err := exchange.FetchTicker(ctx, symbol)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to fetch ticker: %v", err)
+	}
+
+	fmt.Printf("Testing spot sell: %s, amount: %f\n", symbol, amount)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+
+	// Use market order for spot sell
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, nil)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to create spot sell order: %v", err)
+	}
+
+	fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		order.ID, order.Symbol, order.Side, order.Amount)
+
+	// Wait a bit for order processing
+	time.Sleep(2 * time.Second)
+
+	// Query order status
+	fetchedOrder, err := exchange.FetchOrder(ctx, order.ID, symbol)
+	if err != nil {
+		t.Logf("Warning: Failed to fetch order: %v", err)
+	} else {
+		fmt.Printf("Order status: ID=%s, Status=%s, Filled=%f, Remaining=%f\n",
+			fetchedOrder.ID, fetchedOrder.Status, fetchedOrder.Filled, fetchedOrder.Remaining)
 	}
 }
