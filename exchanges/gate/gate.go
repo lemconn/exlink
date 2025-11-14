@@ -663,13 +663,18 @@ func (g *Gate) FetchOHLCV(ctx context.Context, symbol string, timeframe string, 
 }
 
 // signRequest Gate.io 签名方法
-func (g *Gate) signRequest(method, path string, queryString, body string) string {
-	timestamp := common.GetTimestampSeconds()
+func (g *Gate) signRequest(method, path string, queryString, body string, timestamp int64) string {
 	bodyHash := common.HashSHA512(body)
+
+	// 去掉路径中的 /api/v4 前缀（如果存在），因为签名格式中已经包含了
+	signPath := path
+	if strings.HasPrefix(path, "/api/v4") {
+		signPath = strings.TrimPrefix(path, "/api/v4")
+	}
 
 	// Gate.io 签名格式: method\n/api/v4/path\nqueryString\nbodyHash\ntimestamp
 	payload := fmt.Sprintf("%s\n/api/v4%s\n%s\n%s\n%d",
-		strings.ToUpper(method), path, queryString, bodyHash, timestamp)
+		strings.ToUpper(method), signPath, queryString, bodyHash, timestamp)
 
 	return common.SignHMAC512(payload, g.secretKey)
 }
@@ -693,9 +698,9 @@ func (g *Gate) signAndRequest(ctx context.Context, method, path string, params m
 		bodyStr = string(bodyBytes)
 	}
 
-	// 签名
+	// 签名（使用同一个 timestamp 确保签名和请求头一致）
 	timestamp := common.GetTimestampSeconds()
-	signature := g.signRequest(method, path, queryString, bodyStr)
+	signature := g.signRequest(method, path, queryString, bodyStr, timestamp)
 
 	// 设置请求头
 	g.client.SetHeader("KEY", g.apiKey)

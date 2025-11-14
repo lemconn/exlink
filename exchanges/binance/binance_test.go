@@ -470,3 +470,49 @@ func TestBinance_CreateContractOrder_BuyCloseShort(t *testing.T) {
 			fetchedOrder.ID, fetchedOrder.Status, fetchedOrder.Filled, fetchedOrder.Remaining)
 	}
 }
+
+// TestBinance_FetchBalance tests fetching balance
+func TestBinance_FetchBalance(t *testing.T) {
+	ctx := context.Background()
+
+	// Read API credentials from environment variables
+	apiKey := getBinanceAPIKey()
+	secretKey := getBinanceSecretKey()
+	if apiKey == "" || secretKey == "" {
+		t.Skip("Binance API credentials not set in environment variables")
+	}
+
+	// Create Binance instance
+	options := getOptions()
+	exchange, err := NewBinance(apiKey, secretKey, options)
+	if err != nil {
+		t.Fatalf("Failed to create Binance instance: %v", err)
+	}
+
+	// Load markets
+	if err := exchange.LoadMarkets(ctx, false); err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to load markets: %v", err)
+	}
+
+	// Fetch balance
+	balances, err := exchange.FetchBalance(ctx)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to fetch balance: %v", err)
+	}
+
+	if balances == nil {
+		t.Fatal("Balance data is nil")
+	}
+
+	fmt.Printf("Successfully fetched balance, total currencies: %d\n", len(balances))
+
+	// Print balance information
+	for currency, balance := range balances {
+		if balance.Total > 0 {
+			fmt.Printf("Currency: %s, Total: %f, Free: %f, Used: %f\n",
+				currency, balance.Total, balance.Free, balance.Used)
+		}
+	}
+}

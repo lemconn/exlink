@@ -479,3 +479,50 @@ func TestOKX_CreateContractOrder_BuyCloseShort(t *testing.T) {
 			fetchedOrder.ID, fetchedOrder.Status, fetchedOrder.Filled, fetchedOrder.Remaining)
 	}
 }
+
+// TestOKX_FetchBalance tests fetching balance
+func TestOKX_FetchBalance(t *testing.T) {
+	ctx := context.Background()
+
+	// Read API credentials from environment variables
+	apiKey := getOKXAPIKey()
+	secretKey := getOKXSecretKey()
+	passphrase := getOKXPassphrase()
+	if apiKey == "" || secretKey == "" || passphrase == "" {
+		t.Skip("OKX API credentials not set in environment variables")
+	}
+
+	// Create OKX instance
+	options := getOptions()
+	exchange, err := NewOKX(apiKey, secretKey, options)
+	if err != nil {
+		t.Fatalf("Failed to create OKX instance: %v", err)
+	}
+
+	// Load markets
+	if err := exchange.LoadMarkets(ctx, false); err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to load markets: %v", err)
+	}
+
+	// Fetch balance
+	balances, err := exchange.FetchBalance(ctx)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to fetch balance: %v", err)
+	}
+
+	if balances == nil {
+		t.Fatal("Balance data is nil")
+	}
+
+	fmt.Printf("Successfully fetched balance, total currencies: %d\n", len(balances))
+
+	// Print balance information
+	for currency, balance := range balances {
+		if balance.Total > 0 {
+			fmt.Printf("Currency: %s, Total: %f, Free: %f, Used: %f\n",
+				currency, balance.Total, balance.Free, balance.Used)
+		}
+	}
+}
