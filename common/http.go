@@ -94,15 +94,9 @@ func (c *HTTPClient) Post(ctx context.Context, path string, data interface{}) ([
 func (c *HTTPClient) Request(ctx context.Context, method, path string, params map[string]interface{}, body interface{}) ([]byte, error) {
 	url := c.baseURL + path
 
-	// 构建查询参数
+	// 构建查询参数 - 使用 BuildQueryString 确保与签名时一致（排序和URL编码）
 	if len(params) > 0 {
-		query := ""
-		for k, v := range params {
-			if query != "" {
-				query += "&"
-			}
-			query += fmt.Sprintf("%s=%v", k, v)
-		}
+		query := BuildQueryString(params)
 		if query != "" {
 			url += "?" + query
 		}
