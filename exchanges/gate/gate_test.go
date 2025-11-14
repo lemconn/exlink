@@ -46,11 +46,7 @@ func isNetworkError(err error) bool {
 	// Check for HTTP errors that indicate network/access issues
 	if strings.Contains(errStr, "http error 403") ||
 		strings.Contains(errStr, "http error 429") ||
-		strings.Contains(errStr, "http error 451") ||
-		strings.Contains(errStr, "CloudFront") ||
-		strings.Contains(errStr, "block access from your country") ||
-		strings.Contains(errStr, "Service unavailable from a restricted location") ||
-		strings.Contains(errStr, "restricted location") {
+		strings.Contains(errStr, "http error 451") {
 		return true
 	}
 
