@@ -522,3 +522,125 @@ func TestOKX_FetchBalance(t *testing.T) {
 		}
 	}
 }
+
+// TestOKX_CreateSpotOrder_Buy tests buying spot
+func TestOKX_CreateSpotOrder_Buy(t *testing.T) {
+	ctx := context.Background()
+
+	// Read API credentials from environment variables
+	apiKey := getOKXAPIKey()
+	secretKey := getOKXSecretKey()
+	passphrase := getOKXPassphrase()
+	if apiKey == "" || secretKey == "" || passphrase == "" {
+		t.Skip("OKX API credentials not set in environment variables")
+	}
+
+	// Create OKX instance
+	options := getOptions()
+	exchange, err := NewOKX(apiKey, secretKey, options)
+	if err != nil {
+		t.Fatalf("Failed to create OKX instance: %v", err)
+	}
+
+	// Load markets
+	if err := exchange.LoadMarkets(ctx, false); err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to load markets: %v", err)
+	}
+
+	symbol := "SOL/USDT"
+	amount := 0.01 // Order amount
+
+	// Fetch current price
+	ticker, err := exchange.FetchTicker(ctx, symbol)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to fetch ticker: %v", err)
+	}
+
+	fmt.Printf("Testing spot buy: %s, amount: %f\n", symbol, amount)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+
+	// Use market order for spot buy
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, nil)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to create spot buy order: %v", err)
+	}
+
+	fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		order.ID, order.Symbol, order.Side, order.Amount)
+
+	// Wait a bit for order processing
+	time.Sleep(2 * time.Second)
+
+	// Query order status
+	fetchedOrder, err := exchange.FetchOrder(ctx, order.ID, symbol)
+	if err != nil {
+		t.Logf("Warning: Failed to fetch order: %v", err)
+	} else {
+		fmt.Printf("Order status: ID=%s, Status=%s, Filled=%f, Remaining=%f\n",
+			fetchedOrder.ID, fetchedOrder.Status, fetchedOrder.Filled, fetchedOrder.Remaining)
+	}
+}
+
+// TestOKX_CreateSpotOrder_Sell tests selling spot
+func TestOKX_CreateSpotOrder_Sell(t *testing.T) {
+	ctx := context.Background()
+
+	// Read API credentials from environment variables
+	apiKey := getOKXAPIKey()
+	secretKey := getOKXSecretKey()
+	passphrase := getOKXPassphrase()
+	if apiKey == "" || secretKey == "" || passphrase == "" {
+		t.Skip("OKX API credentials not set in environment variables")
+	}
+
+	// Create OKX instance
+	options := getOptions()
+	exchange, err := NewOKX(apiKey, secretKey, options)
+	if err != nil {
+		t.Fatalf("Failed to create OKX instance: %v", err)
+	}
+
+	// Load markets
+	if err := exchange.LoadMarkets(ctx, false); err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to load markets: %v", err)
+	}
+
+	symbol := "SOL/USDT"
+	amount := 0.01 // Order amount
+
+	// Fetch current price
+	ticker, err := exchange.FetchTicker(ctx, symbol)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to fetch ticker: %v", err)
+	}
+
+	fmt.Printf("Testing spot sell: %s, amount: %f\n", symbol, amount)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+
+	// Use market order for spot sell
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, nil)
+	if err != nil {
+		skipIfNetworkError(t, err)
+		t.Fatalf("Failed to create spot sell order: %v", err)
+	}
+
+	fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		order.ID, order.Symbol, order.Side, order.Amount)
+
+	// Wait a bit for order processing
+	time.Sleep(2 * time.Second)
+
+	// Query order status
+	fetchedOrder, err := exchange.FetchOrder(ctx, order.ID, symbol)
+	if err != nil {
+		t.Logf("Warning: Failed to fetch order: %v", err)
+	} else {
+		fmt.Printf("Order status: ID=%s, Status=%s, Filled=%f, Remaining=%f\n",
+			fetchedOrder.ID, fetchedOrder.Status, fetchedOrder.Filled, fetchedOrder.Remaining)
+	}
+}
