@@ -622,10 +622,10 @@ func (o *OKX) FetchBalance(ctx context.Context) (types.Balances, error) {
 		Msg  string `json:"msg"`
 		Data []struct {
 			Details []struct {
-				Ccy    string `json:"ccy"`
-				Avail  string `json:"avail"`
-				Frozen string `json:"frozen"`
-				Eq     string `json:"eq"`
+				Ccy       string `json:"ccy"`
+				AvailBal  string `json:"availBal"`
+				FrozenBal string `json:"frozenBal"`
+				Eq        string `json:"eq"`
 			} `json:"details"`
 		} `json:"data"`
 	}
@@ -640,8 +640,8 @@ func (o *OKX) FetchBalance(ctx context.Context) (types.Balances, error) {
 
 	balances := make(types.Balances)
 	for _, detail := range result.Data[0].Details {
-		free, _ := strconv.ParseFloat(detail.Avail, 64)
-		used, _ := strconv.ParseFloat(detail.Frozen, 64)
+		free, _ := strconv.ParseFloat(detail.AvailBal, 64)
+		used, _ := strconv.ParseFloat(detail.FrozenBal, 64)
 		total, _ := strconv.ParseFloat(detail.Eq, 64)
 
 		balances[detail.Ccy] = &types.Balance{
@@ -691,13 +691,25 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 		"sz":      strconv.FormatFloat(amount, 'f', -1, 64),
 	}
 
+	// 对于现货交易，需要设置 tgtCcy 参数
+	// tgtCcy: base_ccy 表示 sz 是基础货币数量，quote_ccy 表示 sz 是计价货币数量
+	if !market.Contract {
+		tgtCcy := "base_ccy" // 默认使用基础货币
+		if v, ok := params["tgtCcy"].(string); ok {
+			tgtCcy = v
+		}
+		reqBody["tgtCcy"] = tgtCcy
+	}
+
 	if orderType == types.OrderTypeLimit {
 		reqBody["px"] = strconv.FormatFloat(price, 'f', -1, 64)
 	}
 
-	// 合并额外参数
+	// 合并额外参数（排除已处理的参数）
 	for k, v := range params {
-		reqBody[k] = v
+		if k != "tdMode" && k != "tgtCcy" {
+			reqBody[k] = v
+		}
 	}
 
 	bodyStr, _ := json.Marshal(reqBody)
@@ -729,11 +741,28 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
-	if result.Code != "0" || len(result.Data) == 0 {
-		return nil, fmt.Errorf("okx api error: %s", result.Msg)
+	if result.Code != "0" {
+		errMsg := result.Msg
+		if len(result.Data) > 0 && result.Data[0].SMsg != "" {
+			errMsg = fmt.Sprintf("%s: %s", result.Msg, result.Data[0].SMsg)
+		}
+		return nil, fmt.Errorf("okx api error: %s", errMsg)
 	}
 
+	if len(result.Data) == 0 {
+		return nil, fmt.Errorf("okx api error: no order data returned")
+	}
+
+	// 检查订单数据中的错误码
 	data := result.Data[0]
+	if data.SCode != "" && data.SCode != "0" {
+		errMsg := data.SMsg
+		if errMsg == "" {
+			errMsg = result.Msg
+		}
+		return nil, fmt.Errorf("okx api error: %s (code: %s)", errMsg, data.SCode)
+	}
+
 	order := &types.Order{
 		ID:            data.OrdID,
 		ClientOrderID: data.ClOrdID,
@@ -1400,7 +1429,7 @@ func (o *OKX) GetMarkets(ctx context.Context, marketType types.MarketType) ([]*t
 // 对于GET请求，如果有查询参数，需要将查询字符串（包括?）添加到签名中
 func (o *OKX) signRequest(method, path string, timestamp string, body string, params map[string]interface{}) string {
 	message := timestamp + method + path
-	
+
 	// 对于GET请求，如果有查询参数，需要包含在签名中
 	if method == "GET" && len(params) > 0 {
 		queryString := common.BuildQueryString(params)
@@ -1411,6 +1440,6 @@ func (o *OKX) signRequest(method, path string, timestamp string, body string, pa
 		// POST/PUT/DELETE请求使用body
 		message += body
 	}
-	
+
 	return common.SignHMAC256Base64(message, o.secretKey)
 }

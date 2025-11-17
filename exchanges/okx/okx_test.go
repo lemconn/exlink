@@ -549,7 +549,7 @@ func TestOKX_CreateSpotOrder_Buy(t *testing.T) {
 	}
 
 	symbol := "SOL/USDT"
-	amount := 0.01 // Order amount
+	amount := 0.1 // Order amount
 
 	// Fetch current price
 	ticker, err := exchange.FetchTicker(ctx, symbol)
@@ -610,7 +610,7 @@ func TestOKX_CreateSpotOrder_Sell(t *testing.T) {
 	}
 
 	symbol := "SOL/USDT"
-	amount := 0.01 // Order amount
+	amount := 0.1 // Order amount
 
 	// Fetch current price
 	ticker, err := exchange.FetchTicker(ctx, symbol)

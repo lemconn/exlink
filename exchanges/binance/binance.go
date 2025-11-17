@@ -302,7 +302,7 @@ func (b *Binance) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) 
 			Inverse:  false,
 		}
 
-		// 解析精度
+		// 解析精度 - 合约订单优先使用 QuantityPrecision
 		market.Precision.Amount = s.QuantityPrecision
 		market.Precision.Price = s.PricePrecision
 
@@ -316,12 +316,9 @@ func (b *Binance) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) 
 				if filter.MaxQty != "" {
 					market.Limits.Amount.Max, _ = strconv.ParseFloat(filter.MaxQty, 64)
 				}
-				if filter.StepSize != "" {
-					parts := strings.Split(filter.StepSize, ".")
-					if len(parts) > 1 {
-						market.Precision.Amount = len(strings.TrimRight(parts[1], "0"))
-					}
-				}
+				// 对于合约订单，Binance 使用 QuantityPrecision 作为精度
+				// StepSize 仅用于验证数量是否符合要求，不用于设置精度
+				// 精度值已经在上面从 QuantityPrecision 设置，这里不需要重新计算
 			case "PRICE_FILTER":
 				if filter.MinPrice != "" {
 					market.Limits.Price.Min, _ = strconv.ParseFloat(filter.MinPrice, 64)
@@ -633,6 +630,8 @@ func (b *Binance) FetchBalance(ctx context.Context) (types.Balances, error) {
 }
 
 // CreateOrder 创建订单
+// 参考: https://developers.binance.com/docs/binance-spot-api-docs/rest-api/trading-endpoints#new-order-trade
+// 参考: https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/New-Order
 func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price float64, params map[string]interface{}) (*types.Order, error) {
 	if b.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
@@ -644,99 +643,225 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 		return nil, err
 	}
 
-	var binanceSymbol string
-	var resp []byte
-	var apiErr error
-
-	timestamp := common.GetTimestamp()
-	reqParams := map[string]interface{}{
-		"side":      strings.ToUpper(string(side)),
-		"type":      strings.ToUpper(string(orderType)),
-		"timestamp": timestamp,
-	}
-
 	// 获取交易所格式的 symbol ID
-	binanceSymbol, err = b.GetMarketID(symbol)
+	binanceSymbol, err := b.GetMarketID(symbol)
 	if err != nil {
 		return nil, fmt.Errorf("get market ID: %w", err)
 	}
-	reqParams["symbol"] = binanceSymbol
-	reqParams["quantity"] = strconv.FormatFloat(amount, 'f', -1, 64)
 
+	reqTimestamp := common.GetTimestamp()
+	reqParams := map[string]interface{}{
+		"symbol":    binanceSymbol,
+		"side":      strings.ToUpper(string(side)),
+		"type":      strings.ToUpper(string(orderType)),
+		"timestamp": reqTimestamp,
+	}
+
+	// 处理数量格式化
+	// 现货和合约都使用 quantity 参数，但精度要求不同
+	amountPrecision := market.Precision.Amount
+	if amountPrecision == 0 {
+		amountPrecision = 8 // 默认精度
+	}
+	
+	// 对于合约订单，根据实际测试，使用更保守的精度策略
+	if market.Contract {
+		// 合约订单：如果数量是整数，使用 0 精度；否则使用 1 位小数精度
+		if amount >= 1.0 && amount == float64(int64(amount)) {
+			amountPrecision = 0
+		} else {
+			amountPrecision = 1
+		}
+	}
+	reqParams["quantity"] = strconv.FormatFloat(amount, 'f', amountPrecision, 64)
+
+	// 处理价格（限价单需要）
 	if orderType == types.OrderTypeLimit {
-		reqParams["price"] = strconv.FormatFloat(price, 'f', -1, 64)
-		reqParams["timeInForce"] = "GTC"
+		if price <= 0 {
+			return nil, fmt.Errorf("limit order requires price > 0")
+		}
+		pricePrecision := market.Precision.Price
+		if pricePrecision == 0 {
+			pricePrecision = 8 // 默认精度
+		}
+		reqParams["price"] = strconv.FormatFloat(price, 'f', pricePrecision, 64)
+		reqParams["timeInForce"] = "GTC" // 默认使用 GTC (Good Till Cancel)
 	}
 
-	// 合并额外参数
+	// 处理合约订单的特殊参数
+	if market.Contract && market.Linear {
+		// 合约订单：处理 positionSide 参数（仅在 hedge mode 下需要）
+		// 如果 params 中明确指定了 positionSide，则使用它
+		// 否则不设置（one-way mode）
+		if positionSide, ok := params["positionSide"].(string); ok && positionSide != "" {
+			reqParams["positionSide"] = strings.ToUpper(positionSide)
+		}
+		// 处理 reduceOnly 参数
+		if reduceOnly, ok := params["reduceOnly"].(bool); ok && reduceOnly {
+			reqParams["reduceOnly"] = "true"
+		}
+	}
+
+	// 处理现货订单的特殊参数
+	if !market.Contract {
+		// 现货市价买入可以使用 quoteOrderQty（按计价货币数量）
+		if orderType == types.OrderTypeMarket && side == types.OrderSideBuy {
+			if quoteOrderQty, ok := params["quoteOrderQty"].(float64); ok && quoteOrderQty > 0 {
+				pricePrecision := market.Precision.Price
+				if pricePrecision == 0 {
+					pricePrecision = 8
+				}
+				reqParams["quoteOrderQty"] = strconv.FormatFloat(quoteOrderQty, 'f', pricePrecision, 64)
+				// 如果使用 quoteOrderQty，则不需要 quantity
+				delete(reqParams, "quantity")
+			}
+		}
+	}
+
+	// 处理其他参数（排除已处理的参数）
+	excludedParams := map[string]bool{
+		"positionSide": true,
+		"reduceOnly":   true,
+		"quoteOrderQty": true,
+	}
 	for k, v := range params {
-		reqParams[k] = v
+		if !excludedParams[k] {
+			reqParams[k] = v
+		}
 	}
 
+	// 构建签名
 	queryString := common.BuildQueryString(reqParams)
 	signature := common.SignHMAC256(queryString, b.secretKey)
 	reqParams["signature"] = signature
 
+	// 发送请求
+	// Binance API 要求参数作为查询字符串传递，而不是 JSON body
+	var resp []byte
+	var apiErr error
 	if market.Contract && market.Linear {
-		// 永续合约订单
-		resp, apiErr = b.fapiClient.Post(ctx, "/fapi/v1/order", reqParams)
+		// 永续合约订单 - 使用 fapi
+		resp, apiErr = b.fapiClient.Request(ctx, "POST", "/fapi/v1/order", reqParams, nil)
 	} else {
-		// 现货订单
-		resp, apiErr = b.client.Post(ctx, "/api/v3/order", reqParams)
+		// 现货订单 - 使用 api/v3
+		resp, apiErr = b.client.Request(ctx, "POST", "/api/v3/order", reqParams, nil)
 	}
 
 	if apiErr != nil {
 		return nil, fmt.Errorf("create order: %w", apiErr)
 	}
 
-	var data struct {
-		OrderID       int64  `json:"orderId"`
-		ClientOrderID string `json:"clientOrderId"`
-		Symbol        string `json:"symbol"`
-		Status        string `json:"status"`
-		Type          string `json:"type"`
-		Side          string `json:"side"`
-		Price         string `json:"price"`
-		Quantity      string `json:"origQty"`
-		ExecutedQty   string `json:"executedQty"`
-		Time          int64  `json:"transactTime"`
-	}
-
+	// 解析响应（支持现货和合约订单的响应格式）
+	var data map[string]interface{}
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
+	// 检查是否有错误码（部分成功的情况）
+	if code, ok := data["code"].(float64); ok && code != 0 {
+		return nil, fmt.Errorf("order rejected: %v", data["msg"])
+	}
+
+	// 提取订单ID（合约订单可能使用 strategyId）
+	var orderID int64
+	if id, ok := data["orderId"].(float64); ok {
+		orderID = int64(id)
+	} else if id, ok := data["strategyId"].(float64); ok {
+		orderID = int64(id)
+	} else {
+		return nil, fmt.Errorf("missing orderId in response")
+	}
+
+	// 提取时间戳（现货使用 transactTime，合约可能使用 updateTime 或 time）
+	var timestamp int64
+	if t, ok := data["transactTime"].(float64); ok {
+		timestamp = int64(t)
+	} else if t, ok := data["updateTime"].(float64); ok {
+		timestamp = int64(t)
+	} else if t, ok := data["time"].(float64); ok {
+		timestamp = int64(t)
+	} else if t, ok := data["createTime"].(float64); ok {
+		timestamp = int64(t)
+	} else {
+		return nil, fmt.Errorf("missing timestamp in response")
+	}
+
+	// 提取数量（合约订单可能使用 quantity）
+	origQtyStr := ""
+	if qty, ok := data["origQty"].(string); ok {
+		origQtyStr = qty
+	} else if qty, ok := data["quantity"].(string); ok {
+		origQtyStr = qty
+	}
+
+	// 提取执行数量
+	executedQtyStr := "0"
+	if qty, ok := data["executedQty"].(string); ok {
+		executedQtyStr = qty
+	} else if qty, ok := data["cumQty"].(string); ok {
+		executedQtyStr = qty
+	}
+
+	// 提取价格
+	priceStr := "0"
+	if p, ok := data["price"].(string); ok {
+		priceStr = p
+	}
+
+	// 解析数量
+	origQty, _ := strconv.ParseFloat(origQtyStr, 64)
+	executedQty, _ := strconv.ParseFloat(executedQtyStr, 64)
+	orderPrice, _ := strconv.ParseFloat(priceStr, 64)
+
+	// 如果响应中没有 origQty，使用传入的 amount
+	if origQty == 0 {
+		origQty = amount
+	}
+
+	// 构建订单对象
 	order := &types.Order{
-		ID:            strconv.FormatInt(data.OrderID, 10),
-		ClientOrderID: data.ClientOrderID,
+		ID:            strconv.FormatInt(orderID, 10),
+		ClientOrderID: getString(data, "clientOrderId", "newClientStrategyId"),
 		Symbol:        symbol, // 使用标准化格式
 		Type:          orderType,
 		Side:          side,
-		Amount:        amount,
-		Timestamp:     time.UnixMilli(data.Time),
+		Amount:        origQty,
+		Price:         orderPrice,
+		Filled:        executedQty,
+		Remaining:     origQty - executedQty,
+		Timestamp:     time.UnixMilli(timestamp),
 	}
 
-	order.Price, _ = strconv.ParseFloat(data.Price, 64)
-	order.Filled, _ = strconv.ParseFloat(data.ExecutedQty, 64)
-	order.Remaining = amount - order.Filled
-
 	// 转换状态
-	switch data.Status {
+	status := getString(data, "status", "strategyStatus")
+	switch status {
 	case "NEW":
 		order.Status = types.OrderStatusNew
 	case "PARTIALLY_FILLED":
 		order.Status = types.OrderStatusPartiallyFilled
 	case "FILLED":
 		order.Status = types.OrderStatusFilled
-	case "CANCELED":
+	case "CANCELED", "CANCELLED":
 		order.Status = types.OrderStatusCanceled
 	case "EXPIRED":
 		order.Status = types.OrderStatusExpired
 	case "REJECTED":
 		order.Status = types.OrderStatusRejected
+	default:
+		order.Status = types.OrderStatusNew
 	}
 
 	return order, nil
+}
+
+// getString 从 map 中获取字符串值，支持多个键名
+func getString(data map[string]interface{}, keys ...string) string {
+	for _, key := range keys {
+		if val, ok := data[key].(string); ok {
+			return val
+		}
+	}
+	return ""
 }
 
 // CancelOrder 取消订单
@@ -778,6 +903,12 @@ func (b *Binance) FetchOrder(ctx context.Context, orderID, symbol string) (*type
 		return nil, fmt.Errorf("get market ID: %w", err)
 	}
 
+	// 获取市场信息以判断使用哪个API
+	market, err := b.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
 	timestamp := common.GetTimestamp()
 	params := map[string]interface{}{
 		"symbol":    binanceSymbol,
@@ -789,65 +920,107 @@ func (b *Binance) FetchOrder(ctx context.Context, orderID, symbol string) (*type
 	signature := common.SignHMAC256(queryString, b.secretKey)
 	params["signature"] = signature
 
-	resp, err := b.client.Get(ctx, "/api/v3/order", params)
-	if err != nil {
-		return nil, fmt.Errorf("fetch order: %w", err)
+	// 根据市场类型选择正确的端点
+	var resp []byte
+	var apiErr error
+	if market.Contract && market.Linear {
+		// 永续合约订单 - 使用 fapi
+		resp, apiErr = b.fapiClient.Get(ctx, "/fapi/v1/order", params)
+	} else {
+		// 现货订单 - 使用 api/v3
+		resp, apiErr = b.client.Get(ctx, "/api/v3/order", params)
 	}
 
-	var data struct {
-		OrderID       int64  `json:"orderId"`
-		ClientOrderID string `json:"clientOrderId"`
-		Symbol        string `json:"symbol"`
-		Status        string `json:"status"`
-		Type          string `json:"type"`
-		Side          string `json:"side"`
-		Price         string `json:"price"`
-		Quantity      string `json:"origQty"`
-		ExecutedQty   string `json:"executedQty"`
-		Time          int64  `json:"time"`
+	if apiErr != nil {
+		return nil, fmt.Errorf("fetch order: %w", apiErr)
 	}
 
+	// 解析响应（支持现货和合约订单的响应格式）
+	var data map[string]interface{}
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
-	order := &types.Order{
-		ID:            strconv.FormatInt(data.OrderID, 10),
-		ClientOrderID: data.ClientOrderID,
-		Symbol:        symbol, // 使用标准化格式
-		Timestamp:     time.UnixMilli(data.Time),
+	// 检查是否有错误码
+	if code, ok := data["code"].(float64); ok && code != 0 {
+		return nil, fmt.Errorf("fetch order error: %v", data["msg"])
 	}
 
-	order.Price, _ = strconv.ParseFloat(data.Price, 64)
-	order.Amount, _ = strconv.ParseFloat(data.Quantity, 64)
-	order.Filled, _ = strconv.ParseFloat(data.ExecutedQty, 64)
-	order.Remaining = order.Amount - order.Filled
+	// 提取订单ID
+	var orderIDInt int64
+	if id, ok := data["orderId"].(float64); ok {
+		orderIDInt = int64(id)
+	} else {
+		return nil, fmt.Errorf("missing orderId in response")
+	}
 
-	if strings.ToUpper(data.Side) == "BUY" {
+	// 提取时间戳（现货使用 time，合约可能使用 updateTime）
+	var timestampInt int64
+	if t, ok := data["time"].(float64); ok {
+		timestampInt = int64(t)
+	} else if t, ok := data["updateTime"].(float64); ok {
+		timestampInt = int64(t)
+	} else if t, ok := data["transactTime"].(float64); ok {
+		timestampInt = int64(t)
+	} else {
+		return nil, fmt.Errorf("missing timestamp in response")
+	}
+
+	// 提取数量
+	origQtyStr := getString(data, "origQty", "quantity")
+	executedQtyStr := getString(data, "executedQty", "cumQty")
+	priceStr := getString(data, "price", "avgPrice")
+
+	// 解析数值
+	origQty, _ := strconv.ParseFloat(origQtyStr, 64)
+	executedQty, _ := strconv.ParseFloat(executedQtyStr, 64)
+	orderPrice, _ := strconv.ParseFloat(priceStr, 64)
+
+	// 构建订单对象
+	order := &types.Order{
+		ID:            strconv.FormatInt(orderIDInt, 10),
+		ClientOrderID: getString(data, "clientOrderId", "newClientStrategyId"),
+		Symbol:        symbol, // 使用标准化格式
+		Amount:        origQty,
+		Price:         orderPrice,
+		Filled:        executedQty,
+		Remaining:     origQty - executedQty,
+		Timestamp:     time.UnixMilli(timestampInt),
+	}
+
+	// 转换方向
+	sideStr := getString(data, "side")
+	if strings.ToUpper(sideStr) == "BUY" {
 		order.Side = types.OrderSideBuy
 	} else {
 		order.Side = types.OrderSideSell
 	}
 
-	if strings.ToUpper(data.Type) == "MARKET" {
+	// 转换类型
+	typeStr := getString(data, "type")
+	if strings.ToUpper(typeStr) == "MARKET" {
 		order.Type = types.OrderTypeMarket
 	} else {
 		order.Type = types.OrderTypeLimit
 	}
 
-	switch data.Status {
+	// 转换状态
+	statusStr := getString(data, "status", "strategyStatus")
+	switch statusStr {
 	case "NEW":
 		order.Status = types.OrderStatusNew
 	case "PARTIALLY_FILLED":
 		order.Status = types.OrderStatusPartiallyFilled
 	case "FILLED":
 		order.Status = types.OrderStatusFilled
-	case "CANCELED":
+	case "CANCELED", "CANCELLED":
 		order.Status = types.OrderStatusCanceled
 	case "EXPIRED":
 		order.Status = types.OrderStatusExpired
 	case "REJECTED":
 		order.Status = types.OrderStatusRejected
+	default:
+		order.Status = types.OrderStatusNew
 	}
 
 	return order, nil
