@@ -787,19 +787,58 @@ func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.Order
 		category = "linear"
 	}
 
+	// Bybit API requires "Buy" or "Sell" (capitalized)
+	sideStr := string(side)
+	if len(sideStr) > 0 {
+		sideStr = strings.ToUpper(sideStr[:1]) + strings.ToLower(sideStr[1:])
+	}
+
 	reqBody := map[string]interface{}{
 		"category": category,
 		"symbol":   bybitSymbol,
-		"side":     strings.ToUpper(string(side)),
-		"qty":      strconv.FormatFloat(amount, 'f', -1, 64),
+		"side":     sideStr,
 	}
 
-	if orderType == types.OrderTypeLimit {
-		reqBody["orderType"] = "Limit"
-		reqBody["price"] = strconv.FormatFloat(price, 'f', -1, 64)
-		reqBody["timeInForce"] = "GTC"
-	} else {
+	// For spot market buy orders, Bybit requires marketUnit and qty should be the cost in quote currency
+	if market.Type == types.MarketTypeSpot && orderType == types.OrderTypeMarket && side == types.OrderSideBuy {
+		// Calculate cost: amount * price (use current ask price if price not provided)
+		cost := amount
+		if price > 0 {
+			cost = amount * price
+		} else {
+			// Fetch current price to calculate cost
+			ticker, err := b.FetchTicker(ctx, symbol)
+			if err == nil && ticker.Ask > 0 {
+				cost = amount * ticker.Ask
+			}
+		}
+		reqBody["marketUnit"] = "quoteCoin"
+		// Format cost with appropriate precision (use price precision for quote currency)
+		precision := market.Precision.Price
+		if precision <= 0 {
+			precision = 8 // Default precision
+		}
+		reqBody["qty"] = strconv.FormatFloat(cost, 'f', precision, 64)
 		reqBody["orderType"] = "Market"
+	} else {
+		// For other orders, qty is the amount in base currency
+		// Format amount with appropriate precision
+		precision := market.Precision.Amount
+		if precision <= 0 {
+			precision = 8 // Default precision
+		}
+		reqBody["qty"] = strconv.FormatFloat(amount, 'f', precision, 64)
+		if orderType == types.OrderTypeLimit {
+			reqBody["orderType"] = "Limit"
+			pricePrecision := market.Precision.Price
+			if pricePrecision <= 0 {
+				pricePrecision = 8 // Default precision
+			}
+			reqBody["price"] = strconv.FormatFloat(price, 'f', pricePrecision, 64)
+			reqBody["timeInForce"] = "GTC"
+		} else {
+			reqBody["orderType"] = "Market"
+		}
 	}
 
 	// 合并额外参数
@@ -902,7 +941,38 @@ func (b *Bybit) FetchOrder(ctx context.Context, orderID, symbol string) (*types.
 		"orderId":  orderID,
 	}
 
-	resp, err := b.signAndRequest(ctx, "GET", "/v5/order/history", params, nil)
+	// First try to fetch from open orders (realtime)
+	resp, err := b.signAndRequest(ctx, "GET", "/v5/order/realtime", params, nil)
+	if err == nil {
+		var realtimeResult struct {
+			RetCode int    `json:"retCode"`
+			RetMsg  string `json:"retMsg"`
+			Result  struct {
+				List []struct {
+					OrderID     string `json:"orderId"`
+					OrderLinkID string `json:"orderLinkId"`
+					OrderStatus string `json:"orderStatus"`
+					Side        string `json:"side"`
+					OrderType   string `json:"orderType"`
+					Price       string `json:"price"`
+					Qty         string `json:"qty"`
+					CumExecQty  string `json:"cumExecQty"`
+					CreatedTime string `json:"createdTime"`
+				} `json:"list"`
+			} `json:"result"`
+		}
+
+		if err := json.Unmarshal(resp, &realtimeResult); err == nil && realtimeResult.RetCode == 0 {
+			for _, item := range realtimeResult.Result.List {
+				if item.OrderID == orderID {
+					return b.parseOrder(item, symbol), nil
+				}
+			}
+		}
+	}
+
+	// If not found in open orders, try history
+	resp, err = b.signAndRequest(ctx, "GET", "/v5/order/history", params, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
@@ -937,7 +1007,28 @@ func (b *Bybit) FetchOrder(ctx context.Context, orderID, symbol string) (*types.
 		return nil, fmt.Errorf("order not found")
 	}
 
-	item := result.Result.List[0]
+	// Find the order by ID
+	for _, item := range result.Result.List {
+		if item.OrderID == orderID {
+			return b.parseOrder(item, symbol), nil
+		}
+	}
+
+	return nil, fmt.Errorf("order not found")
+}
+
+// parseOrder 解析订单数据
+func (b *Bybit) parseOrder(item struct {
+	OrderID     string `json:"orderId"`
+	OrderLinkID string `json:"orderLinkId"`
+	OrderStatus string `json:"orderStatus"`
+	Side        string `json:"side"`
+	OrderType   string `json:"orderType"`
+	Price       string `json:"price"`
+	Qty         string `json:"qty"`
+	CumExecQty  string `json:"cumExecQty"`
+	CreatedTime string `json:"createdTime"`
+}, symbol string) *types.Order {
 	order := &types.Order{
 		ID:            item.OrderID,
 		ClientOrderID: item.OrderLinkID,
@@ -976,7 +1067,8 @@ func (b *Bybit) FetchOrder(ctx context.Context, orderID, symbol string) (*types.
 		order.Status = types.OrderStatusNew
 	}
 
-	return order, nil
+	return order
+
 }
 
 // FetchOrders 查询订单列表

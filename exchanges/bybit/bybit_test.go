@@ -231,8 +231,8 @@ func TestBybit_CreateContractOrder_BuyOpenLong(t *testing.T) {
 		t.Fatalf("Failed to load markets: %v", err)
 	}
 
-	symbol := "SOL/USDT:USDT"
-	amount := 0.1 // Order amount
+	symbol := "BTC/USDT:USDT"
+	amount := 0.1 // Order amount (minimum for BTC contract)
 
 	// Fetch current price (optional, using market order here)
 	ticker, err := exchange.FetchTicker(ctx, symbol)
@@ -296,8 +296,8 @@ func TestBybit_CreateContractOrder_SellCloseLong(t *testing.T) {
 		t.Fatalf("Failed to load markets: %v", err)
 	}
 
-	symbol := "SOL/USDT:USDT"
-	amount := 0.1 // Order amount
+	symbol := "BTC/USDT:USDT"
+	amount := 0.1 // Order amount (minimum for BTC contract)
 
 	// Fetch current price
 	ticker, err := exchange.FetchTicker(ctx, symbol)
@@ -361,8 +361,8 @@ func TestBybit_CreateContractOrder_SellOpenShort(t *testing.T) {
 		t.Fatalf("Failed to load markets: %v", err)
 	}
 
-	symbol := "SOL/USDT:USDT"
-	amount := 0.1 // Order amount
+	symbol := "BTC/USDT:USDT"
+	amount := 0.1 // Order amount (minimum for BTC contract)
 
 	// Fetch current price
 	ticker, err := exchange.FetchTicker(ctx, symbol)
@@ -426,8 +426,8 @@ func TestBybit_CreateContractOrder_BuyCloseShort(t *testing.T) {
 		t.Fatalf("Failed to load markets: %v", err)
 	}
 
-	symbol := "SOL/USDT:USDT"
-	amount := 0.1 // Order amount
+	symbol := "BTC/USDT:USDT"
+	amount := 0.1 // Order amount (minimum for BTC contract)
 
 	// Fetch current price
 	ticker, err := exchange.FetchTicker(ctx, symbol)
@@ -538,7 +538,7 @@ func TestBybit_CreateSpotOrder_Buy(t *testing.T) {
 	}
 
 	symbol := "SOL/USDT"
-	amount := 0.01 // Order amount
+	amount := 0.1 // Order amount (increased to meet minimum notional requirement, ~140 USDT)
 
 	// Fetch current price
 	ticker, err := exchange.FetchTicker(ctx, symbol)
@@ -598,7 +598,7 @@ func TestBybit_CreateSpotOrder_Sell(t *testing.T) {
 	}
 
 	symbol := "SOL/USDT"
-	amount := 0.01 // Order amount
+	amount := 0.1 // Order amount (increased to meet minimum notional requirement, ~140 USDT)
 
 	// Fetch current price
 	ticker, err := exchange.FetchTicker(ctx, symbol)

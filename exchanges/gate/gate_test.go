@@ -538,7 +538,7 @@ func TestGate_CreateSpotOrder_Buy(t *testing.T) {
 	}
 
 	symbol := "SOL/USDT"
-	amount := 0.01 // Order amount
+	amount := 0.1 // Order amount (minimum 0.001 SOL, but need at least 3 USDT, so 0.1 SOL is safe)
 
 	// Fetch current price
 	ticker, err := exchange.FetchTicker(ctx, symbol)
@@ -598,7 +598,7 @@ func TestGate_CreateSpotOrder_Sell(t *testing.T) {
 	}
 
 	symbol := "SOL/USDT"
-	amount := 0.01 // Order amount
+	amount := 0.1 // Order amount (minimum 0.001 SOL, but need at least 3 USDT, so 0.1 SOL is safe)
 
 	// Fetch current price
 	ticker, err := exchange.FetchTicker(ctx, symbol)
