@@ -22,11 +22,6 @@ vet: ## Run go vet on all packages
 	go vet ./...
 
 lint: ## Run golangci-lint on all packages
-	@command -v golangci-lint >/dev/null 2>&1 || { \
-		echo "Error: golangci-lint is not installed. Please install it first:"; \
-		echo "  curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin latest"; \
-		exit 1; \
-	}
 	golangci-lint run --timeout=5m
 
 example: ## Build all example programs to bin directory
