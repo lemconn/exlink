@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+
 	"github.com/lemconn/exlink"
 	"github.com/lemconn/exlink/base"
 	"github.com/lemconn/exlink/types"
-	"log"
-	"os"
 )
 
 func main() {
@@ -22,8 +22,9 @@ func main() {
 	proxyURL := os.Getenv("PROXY_URL")
 
 	if apiKey == "" || secretKey == "" || passphrase == "" {
-		log.Println("Warning: OKX_API_KEY, OKX_SECRET_KEY and OKX_PASSPHRASE environment variables are not set")
-		log.Println("Example code will demonstrate usage, but actual calls will fail")
+		fmt.Println("Warning: OKX_API_KEY, OKX_SECRET_KEY and OKX_PASSPHRASE environment variables are not set")
+		fmt.Println("Example code will demonstrate usage, but actual calls will fail")
+		return
 	}
 
 	// Create OKX exchange instance
@@ -37,12 +38,14 @@ func main() {
 
 	exchange, err := exlink.NewExchange(exlink.ExchangeOKX, opts...)
 	if err != nil {
-		log.Fatalf("Failed to create exchange instance: %v", err)
+		fmt.Printf("Failed to create exchange instance: %v", err)
+		return
 	}
 
 	// Load market information
 	if err := exchange.LoadMarkets(ctx, false); err != nil {
-		log.Fatalf("Failed to load market information: %v", err)
+		fmt.Printf("Failed to load market information: %v", err)
+		return
 	}
 
 	// Contract trading pair (perpetual contract)
@@ -53,7 +56,8 @@ func main() {
 	// Get current price
 	ticker, err := exchange.FetchTicker(ctx, contractSymbol)
 	if err != nil {
-		log.Fatalf("Failed to fetch ticker: %v", err)
+		fmt.Printf("Failed to fetch ticker: %v", err)
+		return
 	}
 	fmt.Printf("Current price: %.2f\n", ticker.Last)
 
@@ -64,118 +68,106 @@ func main() {
 
 	// 1. Open long position (buy to open long)
 	fmt.Println("\n1. Open long position")
-	order, err := openLongPosition(ctx, exchange, contractSymbol, amount)
-	if err != nil {
-		log.Printf("Failed to open long position: %v", err)
-	} else {
-		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
-			order.ID, order.Symbol, order.Side, order.Amount)
-	}
+	openLongPosition(ctx, exchange, contractSymbol, amount)
 
 	// 2. Close long position (sell to close long)
 	fmt.Println("\n2. Close long position")
-	order, err = closeLongPosition(ctx, exchange, contractSymbol, amount)
-	if err != nil {
-		log.Printf("Failed to close long position: %v", err)
-	} else {
-		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
-			order.ID, order.Symbol, order.Side, order.Amount)
-	}
+	closeLongPosition(ctx, exchange, contractSymbol, amount)
 
 	// 3. Open short position (sell to open short)
 	fmt.Println("\n3. Open short position")
-	order, err = openShortPosition(ctx, exchange, contractSymbol, amount)
-	if err != nil {
-		log.Printf("Failed to open short position: %v", err)
-	} else {
-		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
-			order.ID, order.Symbol, order.Side, order.Amount)
-	}
+	openShortPosition(ctx, exchange, contractSymbol, amount)
 
 	// 4. Close short position (buy to close short)
 	fmt.Println("\n4. Close short position")
-	order, err = closeShortPosition(ctx, exchange, contractSymbol, amount)
-	if err != nil {
-		log.Printf("Failed to close short position: %v", err)
-	} else {
-		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
-			order.ID, order.Symbol, order.Side, order.Amount)
-	}
+	closeShortPosition(ctx, exchange, contractSymbol, amount)
 
 	// ========== Spot Trading Examples ==========
 	fmt.Println("\n=== Spot Trading Examples ===")
 
 	// 5. Buy spot
 	fmt.Println("\n5. Buy spot")
-	order, err = buySpot(ctx, exchange, spotSymbol, amount)
-	if err != nil {
-		log.Printf("Failed to buy spot: %v", err)
-	} else {
-		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
-			order.ID, order.Symbol, order.Side, order.Amount)
-	}
+	buySpot(ctx, exchange, spotSymbol, amount)
 
 	// 6. Sell spot
 	fmt.Println("\n6. Sell spot")
-	order, err = sellSpot(ctx, exchange, spotSymbol, amount)
+	sellSpot(ctx, exchange, spotSymbol, amount)
+}
+
+// openLongPosition opens a long position (buy to open long)
+func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
+	params := map[string]interface{}{
+		"posSide": "long", // OKX uses posSide to specify position direction
+	}
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, params)
 	if err != nil {
-		log.Printf("Failed to sell spot: %v", err)
+		fmt.Printf("Failed to open long position: %v", err)
 	} else {
 		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
 			order.ID, order.Symbol, order.Side, order.Amount)
 	}
-
-	// Limit order example
-	fmt.Println("\n=== Limit Order Example ===")
-	limitPrice := ticker.Bid * 0.99 // Buy limit order, 1% below current price
-	fmt.Printf("\nLimit buy: Price=%.2f, Quantity=%f\n", limitPrice, amount)
-	order, err = exchange.CreateOrder(ctx, spotSymbol, types.OrderSideBuy, types.OrderTypeLimit, amount, limitPrice, nil)
-	if err != nil {
-		log.Printf("Failed to create limit buy order: %v", err)
-	} else {
-		fmt.Printf("Order created successfully: ID=%s, Price=%.2f, Amount=%f\n",
-			order.ID, order.Price, order.Amount)
-	}
-}
-
-// openLongPosition opens a long position (buy to open long)
-func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) (*types.Order, error) {
-	params := map[string]interface{}{
-		"posSide": "long", // OKX uses posSide to specify position direction
-	}
-	return exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, params)
 }
 
 // closeLongPosition closes a long position (sell to close long)
-func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) (*types.Order, error) {
+func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
 	params := map[string]interface{}{
 		"posSide": "long", // To close long position, need to specify posSide="long"
 	}
-	return exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, params)
+	if err != nil {
+		fmt.Printf("Failed to close long position: %v", err)
+	} else {
+		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+			order.ID, order.Symbol, order.Side, order.Amount)
+	}
 }
 
 // openShortPosition opens a short position (sell to open short)
-func openShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) (*types.Order, error) {
+func openShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
 	params := map[string]interface{}{
 		"posSide": "short", // OKX uses posSide="short" to open short
 	}
-	return exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, params)
+	if err != nil {
+		fmt.Printf("Failed to open short position: %v", err)
+	} else {
+		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+			order.ID, order.Symbol, order.Side, order.Amount)
+	}
 }
 
 // closeShortPosition closes a short position (buy to close short)
-func closeShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) (*types.Order, error) {
+func closeShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
 	params := map[string]interface{}{
 		"posSide": "short", // To close short position, need to specify posSide="short"
 	}
-	return exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, params)
+	if err != nil {
+		fmt.Printf("Failed to close short position: %v", err)
+	} else {
+		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+			order.ID, order.Symbol, order.Side, order.Amount)
+	}
 }
 
 // buySpot buys spot assets
-func buySpot(ctx context.Context, exchange base.Exchange, symbol string, amount float64) (*types.Order, error) {
-	return exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, nil)
+func buySpot(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, nil)
+	if err != nil {
+		fmt.Printf("Failed to buy spot: %v", err)
+	} else {
+		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+			order.ID, order.Symbol, order.Side, order.Amount)
+	}
 }
 
 // sellSpot sells spot assets
-func sellSpot(ctx context.Context, exchange base.Exchange, symbol string, amount float64) (*types.Order, error) {
-	return exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, nil)
+func sellSpot(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, nil)
+	if err != nil {
+		fmt.Printf("Failed to sell spot: %v", err)
+	} else {
+		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+			order.ID, order.Symbol, order.Side, order.Amount)
+	}
 }
