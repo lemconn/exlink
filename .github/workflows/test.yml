@@ -37,6 +37,12 @@ jobs:
     - name: Download dependencies
       run: go mod download
 
+    - name: Run go vet
+      run: make vet
+
+    - name: Build examples
+      run: make example
+
     - name: Run tests
       env:
         PROXY_URL: ${{ secrets.PROXY_URL }}

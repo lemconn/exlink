@@ -145,7 +145,14 @@ func (c *HTTPClient) Request(ctx context.Context, method, path string, params ma
 	if err != nil {
 		return nil, fmt.Errorf("send request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// Log error but don't fail the request
+			if c.debug {
+				fmt.Printf("Warning: failed to close response body: %v\n", closeErr)
+			}
+		}
+	}()
 
 	// 读取响应
 	respBody, err := io.ReadAll(resp.Body)

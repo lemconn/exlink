@@ -288,11 +288,12 @@ func (o *OKX) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
 		settle := item.SettleCcy
 		if settle == "" {
 			// 根据 ctType 判断：linear (U本位) settle=quote, inverse (币本位) settle=base
-			if item.CtType == "linear" {
+			switch item.CtType {
+			case "linear":
 				settle = quoteCcy
-			} else if item.CtType == "inverse" {
+			case "inverse":
 				settle = baseCcy
-			} else {
+			default:
 				// 默认 U 本位
 				settle = quoteCcy
 			}
@@ -346,15 +347,6 @@ func (o *OKX) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
 	return markets, nil
 }
 
-// contains 检查字符串切片是否包含指定值
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
 
 // containsMarketType 检查 MarketType 切片是否包含指定值
 func containsMarketType(slice []types.MarketType, item types.MarketType) bool {
@@ -1319,7 +1311,7 @@ func (o *OKX) FetchPositions(ctx context.Context, symbols ...string) ([]*types.P
 
 // GetMarketByID 通过交易所ID获取市场信息
 func (o *OKX) GetMarketByID(id string) (*types.Market, error) {
-	for _, market := range o.BaseExchange.GetMarketsMap() {
+	for _, market := range o.GetMarketsMap() {
 		if market.ID == id {
 			return market, nil
 		}
@@ -1331,7 +1323,7 @@ func (o *OKX) GetMarketByID(id string) (*types.Market, error) {
 // 优先从已加载的市场中查找，如果未找到则使用后备转换函数
 func (o *OKX) GetMarketID(symbol string) (string, error) {
 	// 优先从已加载的市场中查找
-	market, ok := o.BaseExchange.GetMarketsMap()[symbol]
+	market, ok := o.GetMarketsMap()[symbol]
 	if ok {
 		return market.ID, nil
 	}
@@ -1416,7 +1408,7 @@ func (o *OKX) GetMarkets(ctx context.Context, marketType types.MarketType) ([]*t
 	}
 
 	markets := make([]*types.Market, 0)
-	for _, market := range o.BaseExchange.GetMarketsMap() {
+	for _, market := range o.GetMarketsMap() {
 		if marketType == "" || market.Type == marketType {
 			markets = append(markets, market)
 		}

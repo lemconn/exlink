@@ -28,4 +28,4 @@ go.work
 .DS_Store
 Thumbs.db
 
-baisc
+bin/
