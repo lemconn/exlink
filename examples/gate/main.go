@@ -8,140 +8,176 @@ import (
 	"strconv"
 
 	"github.com/lemconn/exlink"
+	"github.com/lemconn/exlink/base"
 	"github.com/lemconn/exlink/types"
 )
 
 func main() {
 	ctx := context.Background()
 
-	// 从环境变量获取 API 密钥（实际使用时请设置）
+	// Get API keys from environment variables (please set them in actual use)
 	apiKey := os.Getenv("GATE_API_KEY")
 	secretKey := os.Getenv("GATE_SECRET_KEY")
 
+	// Get proxy URL from environment variable
+	proxyURL := os.Getenv("PROXY_URL")
+
 	if apiKey == "" || secretKey == "" {
-		log.Println("警告: 未设置 GATE_API_KEY 和 GATE_SECRET_KEY 环境变量")
-		log.Println("示例代码将展示如何使用，但实际调用会失败")
+		log.Println("Warning: GATE_API_KEY and GATE_SECRET_KEY environment variables are not set")
+		log.Println("Example code will demonstrate usage, but actual calls will fail")
 	}
 
-	// 创建 Gate.io 交易所实例
-	exchange, err := exlink.NewExchange(
-		exlink.ExchangeGate,
+	// Create Gate.io exchange instance
+	opts := []exlink.Option{
 		exlink.WithAPIKey(apiKey),
 		exlink.WithSecretKey(secretKey),
-	)
+		exlink.WithProxy(proxyURL),
+		exlink.WithSandbox(true), // Sandbox mode
+	}
+
+	exchange, err := exlink.NewExchange(exlink.ExchangeGate, opts...)
 	if err != nil {
-		log.Fatalf("创建交易所实例失败: %v", err)
+		log.Fatalf("Failed to create exchange instance: %v", err)
 	}
 
-	// 加载市场信息
+	// Load market information
 	if err := exchange.LoadMarkets(ctx, false); err != nil {
-		log.Fatalf("加载市场信息失败: %v", err)
+		log.Fatalf("Failed to load market information: %v", err)
 	}
 
-	// 合约交易对（永续合约）
+	// Contract trading pair (perpetual contract)
 	contractSymbol := "BTC/USDT:USDT"
-	// 现货交易对
+	// Spot trading pair
 	spotSymbol := "BTC/USDT"
 
-	// 获取当前价格
+	// Get current price
 	ticker, err := exchange.FetchTicker(ctx, contractSymbol)
 	if err != nil {
-		log.Fatalf("获取行情失败: %v", err)
+		log.Fatalf("Failed to fetch ticker: %v", err)
 	}
-	fmt.Printf("当前价格: %.2f\n\n", ticker.Last)
+	fmt.Printf("Current price: %.2f\n", ticker.Last)
 
-	amount := 0.001 // 订单数量（根据实际情况调整）
+	amount := 0.001 // Order quantity (adjust according to actual situation)
 
-	// ========== 合约交易示例 ==========
-	fmt.Println("=== 合约交易示例 ===")
+	// ========== Contract Trading Examples ==========
+	fmt.Println("=== Contract Trading Examples ===")
 
-	// 1. 合约买入开多
-	fmt.Println("\n1. 合约买入开多")
-	params := map[string]interface{}{
-		"size": strconv.FormatFloat(amount, 'f', -1, 64), // Gate 使用 size 参数，正数表示买入（开多）
-	}
-	order, err := exchange.CreateOrder(ctx, contractSymbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, params)
+	// 1. Open long position (buy to open long)
+	fmt.Println("\n1. Open long position")
+	order, err := openLongPosition(ctx, exchange, contractSymbol, amount)
 	if err != nil {
-		log.Printf("合约买入开多失败: %v", err)
+		log.Printf("Failed to open long position: %v", err)
 	} else {
-		fmt.Printf("订单创建成功: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
 			order.ID, order.Symbol, order.Side, order.Amount)
 	}
 
-	// 2. 合约卖出平多
-	fmt.Println("\n2. 合约卖出平多")
-	params = map[string]interface{}{
-		"size":        strconv.FormatFloat(-amount, 'f', -1, 64), // 负数表示卖出
-		"reduce_only": true,                                      // Gate 使用 reduce_only 表示平仓
-	}
-	order, err = exchange.CreateOrder(ctx, contractSymbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, params)
+	// 2. Close long position (sell to close long)
+	fmt.Println("\n2. Close long position")
+	order, err = closeLongPosition(ctx, exchange, contractSymbol, amount)
 	if err != nil {
-		log.Printf("合约卖出平多失败: %v", err)
+		log.Printf("Failed to close long position: %v", err)
 	} else {
-		fmt.Printf("订单创建成功: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
 			order.ID, order.Symbol, order.Side, order.Amount)
 	}
 
-	// 3. 合约卖出开空
-	fmt.Println("\n3. 合约卖出开空")
-	params = map[string]interface{}{
-		"size": strconv.FormatFloat(-amount, 'f', -1, 64), // Gate 使用 size 参数，负数表示卖出（开空）
-	}
-	order, err = exchange.CreateOrder(ctx, contractSymbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, params)
+	// 3. Open short position (sell to open short)
+	fmt.Println("\n3. Open short position")
+	order, err = openShortPosition(ctx, exchange, contractSymbol, amount)
 	if err != nil {
-		log.Printf("合约卖出开空失败: %v", err)
+		log.Printf("Failed to open short position: %v", err)
 	} else {
-		fmt.Printf("订单创建成功: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
 			order.ID, order.Symbol, order.Side, order.Amount)
 	}
 
-	// 4. 合约买入平空
-	fmt.Println("\n4. 合约买入平空")
-	params = map[string]interface{}{
-		"size":        strconv.FormatFloat(amount, 'f', -1, 64), // 正数表示买入
-		"reduce_only": true,                                     // Gate 使用 reduce_only 表示平仓
-	}
-	order, err = exchange.CreateOrder(ctx, contractSymbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, params)
+	// 4. Close short position (buy to close short)
+	fmt.Println("\n4. Close short position")
+	order, err = closeShortPosition(ctx, exchange, contractSymbol, amount)
 	if err != nil {
-		log.Printf("合约买入平空失败: %v", err)
+		log.Printf("Failed to close short position: %v", err)
 	} else {
-		fmt.Printf("订单创建成功: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
 			order.ID, order.Symbol, order.Side, order.Amount)
 	}
 
-	// ========== 现货交易示例 ==========
-	fmt.Println("\n=== 现货交易示例 ===")
+	// ========== Spot Trading Examples ==========
+	fmt.Println("\n=== Spot Trading Examples ===")
 
-	// 5. 现货买入
-	fmt.Println("\n5. 现货买入")
-	order, err = exchange.CreateOrder(ctx, spotSymbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, nil)
+	// 5. Buy spot
+	fmt.Println("\n5. Buy spot")
+	order, err = buySpot(ctx, exchange, spotSymbol, amount)
 	if err != nil {
-		log.Printf("现货买入失败: %v", err)
+		log.Printf("Failed to buy spot: %v", err)
 	} else {
-		fmt.Printf("订单创建成功: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
 			order.ID, order.Symbol, order.Side, order.Amount)
 	}
 
-	// 6. 现货卖出
-	fmt.Println("\n6. 现货卖出")
-	order, err = exchange.CreateOrder(ctx, spotSymbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, nil)
+	// 6. Sell spot
+	fmt.Println("\n6. Sell spot")
+	order, err = sellSpot(ctx, exchange, spotSymbol, amount)
 	if err != nil {
-		log.Printf("现货卖出失败: %v", err)
+		log.Printf("Failed to sell spot: %v", err)
 	} else {
-		fmt.Printf("订单创建成功: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
+		fmt.Printf("Order created successfully: ID=%s, Symbol=%s, Side=%s, Amount=%f\n",
 			order.ID, order.Symbol, order.Side, order.Amount)
 	}
 
-	// 限价单示例
-	fmt.Println("\n=== 限价单示例 ===")
-	limitPrice := ticker.Bid * 0.99 // 买入限价单，低于当前价格 1%
-	fmt.Printf("\n限价买入: 价格=%.2f, 数量=%f\n", limitPrice, amount)
+	// Limit order example
+	fmt.Println("\n=== Limit Order Example ===")
+	limitPrice := ticker.Bid * 0.99 // Buy limit order, 1% below current price
+	fmt.Printf("\nLimit buy: Price=%.2f, Quantity=%f\n", limitPrice, amount)
 	order, err = exchange.CreateOrder(ctx, spotSymbol, types.OrderSideBuy, types.OrderTypeLimit, amount, limitPrice, nil)
 	if err != nil {
-		log.Printf("限价买入失败: %v", err)
+		log.Printf("Failed to create limit buy order: %v", err)
 	} else {
-		fmt.Printf("订单创建成功: ID=%s, Price=%.2f, Amount=%f\n",
+		fmt.Printf("Order created successfully: ID=%s, Price=%.2f, Amount=%f\n",
 			order.ID, order.Price, order.Amount)
 	}
 }
 
+// openLongPosition opens a long position (buy to open long)
+func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) (*types.Order, error) {
+	params := map[string]interface{}{
+		"size": strconv.FormatFloat(amount, 'f', -1, 64), // Gate uses size parameter, positive value means buy (open long)
+	}
+	return exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, params)
+}
+
+// closeLongPosition closes a long position (sell to close long)
+func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) (*types.Order, error) {
+	params := map[string]interface{}{
+		"size":        strconv.FormatFloat(-amount, 'f', -1, 64), // Negative value means sell
+		"reduce_only": true,                                      // Gate uses reduce_only to close position
+	}
+	return exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, params)
+}
+
+// openShortPosition opens a short position (sell to open short)
+func openShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) (*types.Order, error) {
+	params := map[string]interface{}{
+		"size": strconv.FormatFloat(-amount, 'f', -1, 64), // Gate uses size parameter, negative value means sell (open short)
+	}
+	return exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, params)
+}
+
+// closeShortPosition closes a short position (buy to close short)
+func closeShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) (*types.Order, error) {
+	params := map[string]interface{}{
+		"size":        strconv.FormatFloat(amount, 'f', -1, 64), // Positive value means buy
+		"reduce_only": true,                                     // Gate uses reduce_only to close position
+	}
+	return exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, params)
+}
+
+// buySpot buys spot assets
+func buySpot(ctx context.Context, exchange base.Exchange, symbol string, amount float64) (*types.Order, error) {
+	return exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, nil)
+}
+
+// sellSpot sells spot assets
+func sellSpot(ctx context.Context, exchange base.Exchange, symbol string, amount float64) (*types.Order, error) {
+	return exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, nil)
+}
