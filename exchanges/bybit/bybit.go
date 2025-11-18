@@ -316,15 +316,6 @@ func getPrecisionDigits(value float64) int {
 	return 0
 }
 
-// contains 检查字符串切片是否包含指定值
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
 
 // containsMarketType 检查 MarketType 切片是否包含指定值
 func containsMarketType(slice []types.MarketType, item types.MarketType) bool {

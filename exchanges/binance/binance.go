@@ -345,15 +345,6 @@ func (b *Binance) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) 
 	return markets, nil
 }
 
-// contains 检查字符串切片是否包含指定值
-func contains(slice []string, item string) bool {
-	for _, s := range slice {
-		if s == item {
-			return true
-		}
-	}
-	return false
-}
 
 // containsMarketType 检查 MarketType 切片是否包含指定值
 func containsMarketType(slice []types.MarketType, item types.MarketType) bool {
@@ -1457,7 +1448,7 @@ func (b *Binance) GetMarkets(ctx context.Context, marketType types.MarketType) (
 	}
 
 	markets := make([]*types.Market, 0)
-	for _, market := range b.BaseExchange.GetMarketsMap() {
+	for _, market := range b.GetMarketsMap() {
 		if marketType == "" || market.Type == marketType {
 			markets = append(markets, market)
 		}
