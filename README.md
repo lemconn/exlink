@@ -149,7 +149,7 @@ import (
 )
 
 // Create a limit order
-order, err := exchange.CreateOrder(ctx, "BTC/USDT", types.OrderSideBuy, types.OrderTypeLimit, 0.001, 50000, nil)
+order, err := exchange.CreateOrder(ctx, "BTC/USDT", types.OrderSideBuy, types.OrderTypeLimit, "0.001", "50000", nil)
 if err != nil {
     log.Fatal(err)
 }
