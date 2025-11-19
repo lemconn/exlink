@@ -19,7 +19,7 @@ ExLink is a Go library similar to Python's ccxt, providing a standardized interf
 - ✅ **Binance** - Spot & Perpetual Swaps
 - ✅ **OKX** - Spot & Perpetual Swaps
 - ✅ **Bybit** - Spot & Perpetual Swaps
-- ✅ **Gate.io** - Spot & Perpetual Swaps
+- ✅ **Gate** - Spot & Perpetual Swaps
 
 ## API Support Matrix
 
@@ -28,16 +28,16 @@ ExLink is a Go library similar to Python's ccxt, providing a standardized interf
 | Binance  | ✅   | ✅   | ✅     | ✅    | ✅      | ✅     | ✅     | ✅        | ✅       | ✅          |
 | OKX      | ✅   | ✅   | ✅     | ✅    | ✅      | ✅     | ✅     | ✅        | ✅       | ✅          |
 | Bybit    | ✅   | ✅   | ✅     | ✅    | ✅      | ✅     | ✅     | ✅        | ✅       | ✅          |
-| Gate.io  | ✅   | ✅   | ✅     | ✅    | ✅      | ✅     | ✅     | ✅        | ✅       | ❌          |
+| Gate  | ✅   | ✅   | ✅     | ✅    | ✅      | ✅     | ✅     | ✅        | ✅       | ❌          |
 
 **Legend:**
 - ✅ Fully implemented
 - ❌ Not supported by exchange API
 
 **Notes:**
-- **Orders**: Includes `CreateOrder`, `CancelOrder`, `FetchOrder`, and `FetchOpenOrders`. `FetchOrders` (all orders) is not directly supported by Gate.io and Bybit APIs.
+- **Orders**: Includes `CreateOrder`, `CancelOrder`, `FetchOrder`, and `FetchOpenOrders`. `FetchOrders` (all orders) is not directly supported by Gate and Bybit APIs.
 - **Trades**: Includes `FetchTrades` (public trades) and `FetchMyTrades` (user trades).
-- **Gate.io Margin Mode**: Gate.io does not support setting margin mode via API. It must be configured on the web interface.
+- **Gate Margin Mode**: Gate does not support setting margin mode via API. It must be configured on the web interface.
 
 ## Quick Start
 
@@ -212,7 +212,7 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Set margin mode (contracts only, not supported by Gate.io)
+// Set margin mode (contracts only, not supported by Gate)
 err = exchange.SetMarginMode(ctx, "BTC/USDT:USDT", "isolated")
 if err != nil {
     log.Fatal(err)
@@ -278,7 +278,7 @@ func init() {
 - `ExchangeBinance`: Binance exchange
 - `ExchangeBybit`: Bybit exchange
 - `ExchangeOKX`: OKX exchange
-- `ExchangeGate`: Gate.io exchange
+- `ExchangeGate`: Gate exchange
 
 ### Market Types
 

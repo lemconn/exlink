@@ -1,0 +1,132 @@
+{
+	"info": {
+		"_postman_id": "exlink-bybit-market",
+		"name": "ExLink - Bybit Market Data",
+		"description": "Public market data APIs for Bybit exchange. No authentication required.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Get Instruments Info",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/market/instruments-info?category=spot",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"market",
+						"instruments-info"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "spot",
+							"description": "spot, linear, inverse"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "Get Tickers",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/market/tickers?category=spot&symbol=BTCUSDT",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"market",
+						"tickers"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "spot"
+						},
+						{
+							"key": "symbol",
+							"value": "BTCUSDT"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "Get Klines",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/market/kline?category=spot&symbol=BTCUSDT&interval=1&limit=100",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"market",
+						"kline"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "spot"
+						},
+						{
+							"key": "symbol",
+							"value": "BTCUSDT"
+						},
+						{
+							"key": "interval",
+							"value": "1",
+							"description": "1, 3, 5, 15, 30, 60, 120, 240, 360, 720, D, M, W"
+						},
+						{
+							"key": "limit",
+							"value": "100"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "Get Recent Trades",
+			"request": {
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/market/recent-trade?category=spot&symbol=BTCUSDT&limit=100",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"market",
+						"recent-trade"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "spot"
+						},
+						{
+							"key": "symbol",
+							"value": "BTCUSDT"
+						},
+						{
+							"key": "limit",
+							"value": "100"
+						}
+					]
+				}
+			}
+		}
+	]
+}

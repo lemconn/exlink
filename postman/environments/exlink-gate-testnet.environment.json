@@ -1,0 +1,26 @@
+{
+	"id": "exlink-gate-testnet",
+	"name": "ExLink - Gate Testnet",
+	"values": [
+		{
+			"key": "gate_base_url",
+			"value": "https://api-testnet.gateapi.io",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "gate_api_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "gate_secret_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		}
+	],
+	"_postman_variable_scope": "environment"
+}
+

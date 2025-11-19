@@ -27,7 +27,7 @@ func main() {
 		return
 	}
 
-	// Create Gate.io exchange instance
+	// Create Gate exchange instance
 	opts := []exlink.Option{
 		exlink.WithAPIKey(apiKey),
 		exlink.WithSecretKey(secretKey),
