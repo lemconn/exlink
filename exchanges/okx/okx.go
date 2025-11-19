@@ -347,7 +347,6 @@ func (o *OKX) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
 	return markets, nil
 }
 
-
 // containsMarketType 检查 MarketType 切片是否包含指定值
 func containsMarketType(slice []types.MarketType, item types.MarketType) bool {
 	for _, mt := range slice {
@@ -701,9 +700,21 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 		reqBody["px"] = price // 直接使用字符串
 	}
 
+	// 生成客户端订单ID（如果未提供）
+	// OKX 使用 clOrdId 参数，也支持 clientOrderId 作为别名
+	if _, hasClOrdId := params["clOrdId"]; !hasClOrdId {
+		if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
+			// 如果用户提供了 clientOrderId，使用它
+			reqBody["clOrdId"] = clientOrderId
+		} else {
+			// 如果都没有提供，自动生成
+			reqBody["clOrdId"] = common.GenerateClientOrderID(o.Name())
+		}
+	}
+
 	// 合并额外参数（排除已处理的参数）
 	for k, v := range params {
-		if k != "tdMode" && k != "tgtCcy" {
+		if k != "tdMode" && k != "tgtCcy" && k != "clientOrderId" {
 			reqBody[k] = v
 		}
 	}

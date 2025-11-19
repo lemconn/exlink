@@ -718,11 +718,24 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 		}
 	}
 
+	// 生成客户端订单ID（如果未提供）
+	// Binance 使用 newClientOrderId 参数，也支持 clientOrderId 作为别名
+	if _, hasNewClientOrderId := params["newClientOrderId"]; !hasNewClientOrderId {
+		if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
+			// 如果用户提供了 clientOrderId，使用它
+			reqParams["newClientOrderId"] = clientOrderId
+		} else {
+			// 如果都没有提供，自动生成
+			reqParams["newClientOrderId"] = common.GenerateClientOrderID(b.Name())
+		}
+	}
+
 	// 处理其他参数（排除已处理的参数）
 	excludedParams := map[string]bool{
 		"positionSide":  true,
 		"reduceOnly":    true,
 		"quoteOrderQty": true,
+		"clientOrderId": true, // 已处理，避免重复
 	}
 	for k, v := range params {
 		if !excludedParams[k] {

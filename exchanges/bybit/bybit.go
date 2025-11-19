@@ -316,7 +316,6 @@ func getPrecisionDigits(value float64) int {
 	return 0
 }
 
-
 // containsMarketType 检查 MarketType 切片是否包含指定值
 func containsMarketType(slice []types.MarketType, item types.MarketType) bool {
 	for _, mt := range slice {
@@ -833,9 +832,23 @@ func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.Order
 		}
 	}
 
-	// 合并额外参数
+	// 生成客户端订单ID（如果未提供）
+	// Bybit 使用 orderLinkId 参数，也支持 clientOrderId 作为别名
+	if _, hasOrderLinkId := params["orderLinkId"]; !hasOrderLinkId {
+		if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
+			// 如果用户提供了 clientOrderId，使用它
+			reqBody["orderLinkId"] = clientOrderId
+		} else {
+			// 如果都没有提供，自动生成
+			reqBody["orderLinkId"] = common.GenerateClientOrderID("bybit")
+		}
+	}
+
+	// 合并额外参数（排除已处理的参数）
 	for k, v := range params {
-		reqBody[k] = v
+		if k != "clientOrderId" {
+			reqBody[k] = v
+		}
 	}
 
 	resp, err := b.signAndRequest(ctx, "POST", "/v5/order/create", nil, reqBody)

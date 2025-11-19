@@ -278,7 +278,6 @@ func getString(m map[string]interface{}, key string) string {
 	return ""
 }
 
-
 // containsMarketType 检查 MarketType 切片是否包含指定值
 func containsMarketType(slice []types.MarketType, item types.MarketType) bool {
 	for _, mt := range slice {
@@ -837,7 +836,7 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 		// Gate 合约订单的 size 可以是正数（买入）或负数（卖出）
 		// 如果 size 是负数且没有设置 reduce_only，可能需要根据实际情况处理
 		reqBody["size"] = size
-		
+
 		// 处理 reduce_only 参数
 		if reduceOnly, ok := params["reduce_only"].(bool); ok {
 			reqBody["reduce_only"] = reduceOnly
@@ -886,7 +885,7 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 			} else {
 				reqBody["time_in_force"] = "ioc" // 默认使用 ioc
 			}
-			
+
 			// 现货市价买入订单需要使用 cost（报价货币数量）而不是 amount（基础货币数量）
 			if side == types.OrderSideBuy {
 				// 如果有 cost 参数，使用 cost；否则使用 amount * price 计算 cost
@@ -914,9 +913,22 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 		}
 	}
 
+	// 生成客户端订单ID（如果未提供）
+	// Gate 使用 text 参数，也支持 clientOrderId 作为别名
+	if _, hasText := params["text"]; !hasText {
+		if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
+			// 如果用户提供了 clientOrderId，使用它
+			reqBody["text"] = clientOrderId
+		} else {
+			// 如果都没有提供，自动生成
+			reqBody["text"] = common.GenerateClientOrderID(g.Name())
+		}
+	}
+
 	// 合并额外参数（排除已处理的参数）
 	excludedKeys := map[string]bool{
 		"size": true, "tif": true, "reduce_only": true, "time_in_force": true,
+		"clientOrderId": true, // 已处理，避免重复
 	}
 	for k, v := range params {
 		if !excludedKeys[k] {
