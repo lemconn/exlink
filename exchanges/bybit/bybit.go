@@ -742,7 +742,7 @@ func (b *Bybit) FetchBalance(ctx context.Context) (types.Balances, error) {
 }
 
 // CreateOrder 创建订单
-func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price float64, params map[string]interface{}) (*types.Order, error) {
+func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, params map[string]interface{}) (*types.Order, error) {
 	if b.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
 	}
@@ -755,6 +755,20 @@ func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.Order
 	bybitSymbol, err := b.GetMarketID(symbol)
 	if err != nil {
 		return nil, fmt.Errorf("get market ID: %w", err)
+	}
+
+	// 解析 amount 和 price 字符串为 float64 用于计算
+	amountFloat, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid amount: %w", err)
+	}
+
+	var priceFloat float64
+	if price != "" {
+		priceFloat, err = strconv.ParseFloat(price, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid price: %w", err)
+		}
 	}
 
 	// 确定 category
@@ -778,15 +792,15 @@ func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.Order
 	// For spot market buy orders, Bybit requires marketUnit and qty should be the cost in quote currency
 	if market.Type == types.MarketTypeSpot && orderType == types.OrderTypeMarket && side == types.OrderSideBuy {
 		// Calculate cost: amount * price (use current ask price if price not provided)
-		cost := amount
-		if price > 0 {
-			cost = amount * price
+		cost := amountFloat
+		if priceFloat > 0 {
+			cost = amountFloat * priceFloat
 		} else {
 			// Fetch current price to calculate cost
 			ticker, err := b.FetchTicker(ctx, symbol)
 			if err == nil && ticker.Ask != "" {
 				if askPrice, parseErr := strconv.ParseFloat(ticker.Ask, 64); parseErr == nil && askPrice > 0 {
-					cost = amount * askPrice
+					cost = amountFloat * askPrice
 				}
 			}
 		}
@@ -805,14 +819,14 @@ func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.Order
 		if precision <= 0 {
 			precision = 8 // Default precision
 		}
-		reqBody["qty"] = strconv.FormatFloat(amount, 'f', precision, 64)
+		reqBody["qty"] = strconv.FormatFloat(amountFloat, 'f', precision, 64)
 		if orderType == types.OrderTypeLimit {
 			reqBody["orderType"] = "Limit"
 			pricePrecision := market.Precision.Price
 			if pricePrecision <= 0 {
 				pricePrecision = 8 // Default precision
 			}
-			reqBody["price"] = strconv.FormatFloat(price, 'f', pricePrecision, 64)
+			reqBody["price"] = strconv.FormatFloat(priceFloat, 'f', pricePrecision, 64)
 			reqBody["timeInForce"] = "GTC"
 		} else {
 			reqBody["orderType"] = "Market"
@@ -852,8 +866,8 @@ func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.Order
 		Symbol:        symbol,
 		Type:          orderType,
 		Side:          side,
-		Amount:        amount,
-		Price:         price,
+		Amount:        amountFloat,
+		Price:         priceFloat,
 		Timestamp:     time.Now(),
 		Status:        types.OrderStatusNew,
 	}

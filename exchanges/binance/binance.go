@@ -345,7 +345,6 @@ func (b *Binance) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) 
 	return markets, nil
 }
 
-
 // containsMarketType 检查 MarketType 切片是否包含指定值
 func containsMarketType(slice []types.MarketType, item types.MarketType) bool {
 	for _, mt := range slice {
@@ -619,7 +618,7 @@ func (b *Binance) FetchBalance(ctx context.Context) (types.Balances, error) {
 // CreateOrder 创建订单
 // 参考: https://developers.binance.com/docs/binance-spot-api-docs/rest-api/trading-endpoints#new-order-trade
 // 参考: https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/New-Order
-func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price float64, params map[string]interface{}) (*types.Order, error) {
+func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, params map[string]interface{}) (*types.Order, error) {
 	if b.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
 	}
@@ -636,6 +635,20 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 		return nil, fmt.Errorf("get market ID: %w", err)
 	}
 
+	// 解析 amount 和 price 字符串为 float64 用于计算
+	amountFloat, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid amount: %w", err)
+	}
+
+	var priceFloat float64
+	if price != "" {
+		priceFloat, err = strconv.ParseFloat(price, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid price: %w", err)
+		}
+	}
+
 	reqTimestamp := common.GetTimestamp()
 	reqParams := map[string]interface{}{
 		"symbol":    binanceSymbol,
@@ -650,28 +663,28 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 	if amountPrecision == 0 {
 		amountPrecision = 8 // 默认精度
 	}
-	
+
 	// 对于合约订单，根据实际测试，使用更保守的精度策略
 	if market.Contract {
 		// 合约订单：如果数量是整数，使用 0 精度；否则使用 1 位小数精度
-		if amount >= 1.0 && amount == float64(int64(amount)) {
+		if amountFloat >= 1.0 && amountFloat == float64(int64(amountFloat)) {
 			amountPrecision = 0
 		} else {
 			amountPrecision = 1
 		}
 	}
-	reqParams["quantity"] = strconv.FormatFloat(amount, 'f', amountPrecision, 64)
+	reqParams["quantity"] = strconv.FormatFloat(amountFloat, 'f', amountPrecision, 64)
 
 	// 处理价格（限价单需要）
 	if orderType == types.OrderTypeLimit {
-		if price <= 0 {
+		if priceFloat <= 0 {
 			return nil, fmt.Errorf("limit order requires price > 0")
 		}
 		pricePrecision := market.Precision.Price
 		if pricePrecision == 0 {
 			pricePrecision = 8 // 默认精度
 		}
-		reqParams["price"] = strconv.FormatFloat(price, 'f', pricePrecision, 64)
+		reqParams["price"] = strconv.FormatFloat(priceFloat, 'f', pricePrecision, 64)
 		reqParams["timeInForce"] = "GTC" // 默认使用 GTC (Good Till Cancel)
 	}
 
@@ -707,8 +720,8 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 
 	// 处理其他参数（排除已处理的参数）
 	excludedParams := map[string]bool{
-		"positionSide": true,
-		"reduceOnly":   true,
+		"positionSide":  true,
+		"reduceOnly":    true,
 		"quoteOrderQty": true,
 	}
 	for k, v := range params {
@@ -802,7 +815,7 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 
 	// 如果响应中没有 origQty，使用传入的 amount
 	if origQty == 0 {
-		origQty = amount
+		origQty = amountFloat
 	}
 
 	// 构建订单对象

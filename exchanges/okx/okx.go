@@ -639,7 +639,7 @@ func (o *OKX) FetchBalance(ctx context.Context) (types.Balances, error) {
 }
 
 // CreateOrder 创建订单
-func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price float64, params map[string]interface{}) (*types.Order, error) {
+func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, params map[string]interface{}) (*types.Order, error) {
 	if o.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
 	}
@@ -656,6 +656,20 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 		return nil, fmt.Errorf("get market ID: %w", err)
 	}
 
+	// 解析 amount 和 price 字符串为 float64 用于计算
+	amountFloat, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid amount: %w", err)
+	}
+
+	var priceFloat float64
+	if price != "" {
+		priceFloat, err = strconv.ParseFloat(price, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid price: %w", err)
+		}
+	}
+
 	// 确定交易模式
 	tdMode := "cash" // 现货
 	if market.Contract {
@@ -670,7 +684,7 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 		"tdMode":  tdMode,
 		"side":    strings.ToLower(string(side)),
 		"ordType": strings.ToLower(string(orderType)),
-		"sz":      strconv.FormatFloat(amount, 'f', -1, 64),
+		"sz":      amount, // 直接使用字符串
 	}
 
 	// 对于现货交易，需要设置 tgtCcy 参数
@@ -684,7 +698,7 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 	}
 
 	if orderType == types.OrderTypeLimit {
-		reqBody["px"] = strconv.FormatFloat(price, 'f', -1, 64)
+		reqBody["px"] = price // 直接使用字符串
 	}
 
 	// 合并额外参数（排除已处理的参数）
@@ -751,8 +765,8 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 		Symbol:        symbol,
 		Type:          orderType,
 		Side:          side,
-		Amount:        amount,
-		Price:         price,
+		Amount:        amountFloat,
+		Price:         priceFloat,
 		Timestamp:     time.Now(),
 		Status:        types.OrderStatusNew,
 	}

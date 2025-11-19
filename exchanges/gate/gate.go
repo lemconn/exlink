@@ -746,7 +746,7 @@ func (g *Gate) FetchBalance(ctx context.Context) (types.Balances, error) {
 }
 
 // CreateOrder 创建订单
-func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price float64, params map[string]interface{}) (*types.Order, error) {
+func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, params map[string]interface{}) (*types.Order, error) {
 	if g.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
 	}
@@ -759,6 +759,20 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 	gateSymbol, err := g.GetMarketID(symbol)
 	if err != nil {
 		return nil, fmt.Errorf("get market ID: %w", err)
+	}
+
+	// 解析 amount 和 price 字符串为 float64 用于计算
+	amountFloat, err := strconv.ParseFloat(amount, 64)
+	if err != nil {
+		return nil, fmt.Errorf("invalid amount: %w", err)
+	}
+
+	var priceFloat float64
+	if price != "" {
+		priceFloat, err = strconv.ParseFloat(price, 64)
+		if err != nil {
+			return nil, fmt.Errorf("invalid price: %w", err)
+		}
 	}
 
 	var path string
@@ -809,10 +823,10 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 		} else {
 			// 根据 side 和 amount 计算 size（使用 math.Ceil 确保至少为 1）
 			var amountInt int64
-			if amount >= 0 {
-				amountInt = int64(math.Max(1, math.Ceil(amount)))
+			if amountFloat >= 0 {
+				amountInt = int64(math.Max(1, math.Ceil(amountFloat)))
 			} else {
-				amountInt = int64(math.Min(-1, math.Floor(amount)))
+				amountInt = int64(math.Min(-1, math.Floor(amountFloat)))
 			}
 			if side == types.OrderSideBuy {
 				size = amountInt // 正数表示买入
@@ -833,7 +847,7 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 		if orderType == types.OrderTypeMarket {
 			reqBody["price"] = "0" // 市价单使用 0
 		} else {
-			reqBody["price"] = strconv.FormatFloat(price, 'f', -1, 64)
+			reqBody["price"] = strconv.FormatFloat(priceFloat, 'f', -1, 64)
 		}
 
 		// 设置 time_in_force (tif)
@@ -857,8 +871,8 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 
 		if orderType == types.OrderTypeLimit {
 			reqBody["type"] = "limit"
-			reqBody["price"] = strconv.FormatFloat(price, 'f', -1, 64)
-			reqBody["amount"] = strconv.FormatFloat(amount, 'f', -1, 64)
+			reqBody["price"] = strconv.FormatFloat(priceFloat, 'f', -1, 64)
+			reqBody["amount"] = strconv.FormatFloat(amountFloat, 'f', -1, 64)
 			reqBody["time_in_force"] = "gtc"
 		} else {
 			reqBody["type"] = "market"
@@ -878,24 +892,24 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 				// 如果有 cost 参数，使用 cost；否则使用 amount * price 计算 cost
 				if cost, ok := params["cost"].(float64); ok {
 					reqBody["amount"] = strconv.FormatFloat(cost, 'f', -1, 64)
-				} else if price > 0 {
-					cost := amount * price
+				} else if priceFloat > 0 {
+					cost := amountFloat * priceFloat
 					reqBody["amount"] = strconv.FormatFloat(cost, 'f', -1, 64)
 				} else {
 					// 如果没有价格，尝试获取当前价格
 					ticker, err := g.FetchTicker(ctx, symbol)
 					if err == nil && ticker.Last != "" {
 						if lastPrice, parseErr := strconv.ParseFloat(ticker.Last, 64); parseErr == nil && lastPrice > 0 {
-							cost := amount * lastPrice
+							cost := amountFloat * lastPrice
 							reqBody["amount"] = strconv.FormatFloat(cost, 'f', -1, 64)
 						}
 					} else {
-						reqBody["amount"] = strconv.FormatFloat(amount, 'f', -1, 64)
+						reqBody["amount"] = strconv.FormatFloat(amountFloat, 'f', -1, 64)
 					}
 				}
 			} else {
 				// 现货市价卖出订单使用 amount（基础货币数量）
-				reqBody["amount"] = strconv.FormatFloat(amount, 'f', -1, 64)
+				reqBody["amount"] = strconv.FormatFloat(amountFloat, 'f', -1, 64)
 			}
 		}
 	}
@@ -924,8 +938,8 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 	order := &types.Order{
 		ID:        getString(data, "id"),
 		Symbol:    symbol,
-		Amount:    amount,
-		Price:     price,
+		Amount:    amountFloat,
+		Price:     priceFloat,
 		Timestamp: time.Now(),
 	}
 

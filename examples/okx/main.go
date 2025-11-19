@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strconv"
 
 	"github.com/lemconn/exlink"
 	"github.com/lemconn/exlink/base"
@@ -106,7 +107,7 @@ func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string
 	params := map[string]interface{}{
 		"posSide": "long", // OKX uses posSide to specify position direction
 	}
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
 	if err != nil {
 		fmt.Printf("Failed to open long position: %v", err)
 	} else {
@@ -120,7 +121,7 @@ func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol strin
 	params := map[string]interface{}{
 		"posSide": "long", // To close long position, need to specify posSide="long"
 	}
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
 	if err != nil {
 		fmt.Printf("Failed to close long position: %v", err)
 	} else {
@@ -134,7 +135,7 @@ func openShortPosition(ctx context.Context, exchange base.Exchange, symbol strin
 	params := map[string]interface{}{
 		"posSide": "short", // OKX uses posSide="short" to open short
 	}
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
 	if err != nil {
 		fmt.Printf("Failed to open short position: %v", err)
 	} else {
@@ -148,7 +149,7 @@ func closeShortPosition(ctx context.Context, exchange base.Exchange, symbol stri
 	params := map[string]interface{}{
 		"posSide": "short", // To close short position, need to specify posSide="short"
 	}
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
 	if err != nil {
 		fmt.Printf("Failed to close short position: %v", err)
 	} else {
@@ -159,7 +160,7 @@ func closeShortPosition(ctx context.Context, exchange base.Exchange, symbol stri
 
 // buySpot buys spot assets
 func buySpot(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, nil)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", nil)
 	if err != nil {
 		fmt.Printf("Failed to buy spot: %v", err)
 	} else {
@@ -170,7 +171,7 @@ func buySpot(ctx context.Context, exchange base.Exchange, symbol string, amount 
 
 // sellSpot sells spot assets
 func sellSpot(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, nil)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", nil)
 	if err != nil {
 		fmt.Printf("Failed to sell spot: %v", err)
 	} else {
