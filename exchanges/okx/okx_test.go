@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -184,13 +185,14 @@ func TestOKX_FetchTicker(t *testing.T) {
 		t.Fatalf("Failed to fetch ticker: %v", err)
 	}
 
+	bid, _ := strconv.ParseFloat(ticker.Bid, 64)
+	ask, _ := strconv.ParseFloat(ticker.Ask, 64)
+	last, _ := strconv.ParseFloat(ticker.Last, 64)
+	high, _ := strconv.ParseFloat(ticker.High, 64)
+	low, _ := strconv.ParseFloat(ticker.Low, 64)
+	volume, _ := strconv.ParseFloat(ticker.Volume, 64)
 	fmt.Printf("Spot ticker: bid=%f, ask=%f, last=%f, high24h=%f, low24h=%f, volume24h=%f\n",
-		ticker.Bid,
-		ticker.Ask,
-		ticker.Last,
-		ticker.High,
-		ticker.Low,
-		ticker.Volume,
+		bid, ask, last, high, low, volume,
 	)
 
 	// Test fetching swap ticker
@@ -202,13 +204,14 @@ func TestOKX_FetchTicker(t *testing.T) {
 		t.Fatalf("Failed to fetch ticker: %v", err)
 	}
 
+	bid, _ = strconv.ParseFloat(ticker.Bid, 64)
+	ask, _ = strconv.ParseFloat(ticker.Ask, 64)
+	last, _ = strconv.ParseFloat(ticker.Last, 64)
+	high, _ = strconv.ParseFloat(ticker.High, 64)
+	low, _ = strconv.ParseFloat(ticker.Low, 64)
+	volume, _ = strconv.ParseFloat(ticker.Volume, 64)
 	fmt.Printf("Swap ticker: bid=%f, ask=%f, last=%f, high24h=%f, low24h=%f, volume24h=%f\n",
-		ticker.Bid,
-		ticker.Ask,
-		ticker.Last,
-		ticker.High,
-		ticker.Low,
-		ticker.Volume,
+		bid, ask, last, high, low, volume,
 	)
 }
 
@@ -248,7 +251,10 @@ func TestOKX_CreateContractOrder_BuyOpenLong(t *testing.T) {
 	}
 
 	fmt.Printf("Testing buy open long: %s, amount: %f\n", symbol, amount)
-	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+	bid, _ := strconv.ParseFloat(ticker.Bid, 64)
+	ask, _ := strconv.ParseFloat(ticker.Ask, 64)
+	last, _ := strconv.ParseFloat(ticker.Last, 64)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", bid, ask, last)
 
 	// Buy to open long: side="buy", posSide="long"
 	params := map[string]interface{}{
@@ -314,7 +320,10 @@ func TestOKX_CreateContractOrder_SellCloseLong(t *testing.T) {
 	}
 
 	fmt.Printf("Testing sell close long: %s, amount: %f\n", symbol, amount)
-	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+	bid, _ := strconv.ParseFloat(ticker.Bid, 64)
+	ask, _ := strconv.ParseFloat(ticker.Ask, 64)
+	last, _ := strconv.ParseFloat(ticker.Last, 64)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", bid, ask, last)
 
 	// Sell to close long: side="sell", posSide="long"
 	params := map[string]interface{}{
@@ -380,7 +389,10 @@ func TestOKX_CreateContractOrder_SellOpenShort(t *testing.T) {
 	}
 
 	fmt.Printf("Testing sell open short: %s, amount: %f\n", symbol, amount)
-	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+	bid, _ := strconv.ParseFloat(ticker.Bid, 64)
+	ask, _ := strconv.ParseFloat(ticker.Ask, 64)
+	last, _ := strconv.ParseFloat(ticker.Last, 64)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", bid, ask, last)
 
 	// Sell to open short: side="sell", posSide="short"
 	params := map[string]interface{}{
@@ -446,7 +458,10 @@ func TestOKX_CreateContractOrder_BuyCloseShort(t *testing.T) {
 	}
 
 	fmt.Printf("Testing buy close short: %s, amount: %f\n", symbol, amount)
-	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+	bid, _ := strconv.ParseFloat(ticker.Bid, 64)
+	ask, _ := strconv.ParseFloat(ticker.Ask, 64)
+	last, _ := strconv.ParseFloat(ticker.Last, 64)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", bid, ask, last)
 
 	// Buy to close short: side="buy", posSide="short"
 	params := map[string]interface{}{
@@ -559,7 +574,10 @@ func TestOKX_CreateSpotOrder_Buy(t *testing.T) {
 	}
 
 	fmt.Printf("Testing spot buy: %s, amount: %f\n", symbol, amount)
-	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+	bid, _ := strconv.ParseFloat(ticker.Bid, 64)
+	ask, _ := strconv.ParseFloat(ticker.Ask, 64)
+	last, _ := strconv.ParseFloat(ticker.Last, 64)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", bid, ask, last)
 
 	// Use market order for spot buy
 	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, nil)
@@ -620,7 +638,10 @@ func TestOKX_CreateSpotOrder_Sell(t *testing.T) {
 	}
 
 	fmt.Printf("Testing spot sell: %s, amount: %f\n", symbol, amount)
-	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+	bid, _ := strconv.ParseFloat(ticker.Bid, 64)
+	ask, _ := strconv.ParseFloat(ticker.Ask, 64)
+	last, _ := strconv.ParseFloat(ticker.Last, 64)
+	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", bid, ask, last)
 
 	// Use market order for spot sell
 	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, nil)

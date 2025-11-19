@@ -178,13 +178,8 @@ func TestBybit_FetchTicker(t *testing.T) {
 		t.Fatalf("Failed to fetch ticker: %v", err)
 	}
 
-	fmt.Printf("Spot ticker: bid=%f, ask=%f, last=%f, high24h=%f, low24h=%f, volume24h=%f\n",
-		ticker.Bid,
-		ticker.Ask,
-		ticker.Last,
-		ticker.High,
-		ticker.Low,
-		ticker.Volume,
+	fmt.Printf("Spot ticker: bid=%s, ask=%s, last=%s, high24h=%s, low24h=%s, volume24h=%s\n",
+		ticker.Bid, ticker.Ask, ticker.Last, ticker.High, ticker.Low, ticker.Volume,
 	)
 
 	// Test fetching swap ticker
@@ -197,13 +192,8 @@ func TestBybit_FetchTicker(t *testing.T) {
 		t.Fatalf("Failed to fetch ticker: %v", err)
 	}
 
-	fmt.Printf("Swap ticker: bid=%f, ask=%f, last=%f, high24h=%f, low24h=%f, volume24h=%f\n",
-		ticker.Bid,
-		ticker.Ask,
-		ticker.Last,
-		ticker.High,
-		ticker.Low,
-		ticker.Volume,
+	fmt.Printf("Swap ticker: bid=%s, ask=%s, last=%s, high24h=%s, low24h=%s, volume24h=%s\n",
+		ticker.Bid, ticker.Ask, ticker.Last, ticker.High, ticker.Low, ticker.Volume,
 	)
 }
 
@@ -242,7 +232,7 @@ func TestBybit_CreateContractOrder_BuyOpenLong(t *testing.T) {
 	}
 
 	fmt.Printf("Testing buy open long: %s, amount: %f\n", symbol, amount)
-	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Buy to open long: side="Buy", reduceOnly=false (default) for opening
 	params := map[string]interface{}{
@@ -307,7 +297,7 @@ func TestBybit_CreateContractOrder_SellCloseLong(t *testing.T) {
 	}
 
 	fmt.Printf("Testing sell close long: %s, amount: %f\n", symbol, amount)
-	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Sell to close long: side="Sell", reduceOnly=true to close
 	params := map[string]interface{}{
@@ -372,7 +362,7 @@ func TestBybit_CreateContractOrder_SellOpenShort(t *testing.T) {
 	}
 
 	fmt.Printf("Testing sell open short: %s, amount: %f\n", symbol, amount)
-	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Sell to open short: side="Sell", reduceOnly=false (default) for opening
 	params := map[string]interface{}{
@@ -437,7 +427,7 @@ func TestBybit_CreateContractOrder_BuyCloseShort(t *testing.T) {
 	}
 
 	fmt.Printf("Testing buy close short: %s, amount: %f\n", symbol, amount)
-	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Buy to close short: side="Buy", reduceOnly=true to close
 	params := map[string]interface{}{
@@ -548,7 +538,7 @@ func TestBybit_CreateSpotOrder_Buy(t *testing.T) {
 	}
 
 	fmt.Printf("Testing spot buy: %s, amount: %f\n", symbol, amount)
-	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Use market order for spot buy
 	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, amount, 0, nil)
@@ -608,7 +598,7 @@ func TestBybit_CreateSpotOrder_Sell(t *testing.T) {
 	}
 
 	fmt.Printf("Testing spot sell: %s, amount: %f\n", symbol, amount)
-	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", ticker.Bid, ticker.Ask, ticker.Last)
+	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Use market order for spot sell
 	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, amount, 0, nil)

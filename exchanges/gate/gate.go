@@ -371,11 +371,9 @@ func (g *Gate) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, e
 			Symbol:    symbol,
 			Timestamp: time.Now(),
 		}
-		ticker.Last, _ = strconv.ParseFloat(item.Last, 64)
-		ticker.Volume, _ = strconv.ParseFloat(item.Volume24hBase, 64)
-		ticker.QuoteVolume, _ = strconv.ParseFloat(item.Volume24hQuote, 64)
-		changePercent, _ := strconv.ParseFloat(item.ChangePercentage, 64)
-		ticker.ChangePercent = changePercent
+		ticker.Last = item.Last
+		ticker.Volume = item.Volume24hBase
+		ticker.QuoteVolume = item.Volume24hQuote
 		return ticker, nil
 	} else {
 		var data []struct {
@@ -401,18 +399,13 @@ func (g *Gate) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, e
 			Symbol:    symbol,
 			Timestamp: time.Now(),
 		}
-		ticker.Bid, _ = strconv.ParseFloat(item.HighestBid, 64)
-		ticker.Ask, _ = strconv.ParseFloat(item.LowestAsk, 64)
-		ticker.Last, _ = strconv.ParseFloat(item.Last, 64)
-		ticker.High, _ = strconv.ParseFloat(item.High24h, 64)
-		ticker.Low, _ = strconv.ParseFloat(item.Low24h, 64)
-		ticker.Volume, _ = strconv.ParseFloat(item.BaseVolume, 64)
-		ticker.QuoteVolume, _ = strconv.ParseFloat(item.QuoteVolume, 64)
-		changePercent, _ := strconv.ParseFloat(item.ChangePercentage, 64)
-		ticker.ChangePercent = changePercent
-		if ticker.Last > 0 && ticker.ChangePercent != 0 {
-			ticker.Change = ticker.Last * ticker.ChangePercent / 100
-		}
+		ticker.Bid = item.HighestBid
+		ticker.Ask = item.LowestAsk
+		ticker.Last = item.Last
+		ticker.High = item.High24h
+		ticker.Low = item.Low24h
+		ticker.Volume = item.BaseVolume
+		ticker.QuoteVolume = item.QuoteVolume
 		return ticker, nil
 	}
 }
@@ -460,18 +453,13 @@ func (g *Gate) FetchTickers(ctx context.Context, symbols ...string) (map[string]
 					Symbol:    normalizedSymbol,
 					Timestamp: time.Now(),
 				}
-				ticker.Bid, _ = strconv.ParseFloat(item.HighestBid, 64)
-				ticker.Ask, _ = strconv.ParseFloat(item.LowestAsk, 64)
-				ticker.Last, _ = strconv.ParseFloat(item.Last, 64)
-				ticker.High, _ = strconv.ParseFloat(item.High24h, 64)
-				ticker.Low, _ = strconv.ParseFloat(item.Low24h, 64)
-				ticker.Volume, _ = strconv.ParseFloat(item.BaseVolume, 64)
-				ticker.QuoteVolume, _ = strconv.ParseFloat(item.QuoteVolume, 64)
-				changePercent, _ := strconv.ParseFloat(item.ChangePercentage, 64)
-				ticker.ChangePercent = changePercent
-				if ticker.Last > 0 && ticker.ChangePercent != 0 {
-					ticker.Change = ticker.Last * ticker.ChangePercent / 100
-				}
+				ticker.Bid = item.HighestBid
+				ticker.Ask = item.LowestAsk
+				ticker.Last = item.Last
+				ticker.High = item.High24h
+				ticker.Low = item.Low24h
+				ticker.Volume = item.BaseVolume
+				ticker.QuoteVolume = item.QuoteVolume
 				tickers[normalizedSymbol] = ticker
 			}
 		}
@@ -512,11 +500,9 @@ func (g *Gate) FetchTickers(ctx context.Context, symbols ...string) (map[string]
 					Symbol:    normalizedSymbol,
 					Timestamp: time.Now(),
 				}
-				ticker.Last, _ = strconv.ParseFloat(item.Last, 64)
-				ticker.Volume, _ = strconv.ParseFloat(item.Volume24hBase, 64)
-				ticker.QuoteVolume, _ = strconv.ParseFloat(item.Volume24hQuote, 64)
-				changePercent, _ := strconv.ParseFloat(item.ChangePercentage, 64)
-				ticker.ChangePercent = changePercent
+				ticker.Last = item.Last
+				ticker.Volume = item.Volume24hBase
+				ticker.QuoteVolume = item.Volume24hQuote
 				tickers[normalizedSymbol] = ticker
 			}
 		}
@@ -898,9 +884,11 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 				} else {
 					// 如果没有价格，尝试获取当前价格
 					ticker, err := g.FetchTicker(ctx, symbol)
-					if err == nil && ticker.Last > 0 {
-						cost := amount * ticker.Last
-						reqBody["amount"] = strconv.FormatFloat(cost, 'f', -1, 64)
+					if err == nil && ticker.Last != "" {
+						if lastPrice, parseErr := strconv.ParseFloat(ticker.Last, 64); parseErr == nil && lastPrice > 0 {
+							cost := amount * lastPrice
+							reqBody["amount"] = strconv.FormatFloat(cost, 'f', -1, 64)
+						}
 					} else {
 						reqBody["amount"] = strconv.FormatFloat(amount, 'f', -1, 64)
 					}

@@ -412,16 +412,14 @@ func (b *Binance) FetchTicker(ctx context.Context, symbol string) (*types.Ticker
 		Timestamp: time.Now(),
 	}
 
-	ticker.Bid, _ = strconv.ParseFloat(data.BidPrice, 64)
-	ticker.Ask, _ = strconv.ParseFloat(data.AskPrice, 64)
-	ticker.Last, _ = strconv.ParseFloat(data.LastPrice, 64)
-	ticker.Open, _ = strconv.ParseFloat(data.OpenPrice, 64)
-	ticker.High, _ = strconv.ParseFloat(data.HighPrice, 64)
-	ticker.Low, _ = strconv.ParseFloat(data.LowPrice, 64)
-	ticker.Volume, _ = strconv.ParseFloat(data.Volume, 64)
-	ticker.QuoteVolume, _ = strconv.ParseFloat(data.QuoteVolume, 64)
-	ticker.Change, _ = strconv.ParseFloat(data.PriceChange, 64)
-	ticker.ChangePercent, _ = strconv.ParseFloat(data.PriceChangePercent, 64)
+	ticker.Bid = data.BidPrice
+	ticker.Ask = data.AskPrice
+	ticker.Last = data.LastPrice
+	ticker.Open = data.OpenPrice
+	ticker.High = data.HighPrice
+	ticker.Low = data.LowPrice
+	ticker.Volume = data.Volume
+	ticker.QuoteVolume = data.QuoteVolume
 
 	return ticker, nil
 }
@@ -471,16 +469,14 @@ func (b *Binance) FetchTickers(ctx context.Context, symbols ...string) (map[stri
 			Timestamp: time.Now(),
 		}
 
-		ticker.Bid, _ = strconv.ParseFloat(item.BidPrice, 64)
-		ticker.Ask, _ = strconv.ParseFloat(item.AskPrice, 64)
-		ticker.Last, _ = strconv.ParseFloat(item.LastPrice, 64)
-		ticker.Open, _ = strconv.ParseFloat(item.OpenPrice, 64)
-		ticker.High, _ = strconv.ParseFloat(item.HighPrice, 64)
-		ticker.Low, _ = strconv.ParseFloat(item.LowPrice, 64)
-		ticker.Volume, _ = strconv.ParseFloat(item.Volume, 64)
-		ticker.QuoteVolume, _ = strconv.ParseFloat(item.QuoteVolume, 64)
-		ticker.Change, _ = strconv.ParseFloat(item.PriceChange, 64)
-		ticker.ChangePercent, _ = strconv.ParseFloat(item.PriceChangePercent, 64)
+		ticker.Bid = item.BidPrice
+		ticker.Ask = item.AskPrice
+		ticker.Last = item.LastPrice
+		ticker.Open = item.OpenPrice
+		ticker.High = item.HighPrice
+		ticker.Low = item.LowPrice
+		ticker.Volume = item.Volume
+		ticker.QuoteVolume = item.QuoteVolume
 
 		tickers[item.Symbol] = ticker
 	}

@@ -75,8 +75,7 @@ func main() {
         log.Fatal(err)
     }
     
-    fmt.Printf("BTC/USDT Price: %.2f\n", ticker.Last)
-    fmt.Printf("24h Change: %.2f%%\n", ticker.ChangePercent)
+    fmt.Printf("BTC/USDT Price: %s\n", ticker.Last)
 }
 ```
 
