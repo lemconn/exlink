@@ -47,18 +47,25 @@ func main() {
 		return
 	}
 
-	// Contract trading pair (perpetual contract)
-	contractSymbol := "BTC/USDT:USDT"
-	// Spot trading pair
-	spotSymbol := "BTC/USDT"
-
-	// Get current price
-	ticker, err := exchange.FetchTicker(ctx, contractSymbol)
+	// Future trading pair (perpetual future)
+	futureSymbol := "DOGE/USDT:USDT"
+	// Get current future price
+	ticker, err := exchange.FetchTicker(ctx, futureSymbol)
 	if err != nil {
-		fmt.Printf("Failed to fetch ticker: %v", err)
+		fmt.Printf("Failed to fetch future ticker: %v", err)
 		return
 	}
-	fmt.Printf("Current price: %s\n", ticker.Last)
+	fmt.Printf("Current future price: %s\n", ticker.Last)
+
+	// Spot trading pair
+	spotSymbol := "DOGE/USDT"
+	// Get current spot price
+	ticker, err = exchange.FetchTicker(ctx, spotSymbol)
+	if err != nil {
+		fmt.Printf("Failed to fetch spot ticker: %v", err)
+		return
+	}
+	fmt.Printf("Current spot price: %s\n", ticker.Last)
 
 	amount := 0.001 // Order quantity (adjust according to actual situation)
 
@@ -67,19 +74,19 @@ func main() {
 
 	// 1. Open long position (buy to open long)
 	fmt.Println("\n1. Open long position")
-	openLongPosition(ctx, exchange, contractSymbol, amount)
+	openLongPosition(ctx, exchange, futureSymbol, amount)
 
 	// 2. Close long position (sell to close long)
 	fmt.Println("\n2. Close long position")
-	closeLongPosition(ctx, exchange, contractSymbol, amount)
+	closeLongPosition(ctx, exchange, futureSymbol, amount)
 
 	// 3. Open short position (sell to open short)
 	fmt.Println("\n3. Open short position")
-	openShortPosition(ctx, exchange, contractSymbol, amount)
+	openShortPosition(ctx, exchange, futureSymbol, amount)
 
 	// 4. Close short position (buy to close short)
 	fmt.Println("\n4. Close short position")
-	closeShortPosition(ctx, exchange, contractSymbol, amount)
+	closeShortPosition(ctx, exchange, futureSymbol, amount)
 
 	// ========== Spot Trading Examples ==========
 	fmt.Println("\n=== Spot Trading Examples ===")
