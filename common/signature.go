@@ -80,7 +80,7 @@ func GetISO8601Timestamp() string {
 	return time.Now().UTC().Format(time.RFC3339)
 }
 
-// SignHMAC512 HMAC-SHA512签名（hex编码，用于Gate.io）
+// SignHMAC512 HMAC-SHA512签名（hex编码，用于Gate）
 func SignHMAC512(message, secret string) string {
 	mac := hmac.New(sha512.New, []byte(secret))
 	mac.Write([]byte(message))

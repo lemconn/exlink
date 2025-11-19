@@ -1,0 +1,72 @@
+{
+	"info": {
+		"_postman_id": "exlink-bybit-account",
+		"name": "ExLink - Bybit Account",
+		"description": "Account management APIs for Bybit exchange. Requires API key authentication. Use sign-bybit.js script for automatic signature generation.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Get Wallet Balance",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/account/wallet-balance?accountType=UNIFIED",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"account",
+						"wallet-balance"
+					],
+					"query": [
+						{
+							"key": "accountType",
+							"value": "UNIFIED",
+							"description": "UNIFIED, CONTRACT, SPOT"
+						}
+					]
+				}
+			}
+		},
+		{
+			"name": "Get Positions",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/position/list?category=linear",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"position",
+						"list"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "linear",
+							"description": "linear, inverse"
+						}
+					]
+				}
+			}
+		}
+	]
+}

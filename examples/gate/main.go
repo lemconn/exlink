@@ -27,7 +27,7 @@ func main() {
 		return
 	}
 
-	// Create Gate.io exchange instance
+	// Create Gate exchange instance
 	opts := []exlink.Option{
 		exlink.WithAPIKey(apiKey),
 		exlink.WithSecretKey(secretKey),
@@ -58,7 +58,7 @@ func main() {
 		fmt.Printf("Failed to fetch ticker: %v", err)
 		return
 	}
-	fmt.Printf("Current price: %.2f\n", ticker.Last)
+	fmt.Printf("Current price: %s\n", ticker.Last)
 
 	amount := 0.001 // Order quantity (adjust according to actual situation)
 

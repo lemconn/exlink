@@ -371,11 +371,9 @@ func (g *Gate) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, e
 			Symbol:    symbol,
 			Timestamp: time.Now(),
 		}
-		ticker.Last, _ = strconv.ParseFloat(item.Last, 64)
-		ticker.Volume, _ = strconv.ParseFloat(item.Volume24hBase, 64)
-		ticker.QuoteVolume, _ = strconv.ParseFloat(item.Volume24hQuote, 64)
-		changePercent, _ := strconv.ParseFloat(item.ChangePercentage, 64)
-		ticker.ChangePercent = changePercent
+		ticker.Last = item.Last
+		ticker.Volume = item.Volume24hBase
+		ticker.QuoteVolume = item.Volume24hQuote
 		return ticker, nil
 	} else {
 		var data []struct {
@@ -401,18 +399,13 @@ func (g *Gate) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, e
 			Symbol:    symbol,
 			Timestamp: time.Now(),
 		}
-		ticker.Bid, _ = strconv.ParseFloat(item.HighestBid, 64)
-		ticker.Ask, _ = strconv.ParseFloat(item.LowestAsk, 64)
-		ticker.Last, _ = strconv.ParseFloat(item.Last, 64)
-		ticker.High, _ = strconv.ParseFloat(item.High24h, 64)
-		ticker.Low, _ = strconv.ParseFloat(item.Low24h, 64)
-		ticker.Volume, _ = strconv.ParseFloat(item.BaseVolume, 64)
-		ticker.QuoteVolume, _ = strconv.ParseFloat(item.QuoteVolume, 64)
-		changePercent, _ := strconv.ParseFloat(item.ChangePercentage, 64)
-		ticker.ChangePercent = changePercent
-		if ticker.Last > 0 && ticker.ChangePercent != 0 {
-			ticker.Change = ticker.Last * ticker.ChangePercent / 100
-		}
+		ticker.Bid = item.HighestBid
+		ticker.Ask = item.LowestAsk
+		ticker.Last = item.Last
+		ticker.High = item.High24h
+		ticker.Low = item.Low24h
+		ticker.Volume = item.BaseVolume
+		ticker.QuoteVolume = item.QuoteVolume
 		return ticker, nil
 	}
 }
@@ -460,18 +453,13 @@ func (g *Gate) FetchTickers(ctx context.Context, symbols ...string) (map[string]
 					Symbol:    normalizedSymbol,
 					Timestamp: time.Now(),
 				}
-				ticker.Bid, _ = strconv.ParseFloat(item.HighestBid, 64)
-				ticker.Ask, _ = strconv.ParseFloat(item.LowestAsk, 64)
-				ticker.Last, _ = strconv.ParseFloat(item.Last, 64)
-				ticker.High, _ = strconv.ParseFloat(item.High24h, 64)
-				ticker.Low, _ = strconv.ParseFloat(item.Low24h, 64)
-				ticker.Volume, _ = strconv.ParseFloat(item.BaseVolume, 64)
-				ticker.QuoteVolume, _ = strconv.ParseFloat(item.QuoteVolume, 64)
-				changePercent, _ := strconv.ParseFloat(item.ChangePercentage, 64)
-				ticker.ChangePercent = changePercent
-				if ticker.Last > 0 && ticker.ChangePercent != 0 {
-					ticker.Change = ticker.Last * ticker.ChangePercent / 100
-				}
+				ticker.Bid = item.HighestBid
+				ticker.Ask = item.LowestAsk
+				ticker.Last = item.Last
+				ticker.High = item.High24h
+				ticker.Low = item.Low24h
+				ticker.Volume = item.BaseVolume
+				ticker.QuoteVolume = item.QuoteVolume
 				tickers[normalizedSymbol] = ticker
 			}
 		}
@@ -512,11 +500,9 @@ func (g *Gate) FetchTickers(ctx context.Context, symbols ...string) (map[string]
 					Symbol:    normalizedSymbol,
 					Timestamp: time.Now(),
 				}
-				ticker.Last, _ = strconv.ParseFloat(item.Last, 64)
-				ticker.Volume, _ = strconv.ParseFloat(item.Volume24hBase, 64)
-				ticker.QuoteVolume, _ = strconv.ParseFloat(item.Volume24hQuote, 64)
-				changePercent, _ := strconv.ParseFloat(item.ChangePercentage, 64)
-				ticker.ChangePercent = changePercent
+				ticker.Last = item.Last
+				ticker.Volume = item.Volume24hBase
+				ticker.QuoteVolume = item.Volume24hQuote
 				tickers[normalizedSymbol] = ticker
 			}
 		}
@@ -665,7 +651,7 @@ func (g *Gate) FetchOHLCV(ctx context.Context, symbol string, timeframe string, 
 	return ohlcvs, nil
 }
 
-// signRequest Gate.io 签名方法
+// signRequest Gate 签名方法
 func (g *Gate) signRequest(method, path string, queryString, body string, timestamp int64) string {
 	bodyHash := common.HashSHA512(body)
 
@@ -675,7 +661,7 @@ func (g *Gate) signRequest(method, path string, queryString, body string, timest
 		signPath = strings.TrimPrefix(path, "/api/v4")
 	}
 
-	// Gate.io 签名格式: method\n/api/v4/path\nqueryString\nbodyHash\ntimestamp
+	// Gate 签名格式: method\n/api/v4/path\nqueryString\nbodyHash\ntimestamp
 	payload := fmt.Sprintf("%s\n/api/v4%s\n%s\n%s\n%d",
 		strings.ToUpper(method), signPath, queryString, bodyHash, timestamp)
 
@@ -725,7 +711,7 @@ func (g *Gate) FetchBalance(ctx context.Context) (types.Balances, error) {
 		return nil, base.ErrAuthenticationRequired
 	}
 
-	// Gate.io 现货余额
+	// Gate 现货余额
 	resp, err := g.signAndRequest(ctx, "GET", "/api/v4/spot/accounts", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch balance: %w", err)
@@ -834,7 +820,7 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 				size = -amountInt // 负数表示卖出
 			}
 		}
-		// Gate.io 合约订单的 size 可以是正数（买入）或负数（卖出）
+		// Gate 合约订单的 size 可以是正数（买入）或负数（卖出）
 		// 如果 size 是负数且没有设置 reduce_only，可能需要根据实际情况处理
 		reqBody["size"] = size
 		
@@ -898,9 +884,11 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 				} else {
 					// 如果没有价格，尝试获取当前价格
 					ticker, err := g.FetchTicker(ctx, symbol)
-					if err == nil && ticker.Last > 0 {
-						cost := amount * ticker.Last
-						reqBody["amount"] = strconv.FormatFloat(cost, 'f', -1, 64)
+					if err == nil && ticker.Last != "" {
+						if lastPrice, parseErr := strconv.ParseFloat(ticker.Last, 64); parseErr == nil && lastPrice > 0 {
+							cost := amount * lastPrice
+							reqBody["amount"] = strconv.FormatFloat(cost, 'f', -1, 64)
+						}
 					} else {
 						reqBody["amount"] = strconv.FormatFloat(amount, 'f', -1, 64)
 					}
@@ -1137,7 +1125,7 @@ func (g *Gate) FetchOrder(ctx context.Context, orderID, symbol string) (*types.O
 
 // FetchOrders 查询订单列表
 func (g *Gate) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	// Gate.io 没有直接的 fetchOrders API，需要通过 fetchOpenOrders 和 fetchClosedOrders 组合
+	// Gate 没有直接的 fetchOrders API，需要通过 fetchOpenOrders 和 fetchClosedOrders 组合
 	return nil, fmt.Errorf("not implemented: use FetchOpenOrders or implement custom logic")
 }
 
@@ -1375,7 +1363,7 @@ func (g *Gate) FetchPositions(ctx context.Context, symbols ...string) ([]*types.
 		return nil, base.ErrAuthenticationRequired
 	}
 
-	// Gate.io 合约持仓
+	// Gate 合约持仓
 	resp, err := g.signAndRequest(ctx, "GET", "/api/v4/futures/usdt/positions", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch positions: %w", err)
@@ -1474,8 +1462,8 @@ func (g *Gate) SetLeverage(ctx context.Context, symbol string, leverage int) err
 
 // SetMarginMode 设置保证金模式
 func (g *Gate) SetMarginMode(ctx context.Context, symbol string, mode string) error {
-	// Gate.io 不支持通过 API 设置保证金模式，需要在网页端设置
-	return fmt.Errorf("not supported: Gate.io does not support setting margin mode via API")
+	// Gate 不支持通过 API 设置保证金模式，需要在网页端设置
+	return fmt.Errorf("not supported: Gate does not support setting margin mode via API")
 }
 
 func (g *Gate) GetMarkets(ctx context.Context, marketType types.MarketType) ([]*types.Market, error) {

@@ -408,19 +408,14 @@ func (o *OKX) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, er
 		Timestamp: time.Now(),
 	}
 
-	ticker.Bid, _ = strconv.ParseFloat(data.BidPx, 64)
-	ticker.Ask, _ = strconv.ParseFloat(data.AskPx, 64)
-	ticker.Last, _ = strconv.ParseFloat(data.Last, 64)
-	ticker.Open, _ = strconv.ParseFloat(data.Open24h, 64)
-	ticker.High, _ = strconv.ParseFloat(data.High24h, 64)
-	ticker.Low, _ = strconv.ParseFloat(data.Low24h, 64)
-	ticker.Volume, _ = strconv.ParseFloat(data.Vol24h, 64)
-	ticker.QuoteVolume, _ = strconv.ParseFloat(data.VolCcy24h, 64)
-
-	if ticker.Open > 0 {
-		ticker.Change = ticker.Last - ticker.Open
-		ticker.ChangePercent = (ticker.Change / ticker.Open) * 100
-	}
+	ticker.Bid = data.BidPx
+	ticker.Ask = data.AskPx
+	ticker.Last = data.Last
+	ticker.Open = data.Open24h
+	ticker.High = data.High24h
+	ticker.Low = data.Low24h
+	ticker.Volume = data.Vol24h
+	ticker.QuoteVolume = data.VolCcy24h
 
 	return ticker, nil
 }
@@ -507,19 +502,14 @@ func (o *OKX) FetchTickers(ctx context.Context, symbols ...string) (map[string]*
 				Timestamp: time.Now(),
 			}
 
-			ticker.Bid, _ = strconv.ParseFloat(item.BidPx, 64)
-			ticker.Ask, _ = strconv.ParseFloat(item.AskPx, 64)
-			ticker.Last, _ = strconv.ParseFloat(item.Last, 64)
-			ticker.Open, _ = strconv.ParseFloat(item.Open24h, 64)
-			ticker.High, _ = strconv.ParseFloat(item.High24h, 64)
-			ticker.Low, _ = strconv.ParseFloat(item.Low24h, 64)
-			ticker.Volume, _ = strconv.ParseFloat(item.Vol24h, 64)
-			ticker.QuoteVolume, _ = strconv.ParseFloat(item.VolCcy24h, 64)
-
-			if ticker.Open > 0 {
-				ticker.Change = ticker.Last - ticker.Open
-				ticker.ChangePercent = (ticker.Change / ticker.Open) * 100
-			}
+			ticker.Bid = item.BidPx
+			ticker.Ask = item.AskPx
+			ticker.Last = item.Last
+			ticker.Open = item.Open24h
+			ticker.High = item.High24h
+			ticker.Low = item.Low24h
+			ticker.Volume = item.Vol24h
+			ticker.QuoteVolume = item.VolCcy24h
 
 			tickers[normalizedSymbol] = ticker
 		}

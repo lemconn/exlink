@@ -1,0 +1,26 @@
+{
+	"id": "exlink-binance-testnet",
+	"name": "ExLink - Binance Testnet",
+	"values": [
+		{
+			"key": "binance_base_url",
+			"value": "https://demo-api.binance.com",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "binance_api_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "binance_secret_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		}
+	],
+	"_postman_variable_scope": "environment"
+}
+

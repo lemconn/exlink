@@ -415,19 +415,14 @@ func (b *Bybit) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, 
 		Timestamp: time.Now(),
 	}
 
-	ticker.Bid, _ = strconv.ParseFloat(item.Bid1Price, 64)
-	ticker.Ask, _ = strconv.ParseFloat(item.Ask1Price, 64)
-	ticker.Last, _ = strconv.ParseFloat(item.LastPrice, 64)
-	ticker.Open, _ = strconv.ParseFloat(item.PrevPrice24h, 64)
-	ticker.High, _ = strconv.ParseFloat(item.HighPrice24h, 64)
-	ticker.Low, _ = strconv.ParseFloat(item.LowPrice24h, 64)
-	ticker.Volume, _ = strconv.ParseFloat(item.Volume24h, 64)
-	ticker.QuoteVolume, _ = strconv.ParseFloat(item.Turnover24h, 64)
-	changePercent, _ := strconv.ParseFloat(item.Price24hPcnt, 64)
-	ticker.ChangePercent = changePercent * 100
-	if ticker.Open > 0 {
-		ticker.Change = ticker.Last - ticker.Open
-	}
+	ticker.Bid = item.Bid1Price
+	ticker.Ask = item.Ask1Price
+	ticker.Last = item.LastPrice
+	ticker.Open = item.PrevPrice24h
+	ticker.High = item.HighPrice24h
+	ticker.Low = item.LowPrice24h
+	ticker.Volume = item.Volume24h
+	ticker.QuoteVolume = item.Turnover24h
 
 	return ticker, nil
 }
@@ -485,19 +480,14 @@ func (b *Bybit) FetchTickers(ctx context.Context, symbols ...string) (map[string
 					Symbol:    normalizedSymbol,
 					Timestamp: time.Now(),
 				}
-				ticker.Bid, _ = strconv.ParseFloat(item.Bid1Price, 64)
-				ticker.Ask, _ = strconv.ParseFloat(item.Ask1Price, 64)
-				ticker.Last, _ = strconv.ParseFloat(item.LastPrice, 64)
-				ticker.Open, _ = strconv.ParseFloat(item.PrevPrice24h, 64)
-				ticker.High, _ = strconv.ParseFloat(item.HighPrice24h, 64)
-				ticker.Low, _ = strconv.ParseFloat(item.LowPrice24h, 64)
-				ticker.Volume, _ = strconv.ParseFloat(item.Volume24h, 64)
-				ticker.QuoteVolume, _ = strconv.ParseFloat(item.Turnover24h, 64)
-				changePercent, _ := strconv.ParseFloat(item.Price24hPcnt, 64)
-				ticker.ChangePercent = changePercent * 100
-				if ticker.Open > 0 {
-					ticker.Change = ticker.Last - ticker.Open
-				}
+				ticker.Bid = item.Bid1Price
+				ticker.Ask = item.Ask1Price
+				ticker.Last = item.LastPrice
+				ticker.Open = item.PrevPrice24h
+				ticker.High = item.HighPrice24h
+				ticker.Low = item.LowPrice24h
+				ticker.Volume = item.Volume24h
+				ticker.QuoteVolume = item.Turnover24h
 				tickers[normalizedSymbol] = ticker
 			}
 		}
@@ -551,19 +541,14 @@ func (b *Bybit) FetchTickers(ctx context.Context, symbols ...string) (map[string
 					Symbol:    normalizedSymbol,
 					Timestamp: time.Now(),
 				}
-				ticker.Bid, _ = strconv.ParseFloat(item.Bid1Price, 64)
-				ticker.Ask, _ = strconv.ParseFloat(item.Ask1Price, 64)
-				ticker.Last, _ = strconv.ParseFloat(item.LastPrice, 64)
-				ticker.Open, _ = strconv.ParseFloat(item.PrevPrice24h, 64)
-				ticker.High, _ = strconv.ParseFloat(item.HighPrice24h, 64)
-				ticker.Low, _ = strconv.ParseFloat(item.LowPrice24h, 64)
-				ticker.Volume, _ = strconv.ParseFloat(item.Volume24h, 64)
-				ticker.QuoteVolume, _ = strconv.ParseFloat(item.Turnover24h, 64)
-				changePercent, _ := strconv.ParseFloat(item.Price24hPcnt, 64)
-				ticker.ChangePercent = changePercent * 100
-				if ticker.Open > 0 {
-					ticker.Change = ticker.Last - ticker.Open
-				}
+				ticker.Bid = item.Bid1Price
+				ticker.Ask = item.Ask1Price
+				ticker.Last = item.LastPrice
+				ticker.Open = item.PrevPrice24h
+				ticker.High = item.HighPrice24h
+				ticker.Low = item.LowPrice24h
+				ticker.Volume = item.Volume24h
+				ticker.QuoteVolume = item.Turnover24h
 				tickers[normalizedSymbol] = ticker
 			}
 		}
@@ -799,8 +784,10 @@ func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.Order
 		} else {
 			// Fetch current price to calculate cost
 			ticker, err := b.FetchTicker(ctx, symbol)
-			if err == nil && ticker.Ask > 0 {
-				cost = amount * ticker.Ask
+			if err == nil && ticker.Ask != "" {
+				if askPrice, parseErr := strconv.ParseFloat(ticker.Ask, 64); parseErr == nil && askPrice > 0 {
+					cost = amount * askPrice
+				}
 			}
 		}
 		reqBody["marketUnit"] = "quoteCoin"

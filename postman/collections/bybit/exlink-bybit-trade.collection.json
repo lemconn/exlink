@@ -1,0 +1,77 @@
+{
+	"info": {
+		"_postman_id": "exlink-bybit-trade",
+		"name": "ExLink - Bybit Trading",
+		"description": "Private trading APIs for Bybit exchange. Requires API key authentication. Use sign-bybit.js script for automatic signature generation.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Create Order",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"category\": \"spot\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Buy\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/order/create",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"order",
+						"create"
+					]
+				}
+			}
+		},
+		{
+			"name": "Query Order",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/order/history?category=spot&symbol=BTCUSDT",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"order",
+						"history"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "spot"
+						},
+						{
+							"key": "symbol",
+							"value": "BTCUSDT"
+						}
+					]
+				}
+			}
+		}
+	]
+}

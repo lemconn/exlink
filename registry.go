@@ -25,7 +25,7 @@ const (
 	ExchangeBinance = "binance" // Binance 交易所
 	ExchangeBybit   = "bybit"   // Bybit 交易所
 	ExchangeOKX     = "okx"     // OKX 交易所
-	ExchangeGate    = "gate"    // Gate.io 交易所
+	ExchangeGate    = "gate"    // Gate 交易所
 )
 
 // ExchangeOptions 交易所配置选项

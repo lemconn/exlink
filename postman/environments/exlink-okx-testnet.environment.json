@@ -1,0 +1,38 @@
+{
+	"id": "exlink-okx-testnet",
+	"name": "ExLink - OKX Testnet",
+	"values": [
+		{
+			"key": "okx_base_url",
+			"value": "https://www.okx.com",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "okx_api_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "okx_secret_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "okx_passphrase",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "okx_testnet",
+			"value": "true",
+			"type": "default",
+			"enabled": true
+		}
+	],
+	"_postman_variable_scope": "environment"
+}
+
