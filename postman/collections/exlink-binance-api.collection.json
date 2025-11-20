@@ -1,0 +1,241 @@
+{
+	"info": {
+		"_postman_id": "exlink-binance-api",
+		"name": "ExLink - Binance API",
+		"description": "Private trading APIs for Binance exchange. Requires API key authentication. Use sign-binance.js script for automatic signature generation.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Swap - Open Long (Buy to Open Long)",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{binance_base_url}}/fapi/v1/order?symbol=BTCUSDT&side=BUY&type=MARKET&quantity=0.001",
+					"host": [
+						"{{binance_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v1",
+						"order"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT"
+						},
+						{
+							"key": "side",
+							"value": "BUY"
+						},
+						{
+							"key": "type",
+							"value": "MARKET"
+						},
+						{
+							"key": "quantity",
+							"value": "0.001"
+						}
+					]
+				},
+				"description": "Perpetual swap open long: Buy to open long position. side=BUY, type=MARKET. In one-way mode, buy means open long. In two-way mode, you can use positionSide=LONG."
+			}
+		},
+		{
+			"name": "Swap - Close Long (Sell to Close Long)",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{binance_base_url}}/fapi/v1/order?symbol=BTCUSDT&side=SELL&type=MARKET&quantity=0.001&reduceOnly=true",
+					"host": [
+						"{{binance_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v1",
+						"order"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT"
+						},
+						{
+							"key": "side",
+							"value": "SELL"
+						},
+						{
+							"key": "type",
+							"value": "MARKET"
+						},
+						{
+							"key": "quantity",
+							"value": "0.001"
+						},
+						{
+							"key": "reduceOnly",
+							"value": "true"
+						}
+					]
+				},
+				"description": "Perpetual swap close long: Sell to close long position. side=SELL, type=MARKET, reduceOnly=true."
+			}
+		},
+		{
+			"name": "Swap - Open Short (Sell to Open Short)",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{binance_base_url}}/fapi/v1/order?symbol=BTCUSDT&side=SELL&type=MARKET&quantity=0.001",
+					"host": [
+						"{{binance_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v1",
+						"order"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT"
+						},
+						{
+							"key": "side",
+							"value": "SELL"
+						},
+						{
+							"key": "type",
+							"value": "MARKET"
+						},
+						{
+							"key": "quantity",
+							"value": "0.001"
+						}
+					]
+				},
+				"description": "Perpetual swap open short: Sell to open short position. side=SELL, type=MARKET. In one-way mode, sell means open short. In two-way mode, you can use positionSide=SHORT."
+			}
+		},
+		{
+			"name": "Swap - Close Short (Buy to Close Short)",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{binance_base_url}}/fapi/v1/order?symbol=BTCUSDT&side=BUY&type=MARKET&quantity=0.001&reduceOnly=true",
+					"host": [
+						"{{binance_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v1",
+						"order"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT"
+						},
+						{
+							"key": "side",
+							"value": "BUY"
+						},
+						{
+							"key": "type",
+							"value": "MARKET"
+						},
+						{
+							"key": "quantity",
+							"value": "0.001"
+						},
+						{
+							"key": "reduceOnly",
+							"value": "true"
+						}
+					]
+				},
+				"description": "Perpetual swap close short: Buy to close short position. side=BUY, type=MARKET, reduceOnly=true."
+			}
+		},
+		{
+			"name": "Spot - Buy",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{binance_base_url}}/api/v3/order?symbol=BTCUSDT&side=BUY&type=MARKET&quantity=0.001",
+					"host": [
+						"{{binance_base_url}}"
+					],
+					"path": [
+						"api",
+						"v3",
+						"order"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT"
+						},
+						{
+							"key": "side",
+							"value": "BUY"
+						},
+						{
+							"key": "type",
+							"value": "MARKET"
+						},
+						{
+							"key": "quantity",
+							"value": "0.001"
+						}
+					]
+				},
+				"description": "Spot buy: Buy spot assets. side=BUY, type=MARKET, quantity is base currency amount. For market buy, you can also use quoteOrderQty to specify quote currency amount."
+			}
+		},
+		{
+			"name": "Spot - Sell",
+			"request": {
+				"method": "POST",
+				"header": [],
+				"url": {
+					"raw": "{{binance_base_url}}/api/v3/order?symbol=BTCUSDT&side=SELL&type=MARKET&quantity=0.001",
+					"host": [
+						"{{binance_base_url}}"
+					],
+					"path": [
+						"api",
+						"v3",
+						"order"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT"
+						},
+						{
+							"key": "side",
+							"value": "SELL"
+						},
+						{
+							"key": "type",
+							"value": "MARKET"
+						},
+						{
+							"key": "quantity",
+							"value": "0.001"
+						}
+					]
+				},
+				"description": "Spot sell: Sell spot assets. side=SELL, type=MARKET, quantity is base currency amount."
+			}
+		}
+	]
+}
+

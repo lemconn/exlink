@@ -1,0 +1,225 @@
+{
+	"info": {
+		"_postman_id": "exlink-gate-api",
+		"name": "ExLink - Gate API",
+		"description": "Private trading APIs for Gate exchange. Requires API key authentication. Use sign-gate.js script for automatic signature generation.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Swap - Open Long (Buy to Open Long)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": 1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/orders",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"orders"
+					]
+				},
+				"description": "Perpetual swap open long: Buy to open long position. contract=BTC_USDT, settle=usdt, size=positive integer (buy), price=0 (market order), tif=ioc."
+			}
+		},
+		{
+			"name": "Swap - Close Long (Sell to Close Long)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": -1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\",\n    \"reduce_only\": true\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/orders",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"orders"
+					]
+				},
+				"description": "Perpetual swap close long: Sell to close long position. contract=BTC_USDT, settle=usdt, size=negative integer (sell), price=0 (market order), tif=ioc, reduce_only=true."
+			}
+		},
+		{
+			"name": "Swap - Open Short (Sell to Open Short)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": -1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/orders",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"orders"
+					]
+				},
+				"description": "Perpetual swap open short: Sell to open short position. contract=BTC_USDT, settle=usdt, size=negative integer (sell), price=0 (market order), tif=ioc."
+			}
+		},
+		{
+			"name": "Swap - Close Short (Buy to Close Short)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": 1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\",\n    \"reduce_only\": true\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/orders",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"orders"
+					]
+				},
+				"description": "Perpetual swap close short: Buy to close short position. contract=BTC_USDT, settle=usdt, size=positive integer (buy), price=0 (market order), tif=ioc, reduce_only=true."
+			}
+		},
+		{
+			"name": "Spot - Buy",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"currency_pair\": \"BTC_USDT\",\n    \"side\": \"buy\",\n    \"amount\": \"0.001\",\n    \"type\": \"market\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/spot/orders",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"spot",
+						"orders"
+					]
+				},
+				"description": "Spot buy: Buy spot assets. currency_pair=BTC_USDT, side=buy, type=market, amount is base currency amount."
+			}
+		},
+		{
+			"name": "Spot - Sell",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"currency_pair\": \"BTC_USDT\",\n    \"side\": \"sell\",\n    \"amount\": \"0.001\",\n    \"type\": \"market\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/spot/orders",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"spot",
+						"orders"
+					]
+				},
+				"description": "Spot sell: Sell spot assets. currency_pair=BTC_USDT, side=sell, type=market, amount is base currency amount."
+			}
+		}
+	]
+}
+

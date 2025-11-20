@@ -1,0 +1,221 @@
+{
+	"info": {
+		"_postman_id": "exlink-okx-api",
+		"name": "ExLink - OKX API",
+		"description": "Private trading APIs for OKX exchange. Requires API key authentication. Use sign-okx.js script for automatic signature generation.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Swap - Open Long (Buy to Open Long)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"buy\",\n    \"posSide\": \"long\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					]
+				},
+				"description": "Perpetual swap open long: Buy to open long position. side=buy, posSide=long, tdMode=cross (cross margin) or isolated (isolated margin)"
+			}
+		},
+		{
+			"name": "Swap - Close Long (Sell to Close Long)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"sell\",\n    \"posSide\": \"long\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					]
+				},
+				"description": "Perpetual swap close long: Sell to close long position. side=sell, posSide=long, tdMode=cross (cross margin) or isolated (isolated margin)"
+			}
+		},
+		{
+			"name": "Swap - Open Short (Sell to Open Short)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"sell\",\n    \"posSide\": \"short\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					]
+				},
+				"description": "Perpetual swap open short: Sell to open short position. side=sell, posSide=short, tdMode=cross (cross margin) or isolated (isolated margin)"
+			}
+		},
+		{
+			"name": "Swap - Close Short (Buy to Close Short)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"buy\",\n    \"posSide\": \"short\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					]
+				},
+				"description": "Perpetual swap close short: Buy to close short position. side=buy, posSide=short, tdMode=cross (cross margin) or isolated (isolated margin)"
+			}
+		},
+		{
+			"name": "Spot - Buy",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"instId\": \"BTC-USDT\",\n    \"tdMode\": \"cash\",\n    \"side\": \"buy\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\",\n    \"tgtCcy\": \"base_ccy\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					]
+				},
+				"description": "Spot buy: Buy spot assets. side=buy, tdMode=cash, tgtCcy=base_ccy (sz is base currency amount) or quote_ccy (sz is quote currency amount)"
+			}
+		},
+		{
+			"name": "Spot - Sell",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"instId\": \"BTC-USDT\",\n    \"tdMode\": \"cash\",\n    \"side\": \"sell\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\",\n    \"tgtCcy\": \"base_ccy\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					]
+				},
+				"description": "Spot sell: Sell spot assets. side=sell, tdMode=cash, tgtCcy=base_ccy (sz is base currency amount) or quote_ccy (sz is quote currency amount)"
+			}
+		}
+	]
+}
+
