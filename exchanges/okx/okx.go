@@ -708,7 +708,7 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 			reqBody["clOrdId"] = clientOrderId
 		} else {
 			// 如果都没有提供，自动生成
-			reqBody["clOrdId"] = common.GenerateClientOrderID(o.Name())
+			reqBody["clOrdId"] = common.GenerateClientOrderID(o.Name(), side)
 		}
 	}
 

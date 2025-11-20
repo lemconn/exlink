@@ -726,7 +726,7 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 			reqParams["newClientOrderId"] = clientOrderId
 		} else {
 			// 如果都没有提供，自动生成
-			reqParams["newClientOrderId"] = common.GenerateClientOrderID(b.Name())
+			reqParams["newClientOrderId"] = common.GenerateClientOrderID(b.Name(), side)
 		}
 	}
 

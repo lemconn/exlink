@@ -2,31 +2,69 @@ package common
 
 import (
 	"crypto/rand"
-	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strings"
+	"time"
+
+	"github.com/lemconn/exlink/types"
 )
 
-// UUID16 generates a 16-character hexadecimal random string (similar to CCXT's uuid16)
-// Equivalent to Python: format(random.getrandbits(16 * 4), 'x')
-func UUID16() string {
-	// Generate 16 * 4 = 64 bits of random data, convert to hexadecimal
-	// 64 bits = 8 bytes
-	bytes := make([]byte, 8)
-	if _, err := rand.Read(bytes); err != nil {
-		// In practice, rand.Read from crypto/rand should never fail
-		// but we handle it to satisfy linter
-		panic(fmt.Sprintf("failed to generate random bytes: %v", err))
-	}
-	return hex.EncodeToString(bytes)[:16] // 16 hexadecimal characters
-}
-
-// GenerateClientOrderID generates a client order ID based on exchange type
-// Format: exlink-{exchange}-{UUID16}
-// Example: exlink-binance-caa54b21bbabadd4
+// GenerateClientOrderID generates a client order ID based on exchange type and side
+// Format: EL<EX><B/S><timestamp_ms><2 random>
+// Example: ELOKXS173209570112398 (S=Sell), ELBINB1732095709956F2 (B=Buy)
+// Special case: Gate exchange requires "t-" prefix: t-ELGTEB1732095709956A9
 // exchange: Exchange name (e.g., binance, okx, gate, bybit)
-func GenerateClientOrderID(exchange string) string {
-	// Convert exchange name to lowercase to ensure consistent format
-	exchange = strings.ToLower(exchange)
-	return fmt.Sprintf("exlink-%s-%s", exchange, UUID16())
+// side: Order side (buy or sell)
+func GenerateClientOrderID(exchange string, side types.OrderSide) string {
+	// Map exchange names to three-letter abbreviations
+	exchangeMap := map[string]string{
+		"okx":     "OKX",
+		"binance": "BIN",
+		"bybit":   "BYB",
+		"gate":    "GTE",
+	}
+
+	// Convert to lowercase to match the mapping
+	exchangeLower := strings.ToLower(exchange)
+	exchangeCode, ok := exchangeMap[exchangeLower]
+	if !ok {
+		// If mapping not found, use the first three characters of the original name (uppercase)
+		if len(exchangeLower) >= 3 {
+			exchangeCode = strings.ToUpper(exchangeLower[:3])
+		} else {
+			exchangeCode = strings.ToUpper(exchangeLower)
+		}
+	}
+
+	// Order side: buy -> B, sell -> S
+	sideCode := "B"
+	if strings.ToLower(string(side)) == "sell" {
+		sideCode = "S"
+	}
+
+	// Get millisecond timestamp
+	timestampMs := time.Now().UnixMilli()
+
+	// Generate two random characters (uppercase letters + digits)
+	// Character set: 0-9, A-Z (36 characters)
+	charset := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	randomChars := make([]byte, 2)
+	for i := range randomChars {
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
+		if err != nil {
+			panic(fmt.Sprintf("failed to generate random number: %v", err))
+		}
+		randomChars[i] = charset[n.Int64()]
+	}
+
+	// Build order ID
+	orderID := fmt.Sprintf("EL%s%s%d%s", exchangeCode, sideCode, timestampMs, string(randomChars))
+
+	// Gate exchange requires "t-" prefix
+	if exchangeLower == "gate" {
+		orderID = "t-" + orderID
+	}
+
+	return orderID
 }

@@ -1,0 +1,1213 @@
+{
+	"info": {
+		"_postman_id": "exlink-binance",
+		"name": "ExLink - Binance",
+		"description": "Private trading APIs for Binance exchange. Requires API key authentication. Authentication scripts are integrated at the collection level.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Binance signature script",
+					"// Usage: Include this script in Pre-request Script tab",
+					"// Requires: binance_api_key, binance_secret_key environment variables",
+					"const apiKey = (pm.environment.get('binance_api_key') || '').trim();",
+					"const apiSecret = (pm.environment.get('binance_secret_key') || '').trim();",
+					"if (!apiKey || !apiSecret) {",
+					"    console.error('Missing required environment variables: binance_api_key or binance_secret_key');",
+					"    throw new Error('Missing required environment variables');",
+					"}",
+					"const ts = Date.now();",
+					"let paramsObject = {};",
+					"const parameters = pm.request.url.query;",
+					"parameters.each((param) => {",
+					"    if (param.key !== 'signature' && !is_empty(param.value) && !is_disabled(param.disabled)) {",
+					"        paramsObject[param.key] = param.value;",
+					"    }",
+					"});",
+					"Object.assign(paramsObject, { timestamp: ts });",
+					"setOrUpdateHeaderParam('X-MBX-APIKEY', apiKey);",
+					"if (parameters.has('signature') && apiSecret) {",
+					"    const queryString = buildQueryString(paramsObject);",
+					"    const signature = CryptoJS.HmacSHA256(queryString, apiSecret).toString(CryptoJS.enc.Hex);",
+					"    pm.request.url.query.clear();",
+					"    pm.request.url.query = `${queryString}&signature=${signature}`;",
+					"}",
+					"function buildQueryString(params) {",
+					"    if (!params) return '';",
+					"    const pairs = [];",
+					"    Object.keys(params).sort().forEach((key) => {",
+					"        const value = params[key];",
+					"        if (value !== null && value !== undefined) {",
+					"            const serializedValue = serializeValue(value);",
+					"            pairs.push(`${key}=${encodeURIComponent(serializedValue)}`);",
+					"        }",
+					"    });",
+					"    return pairs.join('&');",
+					"}",
+					"function serializeValue(value) {",
+					"    if (value === null || value === undefined) return '';",
+					"    if (Array.isArray(value) || (typeof value === 'object' && value !== null)) return JSON.stringify(value);",
+					"    return String(value);",
+					"}",
+					"function setOrUpdateHeaderParam(key, value) {",
+					"    let headers = pm.request.headers;",
+					"    let header = headers.find((header) => header.key === key);",
+					"    if (header) header.value = value;",
+					"    else pm.request.headers.add({ key, value });",
+					"}",
+					"function is_disabled(str) {",
+					"    return str === true;",
+					"}",
+					"function is_empty(str) {",
+					"    return (",
+					"        typeof str === 'undefined' ||",
+					"        !str ||",
+					"        str.length === 0 ||",
+					"        str === '' ||",
+					"        !/[^\\s]/.test(str) ||",
+					"        /^\\s*$/.test(str) ||",
+					"        str.replace(/\\s/g, '') === ''",
+					"    );",
+					"}"
+				]
+			}
+		}
+	],
+	"item": [
+		{
+			"name": "Spot - Buy",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-MBX-APIKEY",
+						"value": "",
+						"description": "API KEY",
+						"disabled": false
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_base_url}}/api/v3/order",
+					"host": [
+						"{{binance_base_url}}"
+					],
+					"path": [
+						"api",
+						"v3",
+						"order"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "side",
+							"value": "BUY",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "type",
+							"value": "MARKET",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "timeInForce",
+							"value": "GTC",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "quantity",
+							"value": "0.001",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "quoteOrderQty",
+							"value": "1.0",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "price",
+							"value": "400.0",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "newClientOrderId",
+							"value": "newClientOrderId_example",
+							"description": "A unique id among open orders. Automatically generated if not sent.<br/> Orders with the same `newClientOrderID` can be accepted only when the previous one is filled, otherwise the order will be rejected.",
+							"disabled": true
+						},
+						{
+							"key": "strategyId",
+							"value": "1",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "strategyType",
+							"value": "1",
+							"description": "The value cannot be less than `1000000`.",
+							"disabled": true
+						},
+						{
+							"key": "stopPrice",
+							"value": "1.0",
+							"description": "Used with `STOP_LOSS`, `STOP_LOSS_LIMIT`, `TAKE_PROFIT`, and `TAKE_PROFIT_LIMIT` orders.",
+							"disabled": true
+						},
+						{
+							"key": "trailingDelta",
+							"value": "1",
+							"description": "See [Trailing Stop order FAQ](faqs/trailing-stop-faq.md).",
+							"disabled": true
+						},
+						{
+							"key": "icebergQty",
+							"value": "1.0",
+							"description": "Used with `LIMIT`, `STOP_LOSS_LIMIT`, and `TAKE_PROFIT_LIMIT` to create an iceberg order.",
+							"disabled": true
+						},
+						{
+							"key": "newOrderRespType",
+							"value": "ACK",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "selfTradePreventionMode",
+							"value": "NONE",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "recvWindow",
+							"value": "5000.0",
+							"description": "The value cannot be greater than `60000`. <br> Supports up to three decimal places of precision (e.g., 6000.346) so that microseconds may be specified.",
+							"disabled": true
+						},
+						{
+							"key": "timestamp",
+							"value": "",
+							"description": "UTC timestamp in ms",
+							"disabled": false
+						},
+						{
+							"key": "signature",
+							"value": "",
+							"description": "Signature",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Spot buy: Buy spot assets. side=BUY, type=MARKET, quantity is base currency amount. For market buy, you can also use quoteOrderQty to specify quote currency amount."
+			}
+		},
+		{
+			"name": "Spot - Sell",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-MBX-APIKEY",
+						"value": "",
+						"description": "API KEY",
+						"disabled": false
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_base_url}}/api/v3/order",
+					"host": [
+						"{{binance_base_url}}"
+					],
+					"path": [
+						"api",
+						"v3",
+						"order"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "side",
+							"value": "SELL",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "type",
+							"value": "MARKET",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "timeInForce",
+							"value": "GTC",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "quantity",
+							"value": "0.001",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "quoteOrderQty",
+							"value": "1.0",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "price",
+							"value": "400.0",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "newClientOrderId",
+							"value": "newClientOrderId_example",
+							"description": "A unique id among open orders. Automatically generated if not sent.<br/> Orders with the same `newClientOrderID` can be accepted only when the previous one is filled, otherwise the order will be rejected.",
+							"disabled": true
+						},
+						{
+							"key": "strategyId",
+							"value": "1",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "strategyType",
+							"value": "1",
+							"description": "The value cannot be less than `1000000`.",
+							"disabled": true
+						},
+						{
+							"key": "stopPrice",
+							"value": "1.0",
+							"description": "Used with `STOP_LOSS`, `STOP_LOSS_LIMIT`, `TAKE_PROFIT`, and `TAKE_PROFIT_LIMIT` orders.",
+							"disabled": true
+						},
+						{
+							"key": "trailingDelta",
+							"value": "1",
+							"description": "See [Trailing Stop order FAQ](faqs/trailing-stop-faq.md).",
+							"disabled": true
+						},
+						{
+							"key": "icebergQty",
+							"value": "1.0",
+							"description": "Used with `LIMIT`, `STOP_LOSS_LIMIT`, and `TAKE_PROFIT_LIMIT` to create an iceberg order.",
+							"disabled": true
+						},
+						{
+							"key": "newOrderRespType",
+							"value": "ACK",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "selfTradePreventionMode",
+							"value": "NONE",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "recvWindow",
+							"value": "5000.0",
+							"description": "The value cannot be greater than `60000`. <br> Supports up to three decimal places of precision (e.g., 6000.346) so that microseconds may be specified.",
+							"disabled": true
+						},
+						{
+							"key": "timestamp",
+							"value": "",
+							"description": "UTC timestamp in ms",
+							"disabled": false
+						},
+						{
+							"key": "signature",
+							"value": "",
+							"description": "Signature",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Spot sell: Sell spot assets. side=SELL, type=MARKET, quantity is base currency amount."
+			}
+		},
+		{
+			"name": "Spot - Get Account Balance",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "X-MBX-APIKEY",
+						"value": "",
+						"description": "API KEY",
+						"disabled": false
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_base_url}}/api/v3/account",
+					"host": [
+						"{{binance_base_url}}"
+					],
+					"path": [
+						"api",
+						"v3",
+						"account"
+					],
+					"query": [
+						{
+							"key": "omitZeroBalances",
+							"value": "false",
+							"description": "When set to `true`, emits only the non-zero balances of an account. <br>Default value: `false`",
+							"disabled": true
+						},
+						{
+							"key": "recvWindow",
+							"value": "5000.0",
+							"description": "The value cannot be greater than `60000`. <br> Supports up to three decimal places of precision (e.g., 6000.346) so that microseconds may be specified.",
+							"disabled": true
+						},
+						{
+							"key": "timestamp",
+							"value": "",
+							"description": "UTC timestamp in ms",
+							"disabled": false
+						},
+						{
+							"key": "signature",
+							"value": "",
+							"description": "Signature",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get account balance for all currencies. Returns available balance and locked balance for each currency. Requires timestamp and signature parameters."
+			}
+		},
+		{
+			"name": "Swap - Open Long (Buy to Open Long)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-MBX-APIKEY",
+						"value": "",
+						"description": "API KEY",
+						"disabled": false
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_fapi_base_url}}/fapi/v1/order",
+					"host": [
+						"{{binance_fapi_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v1",
+						"order"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "side",
+							"value": "BUY",
+							"description": "`SELL`, `BUY`",
+							"disabled": false
+						},
+						{
+							"key": "positionSide",
+							"value": "BOTH",
+							"description": "Default `BOTH` for One-way Mode ; `LONG` or `SHORT` for Hedge Mode. It must be sent with Hedge Mode.",
+							"disabled": true
+						},
+						{
+							"key": "type",
+							"value": "MARKET",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "timeInForce",
+							"value": "GTC",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "quantity",
+							"value": "0.001",
+							"description": "Cannot be sent with `closePosition`=`true`(Close-All)",
+							"disabled": false
+						},
+						{
+							"key": "reduceOnly",
+							"value": "false",
+							"description": "\"true\" or \"false\". default \"false\". Cannot be sent in Hedge Mode; cannot be sent with `closePosition`=`true`",
+							"disabled": true
+						},
+						{
+							"key": "price",
+							"value": "1.0",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "newClientOrderId",
+							"value": "1",
+							"description": "A unique id among open orders. Automatically generated if not sent. Can only be string following the rule: `^[\\.A-Z\\:/a-z0-9_-]{1,36}$`",
+							"disabled": true
+						},
+						{
+							"key": "stopPrice",
+							"value": "1.0",
+							"description": "Used with `STOP/STOP_MARKET` or `TAKE_PROFIT/TAKE_PROFIT_MARKET` orders.",
+							"disabled": true
+						},
+						{
+							"key": "closePosition",
+							"value": "closePosition_example",
+							"description": "`true`, `false`；Close-All，used with `STOP_MARKET` or `TAKE_PROFIT_MARKET`.",
+							"disabled": true
+						},
+						{
+							"key": "activationPrice",
+							"value": "1.0",
+							"description": "Used with `TRAILING_STOP_MARKET` orders, default as the latest price(supporting different `workingType`)",
+							"disabled": true
+						},
+						{
+							"key": "callbackRate",
+							"value": "1.0",
+							"description": "Used with `TRAILING_STOP_MARKET` orders, min 0.1, max 10 where 1 for 1%",
+							"disabled": true
+						},
+						{
+							"key": "workingType",
+							"value": "MARK_PRICE",
+							"description": "stopPrice triggered by: \"MARK_PRICE\", \"CONTRACT_PRICE\". Default \"CONTRACT_PRICE\"",
+							"disabled": true
+						},
+						{
+							"key": "priceProtect",
+							"value": "false",
+							"description": "\"TRUE\" or \"FALSE\", default \"FALSE\". Used with `STOP/STOP_MARKET` or `TAKE_PROFIT/TAKE_PROFIT_MARKET` orders.",
+							"disabled": true
+						},
+						{
+							"key": "newOrderRespType",
+							"value": "ACK",
+							"description": "\"ACK\", \"RESULT\", default \"ACK\"",
+							"disabled": true
+						},
+						{
+							"key": "recvWindow",
+							"value": "5000",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "timestamp",
+							"value": "",
+							"description": "UTC timestamp in ms",
+							"disabled": false
+						},
+						{
+							"key": "signature",
+							"value": "",
+							"description": "Signature",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Perpetual swap open long: Buy to open long position. side=BUY, type=MARKET. In one-way mode, buy means open long. In two-way mode, you can use positionSide=LONG."
+			}
+		},
+		{
+			"name": "Swap - Close Long (Sell to Close Long)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-MBX-APIKEY",
+						"value": "",
+						"description": "API KEY",
+						"disabled": false
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_fapi_base_url}}/fapi/v1/order",
+					"host": [
+						"{{binance_fapi_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v1",
+						"order"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "side",
+							"value": "SELL",
+							"description": "`SELL`, `BUY`",
+							"disabled": false
+						},
+						{
+							"key": "positionSide",
+							"value": "BOTH",
+							"description": "Default `BOTH` for One-way Mode ; `LONG` or `SHORT` for Hedge Mode. It must be sent with Hedge Mode.",
+							"disabled": true
+						},
+						{
+							"key": "type",
+							"value": "MARKET",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "timeInForce",
+							"value": "GTC",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "quantity",
+							"value": "0.001",
+							"description": "Cannot be sent with `closePosition`=`true`(Close-All)",
+							"disabled": false
+						},
+						{
+							"key": "reduceOnly",
+							"value": "true",
+							"description": "\"true\" or \"false\". default \"false\". Cannot be sent in Hedge Mode; cannot be sent with `closePosition`=`true`",
+							"disabled": false
+						},
+						{
+							"key": "price",
+							"value": "1.0",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "newClientOrderId",
+							"value": "1",
+							"description": "A unique id among open orders. Automatically generated if not sent. Can only be string following the rule: `^[\\.A-Z\\:/a-z0-9_-]{1,36}$`",
+							"disabled": true
+						},
+						{
+							"key": "stopPrice",
+							"value": "1.0",
+							"description": "Used with `STOP/STOP_MARKET` or `TAKE_PROFIT/TAKE_PROFIT_MARKET` orders.",
+							"disabled": true
+						},
+						{
+							"key": "closePosition",
+							"value": "closePosition_example",
+							"description": "`true`, `false`；Close-All，used with `STOP_MARKET` or `TAKE_PROFIT_MARKET`.",
+							"disabled": true
+						},
+						{
+							"key": "activationPrice",
+							"value": "1.0",
+							"description": "Used with `TRAILING_STOP_MARKET` orders, default as the latest price(supporting different `workingType`)",
+							"disabled": true
+						},
+						{
+							"key": "callbackRate",
+							"value": "1.0",
+							"description": "Used with `TRAILING_STOP_MARKET` orders, min 0.1, max 10 where 1 for 1%",
+							"disabled": true
+						},
+						{
+							"key": "workingType",
+							"value": "MARK_PRICE",
+							"description": "stopPrice triggered by: \"MARK_PRICE\", \"CONTRACT_PRICE\". Default \"CONTRACT_PRICE\"",
+							"disabled": true
+						},
+						{
+							"key": "priceProtect",
+							"value": "false",
+							"description": "\"TRUE\" or \"FALSE\", default \"FALSE\". Used with `STOP/STOP_MARKET` or `TAKE_PROFIT/TAKE_PROFIT_MARKET` orders.",
+							"disabled": true
+						},
+						{
+							"key": "newOrderRespType",
+							"value": "ACK",
+							"description": "\"ACK\", \"RESULT\", default \"ACK\"",
+							"disabled": true
+						},
+						{
+							"key": "recvWindow",
+							"value": "5000",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "timestamp",
+							"value": "",
+							"description": "UTC timestamp in ms",
+							"disabled": false
+						},
+						{
+							"key": "signature",
+							"value": "",
+							"description": "Signature",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Perpetual swap close long: Sell to close long position. side=SELL, type=MARKET, reduceOnly=true."
+			}
+		},
+		{
+			"name": "Swap - Open Short (Sell to Open Short)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-MBX-APIKEY",
+						"value": "",
+						"description": "API KEY",
+						"disabled": false
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_fapi_base_url}}/fapi/v1/order",
+					"host": [
+						"{{binance_fapi_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v1",
+						"order"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "side",
+							"value": "SELL",
+							"description": "`SELL`, `BUY`",
+							"disabled": false
+						},
+						{
+							"key": "positionSide",
+							"value": "BOTH",
+							"description": "Default `BOTH` for One-way Mode ; `LONG` or `SHORT` for Hedge Mode. It must be sent with Hedge Mode.",
+							"disabled": true
+						},
+						{
+							"key": "type",
+							"value": "MARKET",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "timeInForce",
+							"value": "GTC",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "quantity",
+							"value": "0.001",
+							"description": "Cannot be sent with `closePosition`=`true`(Close-All)",
+							"disabled": false
+						},
+						{
+							"key": "reduceOnly",
+							"value": "false",
+							"description": "\"true\" or \"false\". default \"false\". Cannot be sent in Hedge Mode; cannot be sent with `closePosition`=`true`",
+							"disabled": true
+						},
+						{
+							"key": "price",
+							"value": "1.0",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "newClientOrderId",
+							"value": "1",
+							"description": "A unique id among open orders. Automatically generated if not sent. Can only be string following the rule: `^[\\.A-Z\\:/a-z0-9_-]{1,36}$`",
+							"disabled": true
+						},
+						{
+							"key": "stopPrice",
+							"value": "1.0",
+							"description": "Used with `STOP/STOP_MARKET` or `TAKE_PROFIT/TAKE_PROFIT_MARKET` orders.",
+							"disabled": true
+						},
+						{
+							"key": "closePosition",
+							"value": "closePosition_example",
+							"description": "`true`, `false`；Close-All，used with `STOP_MARKET` or `TAKE_PROFIT_MARKET`.",
+							"disabled": true
+						},
+						{
+							"key": "activationPrice",
+							"value": "1.0",
+							"description": "Used with `TRAILING_STOP_MARKET` orders, default as the latest price(supporting different `workingType`)",
+							"disabled": true
+						},
+						{
+							"key": "callbackRate",
+							"value": "1.0",
+							"description": "Used with `TRAILING_STOP_MARKET` orders, min 0.1, max 10 where 1 for 1%",
+							"disabled": true
+						},
+						{
+							"key": "workingType",
+							"value": "MARK_PRICE",
+							"description": "stopPrice triggered by: \"MARK_PRICE\", \"CONTRACT_PRICE\". Default \"CONTRACT_PRICE\"",
+							"disabled": true
+						},
+						{
+							"key": "priceProtect",
+							"value": "false",
+							"description": "\"TRUE\" or \"FALSE\", default \"FALSE\". Used with `STOP/STOP_MARKET` or `TAKE_PROFIT/TAKE_PROFIT_MARKET` orders.",
+							"disabled": true
+						},
+						{
+							"key": "newOrderRespType",
+							"value": "ACK",
+							"description": "\"ACK\", \"RESULT\", default \"ACK\"",
+							"disabled": true
+						},
+						{
+							"key": "recvWindow",
+							"value": "5000",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "timestamp",
+							"value": "",
+							"description": "UTC timestamp in ms",
+							"disabled": false
+						},
+						{
+							"key": "signature",
+							"value": "",
+							"description": "Signature",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Perpetual swap open short: Sell to open short position. side=SELL, type=MARKET. In one-way mode, sell means open short. In two-way mode, you can use positionSide=SHORT."
+			}
+		},
+		{
+			"name": "Swap - Close Short (Buy to Close Short)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "X-MBX-APIKEY",
+						"value": "",
+						"description": "API KEY",
+						"disabled": false
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_fapi_base_url}}/fapi/v1/order",
+					"host": [
+						"{{binance_fapi_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v1",
+						"order"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "side",
+							"value": "BUY",
+							"description": "`SELL`, `BUY`",
+							"disabled": false
+						},
+						{
+							"key": "positionSide",
+							"value": "BOTH",
+							"description": "Default `BOTH` for One-way Mode ; `LONG` or `SHORT` for Hedge Mode. It must be sent with Hedge Mode.",
+							"disabled": true
+						},
+						{
+							"key": "type",
+							"value": "MARKET",
+							"description": "",
+							"disabled": false
+						},
+						{
+							"key": "timeInForce",
+							"value": "GTC",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "quantity",
+							"value": "0.001",
+							"description": "Cannot be sent with `closePosition`=`true`(Close-All)",
+							"disabled": false
+						},
+						{
+							"key": "reduceOnly",
+							"value": "true",
+							"description": "\"true\" or \"false\". default \"false\". Cannot be sent in Hedge Mode; cannot be sent with `closePosition`=`true`",
+							"disabled": false
+						},
+						{
+							"key": "price",
+							"value": "1.0",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "newClientOrderId",
+							"value": "1",
+							"description": "A unique id among open orders. Automatically generated if not sent. Can only be string following the rule: `^[\\.A-Z\\:/a-z0-9_-]{1,36}$`",
+							"disabled": true
+						},
+						{
+							"key": "stopPrice",
+							"value": "1.0",
+							"description": "Used with `STOP/STOP_MARKET` or `TAKE_PROFIT/TAKE_PROFIT_MARKET` orders.",
+							"disabled": true
+						},
+						{
+							"key": "closePosition",
+							"value": "closePosition_example",
+							"description": "`true`, `false`；Close-All，used with `STOP_MARKET` or `TAKE_PROFIT_MARKET`.",
+							"disabled": true
+						},
+						{
+							"key": "activationPrice",
+							"value": "1.0",
+							"description": "Used with `TRAILING_STOP_MARKET` orders, default as the latest price(supporting different `workingType`)",
+							"disabled": true
+						},
+						{
+							"key": "callbackRate",
+							"value": "1.0",
+							"description": "Used with `TRAILING_STOP_MARKET` orders, min 0.1, max 10 where 1 for 1%",
+							"disabled": true
+						},
+						{
+							"key": "workingType",
+							"value": "MARK_PRICE",
+							"description": "stopPrice triggered by: \"MARK_PRICE\", \"CONTRACT_PRICE\". Default \"CONTRACT_PRICE\"",
+							"disabled": true
+						},
+						{
+							"key": "priceProtect",
+							"value": "false",
+							"description": "\"TRUE\" or \"FALSE\", default \"FALSE\". Used with `STOP/STOP_MARKET` or `TAKE_PROFIT/TAKE_PROFIT_MARKET` orders.",
+							"disabled": true
+						},
+						{
+							"key": "newOrderRespType",
+							"value": "ACK",
+							"description": "\"ACK\", \"RESULT\", default \"ACK\"",
+							"disabled": true
+						},
+						{
+							"key": "recvWindow",
+							"value": "5000",
+							"description": "",
+							"disabled": true
+						},
+						{
+							"key": "timestamp",
+							"value": "",
+							"description": "UTC timestamp in ms",
+							"disabled": false
+						},
+						{
+							"key": "signature",
+							"value": "",
+							"description": "Signature",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Perpetual swap close short: Buy to close short position. side=BUY, type=MARKET, reduceOnly=true."
+			}
+		},
+		{
+			"name": "Swap - Get Account Positions V2",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "X-MBX-APIKEY",
+						"value": "",
+						"description": "API KEY",
+						"disabled": false
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_fapi_base_url}}/fapi/v2/positionRisk",
+					"host": [
+						"{{binance_fapi_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v2",
+						"positionRisk"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Optional. Trading pair symbol, e.g., BTCUSDT. Leave empty to get all positions.",
+							"disabled": true
+						},
+						{
+							"key": "recvWindow",
+							"value": "5000",
+							"description": "Optional. The value cannot be greater than 60000.",
+							"disabled": true
+						},
+						{
+							"key": "timestamp",
+							"value": "",
+							"description": "UTC timestamp in ms",
+							"disabled": false
+						},
+						{
+							"key": "signature",
+							"value": "",
+							"description": "Signature",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get contract positions (V2). Returns position information including size, entry price, mark price, unrealized PnL, leverage, and margin. Optional symbol parameter to filter by specific trading pair. Requires timestamp and signature parameters. Uses fapi base URL for futures API."
+			}
+		},
+		{
+			"name": "Swap - Get Account Positions V3",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "X-MBX-APIKEY",
+						"value": "",
+						"description": "API KEY",
+						"disabled": false
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_fapi_base_url}}/fapi/v3/positionRisk",
+					"host": [
+						"{{binance_fapi_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v3",
+						"positionRisk"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Optional. Trading pair symbol, e.g., BTCUSDT. Leave empty to get all positions.",
+							"disabled": true
+						},
+						{
+							"key": "recvWindow",
+							"value": "5000",
+							"description": "Optional. The value cannot be greater than 60000.",
+							"disabled": true
+						},
+						{
+							"key": "timestamp",
+							"value": "",
+							"description": "UTC timestamp in ms",
+							"disabled": false
+						},
+						{
+							"key": "signature",
+							"value": "",
+							"description": "Signature",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get contract positions (V3). Returns position information including size, entry price, mark price, unrealized PnL, leverage, and margin. Optional symbol parameter to filter by specific trading pair. Requires timestamp and signature parameters. Uses fapi base URL for futures API."
+			}
+		}
+	]
+}
