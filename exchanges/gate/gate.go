@@ -921,7 +921,7 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 			reqBody["text"] = clientOrderId
 		} else {
 			// 如果都没有提供，自动生成
-			reqBody["text"] = common.GenerateClientOrderID(g.Name())
+			reqBody["text"] = common.GenerateClientOrderID(g.Name(), side)
 		}
 	}
 

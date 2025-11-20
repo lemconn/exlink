@@ -840,7 +840,7 @@ func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.Order
 			reqBody["orderLinkId"] = clientOrderId
 		} else {
 			// 如果都没有提供，自动生成
-			reqBody["orderLinkId"] = common.GenerateClientOrderID("bybit")
+			reqBody["orderLinkId"] = common.GenerateClientOrderID(b.Name(), side)
 		}
 	}
 

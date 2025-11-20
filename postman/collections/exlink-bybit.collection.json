@@ -1,0 +1,561 @@
+{
+	"info": {
+		"_postman_id": "exlink-bybit",
+		"name": "ExLink - Bybit",
+		"description": "Private trading APIs for Bybit exchange. Requires API key authentication. Authentication scripts are integrated at the collection level.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Bybit signature script (v5 API)",
+					"// Usage: Include this script in Pre-request Script tab",
+					"// Requires: bybit_api_key, bybit_secret_key environment variables",
+					"//",
+					"// Signature format: timestamp + apiKey + recvWindow + (body for POST or queryString for GET)",
+					"// For GET requests: use queryString (URL encoded)",
+					"// For POST requests: use JSON body string",
+					"",
+					"const apiKey = (pm.environment.get('bybit_api_key') || '').trim();",
+					"const secretKey = (pm.environment.get('bybit_secret_key') || '').trim();",
+					"",
+					"if (!apiKey || !secretKey) {",
+					"    console.error('Missing required environment variables: bybit_api_key or bybit_secret_key');",
+					"    throw new Error('Missing required environment variables');",
+					"}",
+					"",
+					"const method = pm.request.method.toUpperCase();",
+					"const timestamp = Date.now().toString();",
+					"const recvWindow = '5000';",
+					"",
+					"// Build query string for GET requests",
+					"let queryString = '';",
+					"if (method === 'GET' || method === 'DELETE') {",
+					"    const queryParams = pm.request.url.query.toObject();",
+					"    // Filter out empty/null/undefined values and build query string",
+					"    const filteredParams = {};",
+					"    Object.keys(queryParams).forEach(key => {",
+					"        const value = queryParams[key];",
+					"        if (value !== '' && value !== null && value !== undefined) {",
+					"            filteredParams[key] = value;",
+					"        }",
+					"    });",
+					"    ",
+					"    if (Object.keys(filteredParams).length > 0) {",
+					"        // Sort keys and build query string with URL encoding (equivalent to url.QueryEscape in Go)",
+					"        const sortedKeys = Object.keys(filteredParams).sort();",
+					"        const queryParts = sortedKeys.map(key => {",
+					"            const value = filteredParams[key];",
+					"            // URL encode the value (equivalent to url.QueryEscape in Go)",
+					"            return `${key}=${encodeURIComponent(String(value))}`;",
+					"        });",
+					"        queryString = queryParts.join('&');",
+					"    }",
+					"}",
+					"",
+					"// Build request body string for POST/PUT requests",
+					"let bodyStr = '';",
+					"if ((method === 'POST' || method === 'PUT') && pm.request.body && pm.request.body.raw) {",
+					"    const rawBody = pm.request.body.raw;",
+					"    // Remove any leading/trailing whitespace",
+					"    bodyStr = rawBody.trim();",
+					"}",
+					"",
+					"// Build signature base string: timestamp + apiKey + recvWindow",
+					"const authBase = timestamp + apiKey + recvWindow;",
+					"",
+					"// Build full signature string",
+					"let authFull;",
+					"if (method === 'POST' || method === 'PUT') {",
+					"    authFull = authBase + bodyStr;",
+					"} else {",
+					"    authFull = authBase + queryString;",
+					"}",
+					"",
+					"// HMAC-SHA256 signature (hex encoded, equivalent to SignHMAC256 in Go)",
+					"const signature = CryptoJS.HmacSHA256(authFull, secretKey).toString(CryptoJS.enc.Hex);",
+					"",
+					"// Set request headers using setOrUpdateHeaderParam",
+					"setOrUpdateHeaderParam('X-BAPI-API-KEY', apiKey);",
+					"setOrUpdateHeaderParam('X-BAPI-TIMESTAMP', timestamp);",
+					"setOrUpdateHeaderParam('X-BAPI-RECV-WINDOW', recvWindow);",
+					"setOrUpdateHeaderParam('X-BAPI-SIGN', signature);",
+					"setOrUpdateHeaderParam('Content-Type', 'application/json');",
+					"",
+					"function setOrUpdateHeaderParam(key, value) {",
+					"    let headers = pm.request.headers;",
+					"    let header = headers.find((header) => header.key === key);",
+					"    if (header) header.value = value;",
+					"    else pm.request.headers.add({ key, value });",
+					"}"
+				]
+			}
+		}
+	],
+	"item": [
+		{
+			"name": "Spot - Buy",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-BAPI-API-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-TIMESTAMP",
+						"value": "",
+						"description": "Timestamp in milliseconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-RECV-WINDOW",
+						"value": "5000",
+						"description": "Receive window in milliseconds (default: 5000)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-SIGN",
+						"value": "",
+						"description": "HMAC-SHA256 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"category\": \"spot\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Buy\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/order",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"order"
+					]
+				},
+				"description": "Spot buy: Buy spot assets. category=spot, side=Buy, orderType=Market, qty is base currency amount. For market buy, you can use marketUnit=quoteCoin and qty as quote currency amount."
+			}
+		},
+		{
+			"name": "Spot - Sell",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-BAPI-API-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-TIMESTAMP",
+						"value": "",
+						"description": "Timestamp in milliseconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-RECV-WINDOW",
+						"value": "5000",
+						"description": "Receive window in milliseconds (default: 5000)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-SIGN",
+						"value": "",
+						"description": "HMAC-SHA256 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"category\": \"spot\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Sell\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/order",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"order"
+					]
+				},
+				"description": "Spot sell: Sell spot assets. category=spot, side=Sell, orderType=Market, qty is base currency amount."
+			}
+		},
+		{
+			"name": "Spot - Get Account Balance",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-BAPI-API-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-TIMESTAMP",
+						"value": "",
+						"description": "Timestamp in milliseconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-RECV-WINDOW",
+						"value": "5000",
+						"description": "Receive window in milliseconds (default: 5000)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-SIGN",
+						"value": "",
+						"description": "HMAC-SHA256 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/account/wallet-balance?accountType=UNIFIED",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"account",
+						"wallet-balance"
+					],
+					"query": [
+						{
+							"key": "accountType",
+							"value": "UNIFIED",
+							"description": "Account type: UNIFIED for unified account"
+						}
+					]
+				},
+				"description": "Get account balance for unified account. Returns equity, available balance, and wallet balance for each currency."
+			}
+		},
+		{
+			"name": "Swap - Open Long (Buy to Open Long)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-BAPI-API-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-TIMESTAMP",
+						"value": "",
+						"description": "Timestamp in milliseconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-RECV-WINDOW",
+						"value": "5000",
+						"description": "Receive window in milliseconds (default: 5000)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-SIGN",
+						"value": "",
+						"description": "HMAC-SHA256 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Buy\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"reduceOnly\": false\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/order",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"order"
+					]
+				},
+				"description": "Perpetual swap open long: Buy to open long position. category=linear, side=Buy, orderType=Market, reduceOnly=false."
+			}
+		},
+		{
+			"name": "Swap - Close Long (Sell to Close Long)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-BAPI-API-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-TIMESTAMP",
+						"value": "",
+						"description": "Timestamp in milliseconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-RECV-WINDOW",
+						"value": "5000",
+						"description": "Receive window in milliseconds (default: 5000)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-SIGN",
+						"value": "",
+						"description": "HMAC-SHA256 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Sell\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"reduceOnly\": true\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/order",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"order"
+					]
+				},
+				"description": "Perpetual swap close long: Sell to close long position. category=linear, side=Sell, orderType=Market, reduceOnly=true."
+			}
+		},
+		{
+			"name": "Swap - Open Short (Sell to Open Short)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-BAPI-API-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-TIMESTAMP",
+						"value": "",
+						"description": "Timestamp in milliseconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-RECV-WINDOW",
+						"value": "5000",
+						"description": "Receive window in milliseconds (default: 5000)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-SIGN",
+						"value": "",
+						"description": "HMAC-SHA256 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Sell\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"reduceOnly\": false\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/order",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"order"
+					]
+				},
+				"description": "Perpetual swap open short: Sell to open short position. category=linear, side=Sell, orderType=Market, reduceOnly=false."
+			}
+		},
+		{
+			"name": "Swap - Close Short (Buy to Close Short)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-BAPI-API-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-TIMESTAMP",
+						"value": "",
+						"description": "Timestamp in milliseconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-RECV-WINDOW",
+						"value": "5000",
+						"description": "Receive window in milliseconds (default: 5000)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-SIGN",
+						"value": "",
+						"description": "HMAC-SHA256 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Buy\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"reduceOnly\": true\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/order",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"order"
+					]
+				},
+				"description": "Perpetual swap close short: Buy to close short position. category=linear, side=Buy, orderType=Market, reduceOnly=true."
+			}
+		},
+		{
+			"name": "Swap - Get Account Positions",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-BAPI-API-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-TIMESTAMP",
+						"value": "",
+						"description": "Timestamp in milliseconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-RECV-WINDOW",
+						"value": "5000",
+						"description": "Receive window in milliseconds (default: 5000)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-SIGN",
+						"value": "",
+						"description": "HMAC-SHA256 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/position/list?category=linear",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"position",
+						"list"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "linear",
+							"description": "Product type: linear for USDT perpetual",
+							"disabled": false
+						},
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Optional. Symbol name, e.g., BTCUSDT. Leave empty to get all positions.",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get contract positions. Returns position information including size, entry price, mark price, and unrealized PnL. Optional symbol parameter to filter by specific trading pair."
+			}
+		}
+	]
+}

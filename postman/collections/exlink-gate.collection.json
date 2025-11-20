@@ -1,0 +1,489 @@
+{
+	"info": {
+		"_postman_id": "exlink-gate",
+		"name": "ExLink - Gate",
+		"description": "Private trading APIs for Gate exchange. Requires API key authentication. Authentication scripts are integrated at the collection level.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// Gate signature script",
+					"// Usage: Include this script in Pre-request Script tab",
+					"// Requires: gate_api_key, gate_secret_key environment variables",
+					"",
+					"const apiKey = (pm.environment.get('gate_api_key') || '').trim();",
+					"const secretKey = (pm.environment.get('gate_secret_key') || '').trim();",
+					"",
+					"if (!apiKey || !secretKey) {",
+					"    console.error('Missing required environment variables: gate_api_key or gate_secret_key');",
+					"    throw new Error('Missing required environment variables');",
+					"}",
+					"",
+					"const method = pm.request.method.toUpperCase();",
+					"let path = pm.request.url.getPath();",
+					"const timestamp = Math.floor(Date.now() / 1000);",
+					"",
+					"// Remove /api/v4 prefix from path if exists (for signature)",
+					"let signPath = path;",
+					"if (path.startsWith('/api/v4')) {",
+					"    signPath = path.substring('/api/v4'.length);",
+					"}",
+					"",
+					"// Build query string",
+					"const queryParams = pm.request.url.query.toObject();",
+					"let queryString = '';",
+					"if (Object.keys(queryParams).length > 0) {",
+					"    queryString = Object.keys(queryParams)",
+					"        .sort()",
+					"        .map(key => `${key}=${encodeURIComponent(queryParams[key])}`)",
+					"        .join('&');",
+					"}",
+					"",
+					"// Build request body string",
+					"let bodyStr = '';",
+					"if (pm.request.body && pm.request.body.raw) {",
+					"    bodyStr = pm.request.body.raw.trim();",
+					"}",
+					"",
+					"// SHA512 hash of request body",
+					"const bodyHash = CryptoJS.SHA512(bodyStr).toString();",
+					"",
+					"// Gate signature format: METHOD\\n/api/v4/path\\nqueryString\\nbodyHash\\ntimestamp",
+					"const signString = `${method}\\n/api/v4${signPath}\\n${queryString}\\n${bodyHash}\\n${timestamp}`;",
+					"",
+					"// HMAC-SHA512 signature",
+					"const signature = CryptoJS.HmacSHA512(signString, secretKey).toString();",
+					"",
+					"// Set request headers using setOrUpdateHeaderParam",
+					"setOrUpdateHeaderParam('KEY', apiKey);",
+					"setOrUpdateHeaderParam('Timestamp', timestamp.toString());",
+					"setOrUpdateHeaderParam('SIGN', signature);",
+					"",
+					"function setOrUpdateHeaderParam(key, value) {",
+					"    let headers = pm.request.headers;",
+					"    let header = headers.find((header) => header.key === key);",
+					"    if (header) header.value = value;",
+					"    else pm.request.headers.add({ key, value });",
+					"}"
+				]
+			}
+		}
+	],
+	"item": [
+		{
+			"name": "Spot - Buy",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "Timestamp",
+						"value": "",
+						"description": "Unix timestamp in seconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "SIGN",
+						"value": "",
+						"description": "HMAC-SHA512 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"currency_pair\": \"BTC_USDT\",\n    \"side\": \"buy\",\n    \"amount\": \"0.001\",\n    \"type\": \"market\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/spot/orders",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"spot",
+						"orders"
+					]
+				},
+				"description": "Spot buy: Buy spot assets. currency_pair=BTC_USDT, side=buy, type=market, amount is base currency amount."
+			}
+		},
+		{
+			"name": "Spot - Sell",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "Timestamp",
+						"value": "",
+						"description": "Unix timestamp in seconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "SIGN",
+						"value": "",
+						"description": "HMAC-SHA512 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"currency_pair\": \"BTC_USDT\",\n    \"side\": \"sell\",\n    \"amount\": \"0.001\",\n    \"type\": \"market\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/spot/orders",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"spot",
+						"orders"
+					]
+				},
+				"description": "Spot sell: Sell spot assets. currency_pair=BTC_USDT, side=sell, type=market, amount is base currency amount."
+			}
+		},
+		{
+			"name": "Spot - Get Account Balance",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "Timestamp",
+						"value": "",
+						"description": "Unix timestamp in seconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "SIGN",
+						"value": "",
+						"description": "HMAC-SHA512 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/spot/accounts",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"spot",
+						"accounts"
+					]
+				},
+				"description": "Get account balance for spot trading. Returns available balance and locked balance for each currency."
+			}
+		},
+		{
+			"name": "Swap - Open Long (Buy to Open Long)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "Timestamp",
+						"value": "",
+						"description": "Unix timestamp in seconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "SIGN",
+						"value": "",
+						"description": "HMAC-SHA512 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": 1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/orders",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"orders"
+					]
+				},
+				"description": "Perpetual swap open long: Buy to open long position. contract=BTC_USDT, settle=usdt, size=positive integer (buy), price=0 (market order), tif=ioc."
+			}
+		},
+		{
+			"name": "Swap - Close Long (Sell to Close Long)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "Timestamp",
+						"value": "",
+						"description": "Unix timestamp in seconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "SIGN",
+						"value": "",
+						"description": "HMAC-SHA512 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": -1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\",\n    \"reduce_only\": true\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/orders",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"orders"
+					]
+				},
+				"description": "Perpetual swap close long: Sell to close long position. contract=BTC_USDT, settle=usdt, size=negative integer (sell), price=0 (market order), tif=ioc, reduce_only=true."
+			}
+		},
+		{
+			"name": "Swap - Open Short (Sell to Open Short)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "Timestamp",
+						"value": "",
+						"description": "Unix timestamp in seconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "SIGN",
+						"value": "",
+						"description": "HMAC-SHA512 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": -1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/orders",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"orders"
+					]
+				},
+				"description": "Perpetual swap open short: Sell to open short position. contract=BTC_USDT, settle=usdt, size=negative integer (sell), price=0 (market order), tif=ioc."
+			}
+		},
+		{
+			"name": "Swap - Close Short (Buy to Close Short)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "Timestamp",
+						"value": "",
+						"description": "Unix timestamp in seconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "SIGN",
+						"value": "",
+						"description": "HMAC-SHA512 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": 1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\",\n    \"reduce_only\": true\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/orders",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"orders"
+					]
+				},
+				"description": "Perpetual swap close short: Buy to close short position. contract=BTC_USDT, settle=usdt, size=positive integer (buy), price=0 (market order), tif=ioc, reduce_only=true."
+			}
+		},
+		{
+			"name": "Swap - Get Account Positions",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "Timestamp",
+						"value": "",
+						"description": "Unix timestamp in seconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "SIGN",
+						"value": "",
+						"description": "HMAC-SHA512 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/positions",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"positions"
+					]
+				},
+				"description": "Get contract positions for USDT perpetual futures. Returns position information including size, entry price, mark price, and unrealized PnL."
+			}
+		}
+	]
+}

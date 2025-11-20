@@ -1,0 +1,97 @@
+{
+	"id": "exlink-testnet",
+	"name": "ExLink - Testnet",
+	"values": [
+		{
+			"key": "binance_base_url",
+			"value": "https://demo-api.binance.com",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "binance_fapi_base_url",
+			"value": "https://demo-fapi.binance.com",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "binance_api_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "binance_secret_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "bybit_base_url",
+			"value": "https://api-demo.bybit.com",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "bybit_api_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "bybit_secret_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "gate_base_url",
+			"value": "https://api-testnet.gateapi.io",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "gate_api_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "gate_secret_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "okx_base_url",
+			"value": "https://www.okx.com",
+			"type": "default",
+			"enabled": true
+		},
+		{
+			"key": "okx_api_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "okx_secret_key",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "okx_passphrase",
+			"value": "",
+			"type": "secret",
+			"enabled": true
+		},
+		{
+			"key": "okx_testnet",
+			"value": "true",
+			"type": "default",
+			"enabled": true
+		}
+	],
+	"_postman_variable_scope": "environment"
+}

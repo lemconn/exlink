@@ -1,0 +1,619 @@
+{
+	"info": {
+		"_postman_id": "exlink-okx",
+		"name": "ExLink - OKX",
+		"description": "Private trading APIs for OKX exchange. Requires API key authentication. Authentication scripts are integrated at the collection level.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"// OKX signature script",
+					"// Usage: Include this script in Pre-request Script tab",
+					"// Requires: okx_api_key, okx_secret_key, okx_passphrase environment variables",
+					"// ",
+					"// Signature format: timestamp + method + requestPath + (queryString for GET or body for POST)",
+					"// For GET requests: if query params exist, add \"?\" + queryString",
+					"// For POST/PUT/DELETE requests: if body exists, add body",
+					"",
+					"const apiKey = (pm.environment.get('okx_api_key') || '').trim();",
+					"const secretKey = (pm.environment.get('okx_secret_key') || '').trim();",
+					"const passphrase = (pm.environment.get('okx_passphrase') || '').trim();",
+					"",
+					"if (!apiKey || !secretKey || !passphrase) {",
+					"    console.error('Missing required environment variables: okx_api_key, okx_secret_key, or okx_passphrase');",
+					"    throw new Error('Missing required environment variables');",
+					"}",
+					"",
+					"const method = pm.request.method.toUpperCase();",
+					"const path = pm.request.url.getPath();",
+					"",
+					"// Get ISO8601 format timestamp (UTC)",
+					"const now = new Date();",
+					"const timestamp = now.toISOString();",
+					"",
+					"// Build signature message: timestamp + method + path",
+					"let message = timestamp + method + path;",
+					"",
+					"// For GET requests, add query string if exists",
+					"if (method === 'GET') {",
+					"    const queryParams = pm.request.url.query.toObject();",
+					"    // Filter out empty values",
+					"    const filteredParams = {};",
+					"    Object.keys(queryParams).forEach(key => {",
+					"        if (queryParams[key] !== '' && queryParams[key] !== null && queryParams[key] !== undefined) {",
+					"            filteredParams[key] = queryParams[key];",
+					"        }",
+					"    });",
+					"    ",
+					"    if (Object.keys(filteredParams).length > 0) {",
+					"        // Sort keys and build query string",
+					"        const sortedKeys = Object.keys(filteredParams).sort();",
+					"        const queryParts = sortedKeys.map(key => {",
+					"            const value = filteredParams[key];",
+					"            // URL encode the value (equivalent to url.QueryEscape in Go)",
+					"            return `${key}=${encodeURIComponent(String(value))}`;",
+					"        });",
+					"        const queryString = queryParts.join('&');",
+					"        message += '?' + queryString;",
+					"    }",
+					"} else {",
+					"    // For POST/PUT/DELETE requests, add body if exists",
+					"    if (pm.request.body && pm.request.body.raw) {",
+					"        const bodyStr = pm.request.body.raw;",
+					"        // Remove any leading/trailing whitespace",
+					"        const trimmedBody = bodyStr.trim();",
+					"        if (trimmedBody) {",
+					"            message += trimmedBody;",
+					"        }",
+					"    }",
+					"}",
+					"",
+					"// HMAC-SHA256 signature and Base64 encode",
+					"const signature = CryptoJS.enc.Base64.stringify(CryptoJS.HmacSHA256(message, secretKey));",
+					"",
+					"// Set request headers using setOrUpdateHeaderParam",
+					"setOrUpdateHeaderParam('OK-ACCESS-KEY', apiKey);",
+					"setOrUpdateHeaderParam('OK-ACCESS-SIGN', signature);",
+					"setOrUpdateHeaderParam('OK-ACCESS-TIMESTAMP', timestamp);",
+					"setOrUpdateHeaderParam('OK-ACCESS-PASSPHRASE', passphrase);",
+					"",
+					"// Add simulated trading header if in testnet environment",
+					"if (pm.environment.get('okx_testnet') === 'true') {",
+					"    setOrUpdateHeaderParam('x-simulated-trading', '1');",
+					"} else {",
+					"    setOrUpdateHeaderParam('x-simulated-trading', '0');",
+					"}",
+					"",
+					"function setOrUpdateHeaderParam(key, value) {",
+					"    let headers = pm.request.headers;",
+					"    let header = headers.find((header) => header.key === key);",
+					"    if (header) header.value = value;",
+					"    else pm.request.headers.add({ key, value });",
+					"}"
+				]
+			}
+		}
+	],
+	"item": [
+		{
+			"name": "Spot - Buy",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "OK-ACCESS-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-SIGN",
+						"value": "",
+						"description": "Signature (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-TIMESTAMP",
+						"value": "",
+						"description": "ISO8601 timestamp (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-PASSPHRASE",
+						"value": "",
+						"description": "Passphrase",
+						"disabled": false
+					},
+					{
+						"key": "x-simulated-trading",
+						"value": "",
+						"description": "Simulated trading flag (for testnet)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"instId\": \"BTC-USDT\",\n    \"tdMode\": \"cash\",\n    \"side\": \"buy\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\",\n    \"tgtCcy\": \"base_ccy\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					]
+				},
+				"description": "Spot buy: Buy spot assets. side=buy, tdMode=cash, tgtCcy=base_ccy (sz is base currency amount) or quote_ccy (sz is quote currency amount)"
+			}
+		},
+		{
+			"name": "Spot - Sell",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "OK-ACCESS-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-SIGN",
+						"value": "",
+						"description": "Signature (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-TIMESTAMP",
+						"value": "",
+						"description": "ISO8601 timestamp (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-PASSPHRASE",
+						"value": "",
+						"description": "Passphrase",
+						"disabled": false
+					},
+					{
+						"key": "x-simulated-trading",
+						"value": "",
+						"description": "Simulated trading flag (for testnet)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"instId\": \"BTC-USDT\",\n    \"tdMode\": \"cash\",\n    \"side\": \"sell\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\",\n    \"tgtCcy\": \"base_ccy\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					]
+				},
+				"description": "Spot sell: Sell spot assets. side=sell, tdMode=cash, tgtCcy=base_ccy (sz is base currency amount) or quote_ccy (sz is quote currency amount)"
+			}
+		},
+		{
+			"name": "Spot - Get Account Balance",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "OK-ACCESS-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-SIGN",
+						"value": "",
+						"description": "Signature (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-TIMESTAMP",
+						"value": "",
+						"description": "ISO8601 timestamp (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-PASSPHRASE",
+						"value": "",
+						"description": "Passphrase",
+						"disabled": false
+					},
+					{
+						"key": "x-simulated-trading",
+						"value": "",
+						"description": "Simulated trading flag (for testnet)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/account/balance",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"account",
+						"balance"
+					]
+				},
+				"description": "Get account balance for all currencies. Returns available balance, frozen balance, and equity for each currency."
+			}
+		},
+		{
+			"name": "Swap - Open Long (Buy to Open Long)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "OK-ACCESS-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-SIGN",
+						"value": "",
+						"description": "Signature (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-TIMESTAMP",
+						"value": "",
+						"description": "ISO8601 timestamp (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-PASSPHRASE",
+						"value": "",
+						"description": "Passphrase",
+						"disabled": false
+					},
+					{
+						"key": "x-simulated-trading",
+						"value": "",
+						"description": "Simulated trading flag (for testnet)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"buy\",\n    \"posSide\": \"long\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					]
+				},
+				"description": "Perpetual swap open long: Buy to open long position. side=buy, posSide=long, tdMode=cross (cross margin) or isolated (isolated margin)"
+			}
+		},
+		{
+			"name": "Swap - Close Long (Sell to Close Long)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "OK-ACCESS-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-SIGN",
+						"value": "",
+						"description": "Signature (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-TIMESTAMP",
+						"value": "",
+						"description": "ISO8601 timestamp (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-PASSPHRASE",
+						"value": "",
+						"description": "Passphrase",
+						"disabled": false
+					},
+					{
+						"key": "x-simulated-trading",
+						"value": "",
+						"description": "Simulated trading flag (for testnet)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"sell\",\n    \"posSide\": \"long\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					]
+				},
+				"description": "Perpetual swap close long: Sell to close long position. side=sell, posSide=long, tdMode=cross (cross margin) or isolated (isolated margin)"
+			}
+		},
+		{
+			"name": "Swap - Open Short (Sell to Open Short)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "OK-ACCESS-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-SIGN",
+						"value": "",
+						"description": "Signature (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-TIMESTAMP",
+						"value": "",
+						"description": "ISO8601 timestamp (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-PASSPHRASE",
+						"value": "",
+						"description": "Passphrase",
+						"disabled": false
+					},
+					{
+						"key": "x-simulated-trading",
+						"value": "",
+						"description": "Simulated trading flag (for testnet)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"sell\",\n    \"posSide\": \"short\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					]
+				},
+				"description": "Perpetual swap open short: Sell to open short position. side=sell, posSide=short, tdMode=cross (cross margin) or isolated (isolated margin)"
+			}
+		},
+		{
+			"name": "Swap - Close Short (Buy to Close Short)",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "OK-ACCESS-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-SIGN",
+						"value": "",
+						"description": "Signature (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-TIMESTAMP",
+						"value": "",
+						"description": "ISO8601 timestamp (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-PASSPHRASE",
+						"value": "",
+						"description": "Passphrase",
+						"disabled": false
+					},
+					{
+						"key": "x-simulated-trading",
+						"value": "",
+						"description": "Simulated trading flag (for testnet)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"buy\",\n    \"posSide\": \"short\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					]
+				},
+				"description": "Perpetual swap close short: Buy to close short position. side=buy, posSide=short, tdMode=cross (cross margin) or isolated (isolated margin)"
+			}
+		},
+		{
+			"name": "Swap - Get Account Positions",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "OK-ACCESS-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-SIGN",
+						"value": "",
+						"description": "Signature (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-TIMESTAMP",
+						"value": "",
+						"description": "ISO8601 timestamp (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-PASSPHRASE",
+						"value": "",
+						"description": "Passphrase",
+						"disabled": false
+					},
+					{
+						"key": "x-simulated-trading",
+						"value": "",
+						"description": "Simulated trading flag (for testnet)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/account/positions?instType=SWAP&instId=",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"account",
+						"positions"
+					],
+					"query": [
+						{
+							"key": "instType",
+							"value": "SWAP",
+							"description": "Instrument type: SPOT, SWAP, FUTURES, OPTION. Default: SWAP",
+							"disabled": false
+						},
+						{
+							"key": "instId",
+							"value": "",
+							"description": "Optional. Instrument ID, e.g., BTC-USDT-SWAP. Leave empty to get all positions.",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Get contract positions. Returns position information including size, entry price, mark price, unrealized PnL, leverage, and margin. Optional instType and instId parameters to filter positions."
+			}
+		}
+	]
+}
