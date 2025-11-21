@@ -40,23 +40,17 @@
 					"",
 					"// For GET requests, add query string if exists",
 					"if (method === 'GET') {",
-					"    const queryParams = pm.request.url.query.toObject();",
-					"    // Filter out empty values",
-					"    const filteredParams = {};",
-					"    Object.keys(queryParams).forEach(key => {",
-					"        if (queryParams[key] !== '' && queryParams[key] !== null && queryParams[key] !== undefined) {",
-					"            filteredParams[key] = queryParams[key];",
+					"    const queryParams = {};",
+					"    pm.request.url.query.all().forEach(param => {",
+					"        if (!param.disabled) {",
+					"            queryParams[param.key] = param.value;",
 					"        }",
 					"    });",
 					"    ",
-					"    if (Object.keys(filteredParams).length > 0) {",
-					"        // Sort keys and build query string",
-					"        const sortedKeys = Object.keys(filteredParams).sort();",
-					"        const queryParts = sortedKeys.map(key => {",
-					"            const value = filteredParams[key];",
-					"            // URL encode the value (equivalent to url.QueryEscape in Go)",
-					"            return `${key}=${encodeURIComponent(String(value))}`;",
-					"        });",
+					"    if (Object.keys(queryParams).length > 0) {",
+					"        const queryParts = Object.keys(queryParams).map(key => ",
+					"            `${key}=${encodeURIComponent(queryParams[key])}`",
+					"        );",
 					"        const queryString = queryParts.join('&');",
 					"        message += '?' + queryString;",
 					"    }",
@@ -93,7 +87,8 @@
 					"    let header = headers.find((header) => header.key === key);",
 					"    if (header) header.value = value;",
 					"    else pm.request.headers.add({ key, value });",
-					"}"
+					"}",
+					""
 				]
 			}
 		}
@@ -142,7 +137,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"instId\": \"BTC-USDT\",\n    \"tdMode\": \"cash\",\n    \"side\": \"buy\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\",\n    \"tgtCcy\": \"base_ccy\"\n}",
+					"raw": "{\n    \"instId\": \"BTC-USDT\",\n    \"tdMode\": \"cash\",\n    \"side\": \"buy\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\",\n    \"tgtCcy\": \"base_ccy\",\n    \"clOrdId\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -207,7 +202,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"instId\": \"BTC-USDT\",\n    \"tdMode\": \"cash\",\n    \"side\": \"sell\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\",\n    \"tgtCcy\": \"base_ccy\"\n}",
+					"raw": "{\n    \"instId\": \"BTC-USDT\",\n    \"tdMode\": \"cash\",\n    \"side\": \"sell\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\",\n    \"tgtCcy\": \"base_ccy\",\n    \"clOrdId\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -286,6 +281,82 @@
 			}
 		},
 		{
+			"name": "Spot - Get Account Orders",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "OK-ACCESS-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-SIGN",
+						"value": "",
+						"description": "Signature (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-TIMESTAMP",
+						"value": "",
+						"description": "ISO8601 timestamp (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-PASSPHRASE",
+						"value": "",
+						"description": "Passphrase",
+						"disabled": false
+					},
+					{
+						"key": "x-simulated-trading",
+						"value": "",
+						"description": "Simulated trading flag (for testnet)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order?instId=BTC-USDT&ordId=",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					],
+					"query": [
+						{
+							"key": "instId",
+							"value": "BTC-USDT",
+							"description": "Instrument ID for spot trading, e.g., BTC-USDT",
+							"disabled": false
+						},
+						{
+							"key": "ordId",
+							"value": "",
+							"description": "Order ID to query",
+							"disabled": true
+						},
+						{
+							"key": "clOrdId",
+							"value": "",
+							"description": "Client Order ID to query",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Get spot order details by order ID. Returns order information including status, filled amount, remaining amount, price, and side."
+			}
+		},
+		{
 			"name": "Swap - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
@@ -328,7 +399,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"buy\",\n    \"posSide\": \"long\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\"\n}",
+					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"buy\",\n    \"posSide\": \"long\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\",\n    \"clOrdId\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -393,7 +464,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"sell\",\n    \"posSide\": \"long\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\"\n}",
+					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"sell\",\n    \"posSide\": \"long\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\",\n    \"clOrdId\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -458,7 +529,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"sell\",\n    \"posSide\": \"short\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\"\n}",
+					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"sell\",\n    \"posSide\": \"short\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\",\n    \"clOrdId\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -523,7 +594,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"buy\",\n    \"posSide\": \"short\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\"\n}",
+					"raw": "{\n    \"instId\": \"BTC-USDT-SWAP\",\n    \"tdMode\": \"cross\",\n    \"side\": \"buy\",\n    \"posSide\": \"short\",\n    \"ordType\": \"market\",\n    \"sz\": \"0.001\",\n    \"clOrdId\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -543,6 +614,82 @@
 					]
 				},
 				"description": "Perpetual swap close short: Buy to close short position. side=buy, posSide=short, tdMode=cross (cross margin) or isolated (isolated margin)"
+			}
+		},
+		{
+			"name": "Swap - Get Account Orders",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "OK-ACCESS-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-SIGN",
+						"value": "",
+						"description": "Signature (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-TIMESTAMP",
+						"value": "",
+						"description": "ISO8601 timestamp (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "OK-ACCESS-PASSPHRASE",
+						"value": "",
+						"description": "Passphrase",
+						"disabled": false
+					},
+					{
+						"key": "x-simulated-trading",
+						"value": "",
+						"description": "Simulated trading flag (for testnet)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/trade/order?instId=BTC-USDT-SWAP&ordId=",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"trade",
+						"order"
+					],
+					"query": [
+						{
+							"key": "instId",
+							"value": "BTC-USDT-SWAP",
+							"description": "Instrument ID for perpetual swap, e.g., BTC-USDT-SWAP",
+							"disabled": false
+						},
+						{
+							"key": "ordId",
+							"value": "",
+							"description": "Order ID to query",
+							"disabled": true
+						},
+						{
+							"key": "clOrdId",
+							"value": "",
+							"description": "Client Order ID to query",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Get contract order details by order ID. Returns order information including status, filled amount, remaining amount, price, side, and position side."
 			}
 		},
 		{

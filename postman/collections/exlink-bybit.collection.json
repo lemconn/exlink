@@ -34,21 +34,18 @@
 					"// Build query string for GET requests",
 					"let queryString = '';",
 					"if (method === 'GET' || method === 'DELETE') {",
-					"    const queryParams = pm.request.url.query.toObject();",
-					"    // Filter out empty/null/undefined values and build query string",
-					"    const filteredParams = {};",
-					"    Object.keys(queryParams).forEach(key => {",
-					"        const value = queryParams[key];",
-					"        if (value !== '' && value !== null && value !== undefined) {",
-					"            filteredParams[key] = value;",
+					"    const queryParams = {};",
+					"    pm.request.url.query.all().forEach(param => {",
+					"        if (!param.disabled) {",
+					"            queryParams[param.key] = param.value;",
 					"        }",
 					"    });",
 					"    ",
-					"    if (Object.keys(filteredParams).length > 0) {",
+					"    if (Object.keys(queryParams).length > 0) {",
 					"        // Sort keys and build query string with URL encoding (equivalent to url.QueryEscape in Go)",
-					"        const sortedKeys = Object.keys(filteredParams).sort();",
+					"        const sortedKeys = Object.keys(queryParams).sort();",
 					"        const queryParts = sortedKeys.map(key => {",
-					"            const value = filteredParams[key];",
+					"            const value = queryParams[key];",
 					"            // URL encode the value (equivalent to url.QueryEscape in Go)",
 					"            return `${key}=${encodeURIComponent(String(value))}`;",
 					"        });",
@@ -133,7 +130,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"category\": \"spot\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Buy\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\"\n}",
+					"raw": "{\n    \"category\": \"spot\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Buy\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"orderLinkId\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -190,7 +187,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"category\": \"spot\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Sell\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\"\n}",
+					"raw": "{\n    \"category\": \"spot\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Sell\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"orderLinkId\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -267,6 +264,81 @@
 			}
 		},
 		{
+			"name": "Spot - Get Account Orders",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-BAPI-API-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-TIMESTAMP",
+						"value": "",
+						"description": "Timestamp in milliseconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-RECV-WINDOW",
+						"value": "5000",
+						"description": "Receive window in milliseconds (default: 5000)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-SIGN",
+						"value": "",
+						"description": "HMAC-SHA256 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/order/realtime?category=spot&symbol=BTCUSDT&orderId=",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"order",
+						"realtime"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "spot",
+							"description": "Product type: spot for spot trading",
+							"disabled": false
+						},
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Symbol name, e.g., BTCUSDT",
+							"disabled": false
+						},
+						{
+							"key": "orderId",
+							"value": "",
+							"description": "Order ID to query",
+							"disabled": true
+						},
+						{
+							"key": "orderLinkId",
+							"value": "",
+							"description": "Client Order ID to query",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Get spot order details by order ID or client order ID. Returns order information including status, filled amount, remaining amount, price, and side. First tries to fetch from realtime orders, then falls back to history if not found."
+			}
+		},
+		{
 			"name": "Swap - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
@@ -303,7 +375,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Buy\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"reduceOnly\": false\n}",
+					"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Buy\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"reduceOnly\": false,\n    \"orderLinkId\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -360,7 +432,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Sell\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"reduceOnly\": true\n}",
+					"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Sell\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"reduceOnly\": true,\n    \"orderLinkId\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -417,7 +489,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Sell\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"reduceOnly\": false\n}",
+					"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Sell\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"reduceOnly\": false,\n    \"orderLinkId\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -474,7 +546,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Buy\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"reduceOnly\": true\n}",
+					"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"side\": \"Buy\",\n    \"orderType\": \"Market\",\n    \"qty\": \"0.001\",\n    \"reduceOnly\": true,\n    \"orderLinkId\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -555,6 +627,81 @@
 					]
 				},
 				"description": "Get contract positions. Returns position information including size, entry price, mark price, and unrealized PnL. Optional symbol parameter to filter by specific trading pair."
+			}
+		},
+		{
+			"name": "Swap - Get Account Orders",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-BAPI-API-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-TIMESTAMP",
+						"value": "",
+						"description": "Timestamp in milliseconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-RECV-WINDOW",
+						"value": "5000",
+						"description": "Receive window in milliseconds (default: 5000)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-SIGN",
+						"value": "",
+						"description": "HMAC-SHA256 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/order/realtime?category=linear&symbol=BTCUSDT&orderId=",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"order",
+						"realtime"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "linear",
+							"description": "Product type: linear for USDT perpetual",
+							"disabled": false
+						},
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Symbol name, e.g., BTCUSDT",
+							"disabled": false
+						},
+						{
+							"key": "orderId",
+							"value": "",
+							"description": "Order ID to query",
+							"disabled": true
+						},
+						{
+							"key": "orderLinkId",
+							"value": "",
+							"description": "Client Order ID to query",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Get contract order details by order ID or client order ID. Returns order information including status, filled amount, remaining amount, price, side, and position side. First tries to fetch from realtime orders, then falls back to history if not found."
 			}
 		}
 	]

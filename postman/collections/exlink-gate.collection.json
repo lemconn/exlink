@@ -34,7 +34,12 @@
 					"}",
 					"",
 					"// Build query string",
-					"const queryParams = pm.request.url.query.toObject();",
+					"const queryParams = {};",
+					"pm.request.url.query.all().forEach(param => {",
+					"    if (!param.disabled) {",
+					"        queryParams[param.key] = param.value;",
+					"    }",
+					"});",
 					"let queryString = '';",
 					"if (Object.keys(queryParams).length > 0) {",
 					"    queryString = Object.keys(queryParams)",
@@ -105,7 +110,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"currency_pair\": \"BTC_USDT\",\n    \"side\": \"buy\",\n    \"amount\": \"0.001\",\n    \"type\": \"market\"\n}",
+					"raw": "{\n    \"currency_pair\": \"BTC_USDT\",\n    \"side\": \"buy\",\n    \"amount\": \"0.001\",\n    \"type\": \"market\",\n    \"text\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -158,7 +163,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"currency_pair\": \"BTC_USDT\",\n    \"side\": \"sell\",\n    \"amount\": \"0.001\",\n    \"type\": \"market\"\n}",
+					"raw": "{\n    \"currency_pair\": \"BTC_USDT\",\n    \"side\": \"sell\",\n    \"amount\": \"0.001\",\n    \"type\": \"market\",\n    \"text\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -225,6 +230,58 @@
 			}
 		},
 		{
+			"name": "Spot - Get Account Orders",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "Timestamp",
+						"value": "",
+						"description": "Unix timestamp in seconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "SIGN",
+						"value": "",
+						"description": "HMAC-SHA512 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/spot/orders/:orderId",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"spot",
+						"orders",
+						":orderId"
+					],
+					"variable": [
+						{
+							"key": "orderId",
+							"value": "",
+							"description": "Order ID to query"
+						}
+					]
+				},
+				"description": "Get spot order details by order ID. Returns order information including status, filled amount, remaining amount, price, and side."
+			}
+		},
+		{
 			"name": "Swap - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
@@ -255,7 +312,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": 1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\"\n}",
+					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": 1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\",\n    \"text\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -309,7 +366,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": -1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\",\n    \"reduce_only\": true\n}",
+					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": -1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\",\n    \"reduce_only\": true,\n    \"text\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -363,7 +420,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": -1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\"\n}",
+					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": -1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\",\n    \"text\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -417,7 +474,7 @@
 				],
 				"body": {
 					"mode": "raw",
-					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": 1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\",\n    \"reduce_only\": true\n}",
+					"raw": "{\n    \"contract\": \"BTC_USDT\",\n    \"settle\": \"usdt\",\n    \"size\": 1,\n    \"price\": \"0\",\n    \"tif\": \"ioc\",\n    \"reduce_only\": true,\n    \"text\": \"\"\n}",
 					"options": {
 						"raw": {
 							"language": "json"
@@ -483,6 +540,64 @@
 					]
 				},
 				"description": "Get contract positions for USDT perpetual futures. Returns position information including size, entry price, mark price, and unrealized PnL."
+			}
+		},
+		{
+			"name": "Swap - Get Account Orders",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "Timestamp",
+						"value": "",
+						"description": "Unix timestamp in seconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "SIGN",
+						"value": "",
+						"description": "HMAC-SHA512 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/:settle/orders/:orderId",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						":settle",
+						"orders",
+						":orderId"
+					],
+					"variable": [
+						{
+							"key": "settle",
+							"value": "usdt",
+							"description": "Settlement currency: usdt for USDT perpetual"
+						},
+						{
+							"key": "orderId",
+							"value": "",
+							"description": "Order ID to query"
+						}
+					]
+				},
+				"description": "Get contract order details by order ID. Returns order information including status, filled amount, remaining amount, price, side, and position side."
 			}
 		}
 	]
