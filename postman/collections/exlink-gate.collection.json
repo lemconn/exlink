@@ -282,6 +282,50 @@
 			}
 		},
 		{
+			"name": "Spot - Get Ticker",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/spot/tickers?currency_pair=BTC_USDT",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"spot",
+						"tickers"
+					],
+					"query": [
+						{
+							"key": "currency_pair",
+							"value": "BTC_USDT",
+							"description": "Trading pair symbol, e.g., BTC_USDT for spot",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get ticker information for spot market. Returns bid price, ask price, last price, high price, low price, volume, and quote volume. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
 			"name": "Swap - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
@@ -598,6 +642,51 @@
 					]
 				},
 				"description": "Get contract order details by order ID. Returns order information including status, filled amount, remaining amount, price, side, and position side."
+			}
+		},
+		{
+			"name": "Swap - Get Ticker",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/tickers?contract=BTC_USDT",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"tickers"
+					],
+					"query": [
+						{
+							"key": "contract",
+							"value": "BTC_USDT",
+							"description": "Contract symbol, e.g., BTC_USDT for USDT perpetual swap",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get ticker information for perpetual swap (USDT futures) market. Returns last price, volume, quote volume, mark price, funding rate, and index price. This is a public endpoint and does not require authentication."
 			}
 		}
 	]

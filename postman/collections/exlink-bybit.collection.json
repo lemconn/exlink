@@ -339,6 +339,55 @@
 			}
 		},
 		{
+			"name": "Spot - Get Ticker",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/market/tickers?symbol=BTCUSDT&category=spot",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"market",
+						"tickers"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Trading pair symbol, e.g., BTCUSDT",
+							"disabled": false
+						},
+						{
+							"key": "category",
+							"value": "spot",
+							"description": "Product type: spot, linear, inverse, option",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get 24hr ticker price change statistics for spot market. Returns bid price, ask price, last price, previous price, high price, low price, volume, turnover, and price change percentage. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
 			"name": "Swap - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
@@ -702,6 +751,55 @@
 					]
 				},
 				"description": "Get contract order details by order ID or client order ID. Returns order information including status, filled amount, remaining amount, price, side, and position side. First tries to fetch from realtime orders, then falls back to history if not found."
+			}
+		},
+		{
+			"name": "Swap - Get Ticker",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/market/tickers?symbol=BTCUSDT&category=linear",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"market",
+						"tickers"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Trading pair symbol, e.g., BTCUSDT",
+							"disabled": false
+						},
+						{
+							"key": "category",
+							"value": "linear",
+							"description": "Product type: spot, linear, inverse, option",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get 24hr ticker price change statistics for perpetual swap (linear futures) market. Returns bid price, ask price, last price, previous price, high price, low price, volume, turnover, and price change percentage. This is a public endpoint and does not require authentication."
 			}
 		}
 	]
