@@ -388,6 +388,98 @@
 			}
 		},
 		{
+			"name": "Spot - GetSymbols",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/market/instruments-info?category=spot",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"market",
+						"instruments-info"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "spot",
+							"description": "Product type: spot",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get all trading pair information for spot market. Returns symbol, base coin, quote coin, status, lot size filter, price filter, and other trading parameters for all spot trading pairs. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Spot - GetSymbol",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/market/instruments-info?category=spot&symbol=BTCUSDT",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"market",
+						"instruments-info"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "spot",
+							"description": "Product type: spot",
+							"disabled": false
+						},
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Trading pair symbol, e.g., BTCUSDT",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get single trading pair information for spot market. Returns symbol, base coin, quote coin, status, lot size filter, price filter, and other trading parameters for the specific spot trading pair. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
 			"name": "Swap - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
@@ -800,6 +892,98 @@
 					]
 				},
 				"description": "Get 24hr ticker price change statistics for perpetual swap (linear futures) market. Returns bid price, ask price, last price, previous price, high price, low price, volume, turnover, and price change percentage. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Swap - GetSymbols",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/market/instruments-info?category=linear",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"market",
+						"instruments-info"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "linear",
+							"description": "Product type: linear",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get all trading pair information for perpetual swap (linear futures) market. Returns symbol, contract type, status, lot size filter, price filter, leverage, and other trading parameters for all linear trading pairs. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Swap - GetSymbol",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/market/instruments-info?category=linear&symbol=BTCUSDT",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"market",
+						"instruments-info"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "linear",
+							"description": "Product type: linear",
+							"disabled": false
+						},
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Trading pair symbol, e.g., BTCUSDT",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get single trading pair information for perpetual swap (linear futures) market. Returns symbol, contract type, status, lot size filter, price filter, leverage, and other trading parameters for the specific linear trading pair. This is a public endpoint and does not require authentication."
 			}
 		}
 	]

@@ -401,6 +401,100 @@
 			}
 		},
 		{
+			"name": "Spot - GetSymbols",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/public/instruments?instType=SPOT",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"public",
+						"instruments"
+					],
+					"query": [
+						{
+							"key": "instType",
+							"value": "SPOT",
+							"description": "Instrument type: SPOT",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get all trading pair information for spot market. Returns instrument ID, base currency, quote currency, lot size, tick size, and trading status for all spot trading pairs. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Spot - GetSymbol",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/public/instruments?instType=SPOT&instId=BTC-USDT",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"public",
+						"instruments"
+					],
+					"query": [
+						{
+							"key": "instType",
+							"value": "SPOT",
+							"description": "Instrument type: SPOT",
+							"disabled": false
+						},
+						{
+							"key": "instId",
+							"value": "BTC-USDT",
+							"description": "Instrument ID, e.g., BTC-USDT",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get single trading pair information for spot market. Returns instrument ID, base currency, quote currency, lot size, tick size, and trading status for the specific spot trading pair. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
 			"name": "Swap - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
@@ -848,6 +942,100 @@
 					]
 				},
 				"description": "Get ticker information for perpetual swap (futures) market. Returns bid price, ask price, last price, open price, high price, low price, volume, and quote volume. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Swap - GetSymbols",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/public/instruments?instType=SWAP",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"public",
+						"instruments"
+					],
+					"query": [
+						{
+							"key": "instType",
+							"value": "SWAP",
+							"description": "Instrument type: SWAP",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get all trading pair information for perpetual swap (futures) market. Returns instrument ID, contract value, tick size, lot size, and trading status for all swap trading pairs. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Swap - GetSymbol",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/public/instruments?instType=SWAP&instId=BTC-USDT-SWAP",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"public",
+						"instruments"
+					],
+					"query": [
+						{
+							"key": "instType",
+							"value": "SWAP",
+							"description": "Instrument type: SWAP",
+							"disabled": false
+						},
+						{
+							"key": "instId",
+							"value": "BTC-USDT-SWAP",
+							"description": "Instrument ID, e.g., BTC-USDT-SWAP",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get single trading pair information for perpetual swap (futures) market. Returns instrument ID, contract value, tick size, lot size, and trading status for the specific swap trading pair. This is a public endpoint and does not require authentication."
 			}
 		}
 	]

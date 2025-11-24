@@ -581,6 +581,98 @@
 			}
 		},
 		{
+			"name": "Spot - GetSymbols",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_base_url}}/api/v3/exchangeInfo?showPermissionSets=false",
+					"host": [
+						"{{binance_base_url}}"
+					],
+					"path": [
+						"api",
+						"v3",
+						"exchangeInfo"
+					],
+					"query": [
+						{
+							"key": "showPermissionSets",
+							"value": "false",
+							"description": "Show permission sets",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get all trading pair information for spot market. Returns symbol, status, base asset, quote asset, filters, and permissions for all trading pairs. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Spot - GetSymbol",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_base_url}}/api/v3/exchangeInfo?symbol=BTCUSDT&showPermissionSets=false",
+					"host": [
+						"{{binance_base_url}}"
+					],
+					"path": [
+						"api",
+						"v3",
+						"exchangeInfo"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Trading pair symbol, e.g., BTCUSDT",
+							"disabled": false
+						},
+						{
+							"key": "showPermissionSets",
+							"value": "false",
+							"description": "Show permission sets",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get single trading pair information for spot market. Returns symbol, status, base asset, quote asset, filters, and permissions for the specific trading pair. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
 			"name": "Swap - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
@@ -1593,6 +1685,98 @@
 					]
 				},
 				"description": "Get 24hr ticker price change statistics for perpetual swap (futures) market. Returns bid price, ask price, last price, open price, high price, low price, volume, quote volume, price change, and price change percentage. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Swap - GetSymbols",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_fapi_base_url}}/fapi/v3/exchangeInfo?showPermissionSets=false",
+					"host": [
+						"{{binance_fapi_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v3",
+						"exchangeInfo"
+					],
+					"query": [
+						{
+							"key": "showPermissionSets",
+							"value": "false",
+							"description": "Show permission sets",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get all trading pair information for perpetual swap (futures) market. Returns symbol, status, base asset, quote asset, filters, and permissions for all trading pairs. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Swap - GetSymbol",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_fapi_base_url}}/fapi/v3/exchangeInfo?symbol=BTCUSDT&showPermissionSets=false",
+					"host": [
+						"{{binance_fapi_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v3",
+						"exchangeInfo"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Trading pair symbol, e.g., BTCUSDT",
+							"disabled": false
+						},
+						{
+							"key": "showPermissionSets",
+							"value": "false",
+							"description": "Show permission sets",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get single trading pair information for perpetual swap (futures) market. Returns symbol, status, base asset, quote asset, filters, and permissions for the specific trading pair. This is a public endpoint and does not require authentication."
 			}
 		}
 	]
