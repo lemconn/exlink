@@ -638,9 +638,31 @@ func (o *OKX) FetchBalance(ctx context.Context) (types.Balances, error) {
 }
 
 // CreateOrder 创建订单
-func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, params map[string]interface{}) (*types.Order, error) {
+func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, opts ...types.OrderOption) (*types.Order, error) {
 	if o.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
+	}
+
+	// 解析选项并转换为 params map
+	options := types.ApplyOrderOptions(opts...)
+	params := make(map[string]interface{})
+
+	// 处理通用选项 - 客户端订单ID统一使用 ClientOrderID
+	if options.ClientOrderID != nil {
+		params["clientOrderId"] = *options.ClientOrderID
+	}
+
+	// 处理 OKX 特定选项
+	if options.TdMode != nil {
+		params["tdMode"] = *options.TdMode
+	}
+	if options.TgtCcy != nil {
+		params["tgtCcy"] = *options.TgtCcy
+	}
+
+	// 合并扩展参数
+	for k, v := range options.ExtraParams {
+		params[k] = v
 	}
 
 	// 获取市场信息
@@ -701,15 +723,13 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 	}
 
 	// 生成客户端订单ID（如果未提供）
-	// OKX 使用 clOrdId 参数，也支持 clientOrderId 作为别名
-	if _, hasClOrdId := params["clOrdId"]; !hasClOrdId {
-		if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
-			// 如果用户提供了 clientOrderId，使用它
-			reqBody["clOrdId"] = clientOrderId
-		} else {
-			// 如果都没有提供，自动生成
-			reqBody["clOrdId"] = common.GenerateClientOrderID(o.Name(), side)
-		}
+	// OKX 使用 clOrdId 参数
+	if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
+		// 如果用户提供了 clientOrderId，使用它
+		reqBody["clOrdId"] = clientOrderId
+	} else {
+		// 如果未提供，自动生成
+		reqBody["clOrdId"] = common.GenerateClientOrderID(o.Name(), side)
 	}
 
 	// 合并额外参数（排除已处理的参数）

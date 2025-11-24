@@ -233,12 +233,13 @@ func TestGate_CreateContractOrder_BuyOpenLong(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Buy to open long: side="buy", size is positive for long
-	params := map[string]interface{}{
-		"size": strconv.FormatFloat(amount, 'f', -1, 64), // Positive size for long
+	size := int64(amount)
+	if size == 0 {
+		size = 1
 	}
 
 	// Use market order
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", types.WithSize(size))
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create buy open long order: %v", err)
@@ -298,12 +299,14 @@ func TestGate_CreateContractOrder_SellCloseLong(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Sell to close long: side="sell", size is negative to close long
-	params := map[string]interface{}{
-		"size": strconv.FormatFloat(-amount, 'f', -1, 64), // Negative size to close long
+	// Negative size to close long
+	size := int64(-amount)
+	if size == 0 {
+		size = -1
 	}
 
 	// Use market order
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", types.WithSize(size))
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create sell close long order: %v", err)
@@ -363,12 +366,14 @@ func TestGate_CreateContractOrder_SellOpenShort(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Sell to open short: side="sell", size is negative for short
-	params := map[string]interface{}{
-		"size": strconv.FormatFloat(-amount, 'f', -1, 64), // Negative size for short
+	// Negative size for short
+	size := int64(-amount)
+	if size == 0 {
+		size = -1
 	}
 
 	// Use market order
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", types.WithSize(size))
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create sell open short order: %v", err)
@@ -428,12 +433,14 @@ func TestGate_CreateContractOrder_BuyCloseShort(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Buy to close short: side="buy", size is positive to close short
-	params := map[string]interface{}{
-		"size": strconv.FormatFloat(amount, 'f', -1, 64), // Positive size to close short
+	// Positive size to close short
+	size := int64(amount)
+	if size == 0 {
+		size = 1
 	}
 
 	// Use market order
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", types.WithSize(size))
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create buy close short order: %v", err)
@@ -539,7 +546,7 @@ func TestGate_CreateSpotOrder_Buy(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Use market order for spot buy
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", nil)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0")
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create spot buy order: %v", err)
@@ -599,7 +606,7 @@ func TestGate_CreateSpotOrder_Sell(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Use market order for spot sell
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", nil)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0")
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create spot sell order: %v", err)

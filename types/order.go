@@ -1,6 +1,9 @@
 package types
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // OrderSide 订单方向
 type OrderSide string
@@ -10,6 +13,22 @@ const (
 	OrderSideSell OrderSide = "sell" // 卖出
 )
 
+func (s OrderSide) Upper() string {
+	return strings.ToUpper(string(s))
+}
+
+func (s OrderSide) Lower() string {
+	return strings.ToLower(string(s))
+}
+
+func (s OrderSide) IsBuy() bool {
+	return s == OrderSideBuy
+}
+
+func (s OrderSide) IsSell() bool {
+	return s == OrderSideSell
+}
+
 // OrderType 订单类型
 type OrderType string
 
@@ -17,6 +36,51 @@ const (
 	OrderTypeMarket OrderType = "market" // 市价单
 	OrderTypeLimit  OrderType = "limit"  // 限价单
 )
+
+func (t OrderType) Upper() string {
+	return strings.ToUpper(string(t))
+}
+
+func (t OrderType) Lower() string {
+	return strings.ToLower(string(t))
+}
+
+func (t OrderType) IsMarket() bool {
+	return t == OrderTypeMarket
+}
+
+func (t OrderType) IsLimit() bool {
+	return t == OrderTypeLimit
+}
+
+// OrderTimeInForceType 时间有效性类型
+type OrderTimeInForceType string
+
+const (
+	OrderTimeInForceGTC OrderTimeInForceType = "gtc"
+	OrderTimeInForceIOC OrderTimeInForceType = "ioc"
+	OrderTimeInForceFOK OrderTimeInForceType = "fok"
+)
+
+func (t OrderTimeInForceType) Upper() string {
+	return strings.ToUpper(string(t))
+}
+
+func (t OrderTimeInForceType) Lower() string {
+	return strings.ToLower(string(t))
+}
+
+func (t OrderTimeInForceType) IsGTC() bool {
+	return t == OrderTimeInForceGTC
+}
+
+func (t OrderTimeInForceType) IsIOC() bool {
+	return t == OrderTimeInForceIOC
+}
+
+func (t OrderTimeInForceType) IsFOK() bool {
+	return t == OrderTimeInForceFOK
+}
 
 // OrderStatus 订单状态
 type OrderStatus string
@@ -57,4 +121,125 @@ type Fee struct {
 	Currency string  `json:"currency"` // 手续费币种
 	Cost     float64 `json:"cost"`     // 手续费金额
 	Rate     float64 `json:"rate"`     // 手续费率
+}
+
+// OrderOption 订单选项函数类型
+type OrderOption func(*orderOptions)
+
+// orderOptions 订单选项
+type orderOptions struct {
+	// 通用选项
+	ClientOrderID *string // 客户端订单ID（所有交易所通用）
+
+	// Binance 特定选项
+	PositionSide  *PositionSide // 持仓方向 (LONG/SHORT，仅 hedge mode)
+	ReduceOnly    *bool         // 仅减仓（合约订单，Binance/Gate 通用）
+	QuoteOrderQty *float64      // 按计价货币数量（现货市价买入）
+
+	// Bybit 特定选项
+	// （无特定选项）
+
+	// OKX 特定选项
+	TdMode *string // 交易模式 (cash/cross/isolated)
+	TgtCcy *string // 目标货币 (base_ccy/quote_ccy，现货订单)
+
+	// Gate 特定选项
+	Size        *int64   // 合约数量（合约订单）
+	TIF         *string  // 时间有效性（合约订单：gtc/ioc/fok）
+	TimeInForce *string  // 时间有效性（现货订单：ioc/fok）
+	Cost        *float64 // 成本（现货市价买入）
+
+	// 扩展参数（用于处理其他未定义的参数）
+	ExtraParams map[string]interface{}
+}
+
+// WithClientOrderID 设置客户端订单ID（通用，所有交易所都支持）
+func WithClientOrderID(id string) OrderOption {
+	return func(opts *orderOptions) {
+		opts.ClientOrderID = &id
+	}
+}
+
+// WithReduceOnly 设置仅减仓（合约订单，Binance/Gate 通用）
+func WithReduceOnly(reduceOnly bool) OrderOption {
+	return func(opts *orderOptions) {
+		opts.ReduceOnly = &reduceOnly
+	}
+}
+
+// WithPositionSide 设置持仓方向（Binance 合约订单，仅 hedge mode）
+func WithPositionSide(positionSide PositionSide) OrderOption {
+	return func(opts *orderOptions) {
+		opts.PositionSide = &positionSide
+	}
+}
+
+// WithQuoteOrderQty 设置按计价货币数量（Binance 现货市价买入）
+func WithQuoteOrderQty(qty float64) OrderOption {
+	return func(opts *orderOptions) {
+		opts.QuoteOrderQty = &qty
+	}
+}
+
+// WithTdMode 设置交易模式（OKX：cash/cross/isolated）
+func WithTdMode(tdMode string) OrderOption {
+	return func(opts *orderOptions) {
+		opts.TdMode = &tdMode
+	}
+}
+
+// WithTgtCcy 设置目标货币（OKX 现货订单：base_ccy/quote_ccy）
+func WithTgtCcy(tgtCcy string) OrderOption {
+	return func(opts *orderOptions) {
+		opts.TgtCcy = &tgtCcy
+	}
+}
+
+// WithSize 设置合约数量（Gate 合约订单）
+func WithSize(size int64) OrderOption {
+	return func(opts *orderOptions) {
+		opts.Size = &size
+	}
+}
+
+// WithTIF 设置时间有效性（Gate 合约订单：gtc/ioc/fok）
+func WithTIF(tif string) OrderOption {
+	return func(opts *orderOptions) {
+		opts.TIF = &tif
+	}
+}
+
+// WithTimeInForce 设置时间有效性（Gate 现货订单：ioc/fok）
+func WithTimeInForce(timeInForce string) OrderOption {
+	return func(opts *orderOptions) {
+		opts.TimeInForce = &timeInForce
+	}
+}
+
+// WithCost 设置成本（Gate 现货市价买入）
+func WithCost(cost float64) OrderOption {
+	return func(opts *orderOptions) {
+		opts.Cost = &cost
+	}
+}
+
+// WithExtraParam 设置扩展参数（用于处理其他未定义的参数）
+func WithExtraParam(key string, value interface{}) OrderOption {
+	return func(opts *orderOptions) {
+		if opts.ExtraParams == nil {
+			opts.ExtraParams = make(map[string]interface{})
+		}
+		opts.ExtraParams[key] = value
+	}
+}
+
+// ApplyOrderOptions 应用订单选项
+func ApplyOrderOptions(opts ...OrderOption) *orderOptions {
+	options := &orderOptions{
+		ExtraParams: make(map[string]interface{}),
+	}
+	for _, opt := range opts {
+		opt(options)
+	}
+	return options
 }
