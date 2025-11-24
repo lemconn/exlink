@@ -326,6 +326,79 @@
 			}
 		},
 		{
+			"name": "Spot - GetSymbols",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/spot/currency_pairs",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"spot",
+						"currency_pairs"
+					]
+				},
+				"description": "Get all trading pair information for spot market. Returns currency pair ID, base currency, quote currency, fee rate, min base amount, min quote amount, trade status, and other trading parameters for all spot trading pairs. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Spot - GetSymbol",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/spot/currency_pairs/BTC_USDT",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"spot",
+						"currency_pairs",
+						"BTC_USDT"
+					]
+				},
+				"description": "Get single trading pair information for spot market. Returns currency pair ID, base currency, quote currency, fee rate, min base amount, min quote amount, trade status, and other trading parameters for the specific spot trading pair. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
 			"name": "Swap - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
@@ -687,6 +760,81 @@
 					]
 				},
 				"description": "Get ticker information for perpetual swap (USDT futures) market. Returns last price, volume, quote volume, mark price, funding rate, and index price. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Swap - GetSymbols",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/contracts",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"contracts"
+					]
+				},
+				"description": "Get all trading pair information for perpetual swap (USDT futures) market. Returns contract name, type, quanto multiplier, leverage, order size limits, funding rate parameters, and other trading parameters for all USDT perpetual contracts. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Swap - GetSymbol",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/contracts/BTC_USDT",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"contracts",
+						"BTC_USDT"
+					]
+				},
+				"description": "Get single trading pair information for perpetual swap (USDT futures) market. Returns contract name, type, quanto multiplier, leverage, order size limits, funding rate parameters, and other trading parameters for the specific USDT perpetual contract. This is a public endpoint and does not require authentication."
 			}
 		}
 	]
