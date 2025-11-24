@@ -237,13 +237,10 @@ func TestBinance_CreateContractOrder_BuyOpenLong(t *testing.T) {
 
 	// Buy to open long: side="BUY"
 	// Note: In one-way mode, positionSide is not needed
-	// In hedge mode, use positionSide="LONG" to open long position
-	params := map[string]interface{}{
-		// "positionSide": "LONG", // Only needed in hedge mode
-	}
+	// In hedge mode, use types.WithPositionSide(types.PositionSideLong) to open long position
 
 	// Use market order
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0")
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create buy open long order: %v", err)
@@ -304,12 +301,9 @@ func TestBinance_CreateContractOrder_SellCloseLong(t *testing.T) {
 
 	// Sell to close long: side="SELL"
 	// Note: In one-way mode, positionSide is not needed
-	params := map[string]interface{}{
-		// "positionSide": "LONG", // Only needed in hedge mode
-	}
 
 	// Use market order
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0")
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create sell close long order: %v", err)
@@ -370,12 +364,9 @@ func TestBinance_CreateContractOrder_SellOpenShort(t *testing.T) {
 
 	// Sell to open short: side="SELL"
 	// Note: In one-way mode, positionSide is not needed
-	params := map[string]interface{}{
-		// "positionSide": "SHORT", // Only needed in hedge mode
-	}
 
 	// Use market order
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0")
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create sell open short order: %v", err)
@@ -436,12 +427,9 @@ func TestBinance_CreateContractOrder_BuyCloseShort(t *testing.T) {
 
 	// Buy to close short: side="BUY"
 	// Note: In one-way mode, positionSide is not needed
-	params := map[string]interface{}{
-		// "positionSide": "SHORT", // Only needed in hedge mode
-	}
 
 	// Use market order
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0")
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create buy close short order: %v", err)
@@ -547,7 +535,7 @@ func TestBinance_CreateSpotOrder_Buy(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Use market order for spot buy
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", nil)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0")
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create spot buy order: %v", err)
@@ -607,7 +595,7 @@ func TestBinance_CreateSpotOrder_Sell(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Use market order for spot sell
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", nil)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0")
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create spot sell order: %v", err)

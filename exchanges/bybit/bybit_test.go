@@ -236,12 +236,8 @@ func TestBybit_CreateContractOrder_BuyOpenLong(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Buy to open long: side="Buy", reduceOnly=false (default) for opening
-	params := map[string]interface{}{
-		"reduceOnly": false, // Open position
-	}
-
 	// Use market order
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", types.WithExtraParam("reduceOnly", false))
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create buy open long order: %v", err)
@@ -301,12 +297,9 @@ func TestBybit_CreateContractOrder_SellCloseLong(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Sell to close long: side="Sell", reduceOnly=true to close
-	params := map[string]interface{}{
-		"reduceOnly": true, // Close position
-	}
-
+	// Close position with reduceOnly=true
 	// Use market order
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", types.WithExtraParam("reduceOnly", true))
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create sell close long order: %v", err)
@@ -366,12 +359,9 @@ func TestBybit_CreateContractOrder_SellOpenShort(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Sell to open short: side="Sell", reduceOnly=false (default) for opening
-	params := map[string]interface{}{
-		"reduceOnly": false, // Open position
-	}
-
+	// Open position with reduceOnly=false
 	// Use market order
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", types.WithExtraParam("reduceOnly", false))
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create sell open short order: %v", err)
@@ -431,12 +421,9 @@ func TestBybit_CreateContractOrder_BuyCloseShort(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Buy to close short: side="Buy", reduceOnly=true to close
-	params := map[string]interface{}{
-		"reduceOnly": true, // Close position
-	}
-
+	// Close position with reduceOnly=true
 	// Use market order
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", params)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", types.WithExtraParam("reduceOnly", true))
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create buy close short order: %v", err)
@@ -542,7 +529,7 @@ func TestBybit_CreateSpotOrder_Buy(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Use market order for spot buy
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", nil)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0")
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create spot buy order: %v", err)
@@ -602,7 +589,7 @@ func TestBybit_CreateSpotOrder_Sell(t *testing.T) {
 	fmt.Printf("Current price: bid=%s, ask=%s, last=%s\n", ticker.Bid, ticker.Ask, ticker.Last)
 
 	// Use market order for spot sell
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", nil)
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0")
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create spot sell order: %v", err)

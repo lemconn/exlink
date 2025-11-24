@@ -745,9 +745,40 @@ func (g *Gate) FetchBalance(ctx context.Context) (types.Balances, error) {
 }
 
 // CreateOrder 创建订单
-func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, params map[string]interface{}) (*types.Order, error) {
+func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, opts ...types.OrderOption) (*types.Order, error) {
 	if g.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
+	}
+
+	// 解析选项并转换为 params map
+	options := types.ApplyOrderOptions(opts...)
+	params := make(map[string]interface{})
+
+	// 处理通用选项 - 客户端订单ID统一使用 ClientOrderID
+	if options.ClientOrderID != nil {
+		params["clientOrderId"] = *options.ClientOrderID
+	}
+
+	// 处理 Gate 特定选项
+	if options.Size != nil {
+		params["size"] = *options.Size
+	}
+	if options.ReduceOnly != nil {
+		params["reduce_only"] = *options.ReduceOnly
+	}
+	if options.TIF != nil {
+		params["tif"] = *options.TIF
+	}
+	if options.TimeInForce != nil {
+		params["time_in_force"] = *options.TimeInForce
+	}
+	if options.Cost != nil {
+		params["cost"] = *options.Cost
+	}
+
+	// 合并扩展参数
+	for k, v := range options.ExtraParams {
+		params[k] = v
 	}
 
 	market, err := g.GetMarket(symbol)
@@ -914,15 +945,13 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 	}
 
 	// 生成客户端订单ID（如果未提供）
-	// Gate 使用 text 参数，也支持 clientOrderId 作为别名
-	if _, hasText := params["text"]; !hasText {
-		if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
-			// 如果用户提供了 clientOrderId，使用它
-			reqBody["text"] = clientOrderId
-		} else {
-			// 如果都没有提供，自动生成
-			reqBody["text"] = common.GenerateClientOrderID(g.Name(), side)
-		}
+	// Gate 使用 text 参数
+	if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
+		// 如果用户提供了 clientOrderId，使用它
+		reqBody["text"] = clientOrderId
+	} else {
+		// 如果未提供，自动生成
+		reqBody["text"] = common.GenerateClientOrderID(g.Name(), side)
 	}
 
 	// 合并额外参数（排除已处理的参数）

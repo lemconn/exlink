@@ -142,7 +142,9 @@ func (b *Binance) LoadMarkets(ctx context.Context, reload bool) error {
 
 // loadSpotMarkets 加载现货市场
 func (b *Binance) loadSpotMarkets(ctx context.Context) ([]*types.Market, error) {
-	resp, err := b.client.Get(ctx, "/api/v3/exchangeInfo", nil)
+	resp, err := b.client.Get(ctx, "/api/v3/exchangeInfo", map[string]interface{}{
+		"showPermissionSets": false,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("fetch exchange info: %w", err)
 	}
@@ -238,7 +240,9 @@ func (b *Binance) loadSpotMarkets(ctx context.Context) ([]*types.Market, error) 
 
 // loadSwapMarkets 加载永续合约市场（U本位）
 func (b *Binance) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
-	resp, err := b.fapiClient.Get(ctx, "/fapi/v1/exchangeInfo", nil)
+	resp, err := b.fapiClient.Get(ctx, "/fapi/v1/exchangeInfo", map[string]interface{}{
+		"showPermissionSets": false,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("fetch fapi exchange info: %w", err)
 	}
@@ -618,9 +622,34 @@ func (b *Binance) FetchBalance(ctx context.Context) (types.Balances, error) {
 // CreateOrder 创建订单
 // 参考: https://developers.binance.com/docs/binance-spot-api-docs/rest-api/trading-endpoints#new-order-trade
 // 参考: https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/New-Order
-func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, params map[string]interface{}) (*types.Order, error) {
+func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, opts ...types.OrderOption) (*types.Order, error) {
 	if b.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
+	}
+
+	// 解析选项并转换为 params map
+	options := types.ApplyOrderOptions(opts...)
+	params := make(map[string]interface{})
+
+	// 处理通用选项 - 客户端订单ID统一使用 ClientOrderID
+	if options.ClientOrderID != nil {
+		params["clientOrderId"] = *options.ClientOrderID
+	}
+
+	// 处理 Binance 特定选项
+	if options.PositionSide != nil {
+		params["positionSide"] = string(*options.PositionSide)
+	}
+	if options.ReduceOnly != nil {
+		params["reduceOnly"] = *options.ReduceOnly
+	}
+	if options.QuoteOrderQty != nil {
+		params["quoteOrderQty"] = *options.QuoteOrderQty
+	}
+
+	// 合并扩展参数
+	for k, v := range options.ExtraParams {
+		params[k] = v
 	}
 
 	// 获取市场信息以判断使用哪个API
@@ -694,7 +723,8 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 		// 如果 params 中明确指定了 positionSide，则使用它
 		// 否则不设置（one-way mode）
 		if positionSide, ok := params["positionSide"].(string); ok && positionSide != "" {
-			reqParams["positionSide"] = strings.ToUpper(positionSide)
+			// 使用 PositionSide 类型进行大小写转换
+			reqParams["positionSide"] = types.PositionSide(positionSide).Upper()
 		}
 		// 处理 reduceOnly 参数
 		if reduceOnly, ok := params["reduceOnly"].(bool); ok && reduceOnly {
@@ -719,15 +749,13 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 	}
 
 	// 生成客户端订单ID（如果未提供）
-	// Binance 使用 newClientOrderId 参数，也支持 clientOrderId 作为别名
-	if _, hasNewClientOrderId := params["newClientOrderId"]; !hasNewClientOrderId {
-		if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
-			// 如果用户提供了 clientOrderId，使用它
-			reqParams["newClientOrderId"] = clientOrderId
-		} else {
-			// 如果都没有提供，自动生成
-			reqParams["newClientOrderId"] = common.GenerateClientOrderID(b.Name(), side)
-		}
+	// Binance 使用 newClientOrderId 参数
+	if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
+		// 如果用户提供了 clientOrderId，使用它
+		reqParams["newClientOrderId"] = clientOrderId
+	} else {
+		// 如果未提供，自动生成
+		reqParams["newClientOrderId"] = common.GenerateClientOrderID(b.Name(), side)
 	}
 
 	// 处理其他参数（排除已处理的参数）

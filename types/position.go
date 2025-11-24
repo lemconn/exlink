@@ -1,6 +1,9 @@
 package types
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 // PositionSide 持仓方向
 type PositionSide string
@@ -9,6 +12,22 @@ const (
 	PositionSideLong  PositionSide = "long"  // 多头
 	PositionSideShort PositionSide = "short" // 空头
 )
+
+func (s PositionSide) Upper() string {
+	return strings.ToUpper(string(s))
+}
+
+func (s PositionSide) Lower() string {
+	return strings.ToLower(string(s))
+}
+
+func (s PositionSide) IsLong() bool {
+	return s == PositionSideLong
+}
+
+func (s PositionSide) IsShort() bool {
+	return s == PositionSideShort
+}
 
 // Position 持仓信息（用于合约）
 type Position struct {

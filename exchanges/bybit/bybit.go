@@ -741,9 +741,23 @@ func (b *Bybit) FetchBalance(ctx context.Context) (types.Balances, error) {
 }
 
 // CreateOrder 创建订单
-func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, params map[string]interface{}) (*types.Order, error) {
+func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, opts ...types.OrderOption) (*types.Order, error) {
 	if b.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
+	}
+
+	// 解析选项并转换为 params map
+	options := types.ApplyOrderOptions(opts...)
+	params := make(map[string]interface{})
+
+	// 处理通用选项 - 客户端订单ID统一使用 ClientOrderID
+	if options.ClientOrderID != nil {
+		params["clientOrderId"] = *options.ClientOrderID
+	}
+
+	// 合并扩展参数
+	for k, v := range options.ExtraParams {
+		params[k] = v
 	}
 
 	market, err := b.GetMarket(symbol)
@@ -833,15 +847,13 @@ func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.Order
 	}
 
 	// 生成客户端订单ID（如果未提供）
-	// Bybit 使用 orderLinkId 参数，也支持 clientOrderId 作为别名
-	if _, hasOrderLinkId := params["orderLinkId"]; !hasOrderLinkId {
-		if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
-			// 如果用户提供了 clientOrderId，使用它
-			reqBody["orderLinkId"] = clientOrderId
-		} else {
-			// 如果都没有提供，自动生成
-			reqBody["orderLinkId"] = common.GenerateClientOrderID(b.Name(), side)
-		}
+	// Bybit 使用 orderLinkId 参数
+	if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
+		// 如果用户提供了 clientOrderId，使用它
+		reqBody["orderLinkId"] = clientOrderId
+	} else {
+		// 如果未提供，自动生成
+		reqBody["orderLinkId"] = common.GenerateClientOrderID(b.Name(), side)
 	}
 
 	// 合并额外参数（排除已处理的参数）
