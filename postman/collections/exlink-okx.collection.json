@@ -357,6 +357,50 @@
 			}
 		},
 		{
+			"name": "Spot - Get Ticker",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/market/ticker?instId=BTC-USDT",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"market",
+						"ticker"
+					],
+					"query": [
+						{
+							"key": "instId",
+							"value": "BTC-USDT",
+							"description": "Instrument ID, e.g., BTC-USDT for spot",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get ticker information for spot market. Returns bid price, ask price, last price, open price, high price, low price, volume, and quote volume. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
 			"name": "Swap - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
@@ -760,6 +804,50 @@
 					]
 				},
 				"description": "Get contract positions. Returns position information including size, entry price, mark price, unrealized PnL, leverage, and margin. Optional instType and instId parameters to filter positions."
+			}
+		},
+		{
+			"name": "Swap - Get Ticker",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/market/ticker?instId=BTC-USDT-SWAP",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"market",
+						"ticker"
+					],
+					"query": [
+						{
+							"key": "instId",
+							"value": "BTC-USDT-SWAP",
+							"description": "Instrument ID, e.g., BTC-USDT-SWAP for perpetual swap",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get ticker information for perpetual swap (futures) market. Returns bid price, ask price, last price, open price, high price, low price, volume, and quote volume. This is a public endpoint and does not require authentication."
 			}
 		}
 	]
