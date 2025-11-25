@@ -581,7 +581,7 @@
 			}
 		},
 		{
-			"name": "Spot - GetSymbols",
+			"name": "Spot - Get Markets",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -624,7 +624,7 @@
 			}
 		},
 		{
-			"name": "Spot - GetSymbol",
+			"name": "Spot - Get Market",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1688,7 +1688,7 @@
 			}
 		},
 		{
-			"name": "Swap - GetSymbols",
+			"name": "Swap - Get Markets",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1709,13 +1709,13 @@
 					}
 				},
 				"url": {
-					"raw": "{{binance_fapi_base_url}}/fapi/v3/exchangeInfo?showPermissionSets=false",
+					"raw": "{{binance_fapi_base_url}}/fapi/v1/exchangeInfo?showPermissionSets=false",
 					"host": [
 						"{{binance_fapi_base_url}}"
 					],
 					"path": [
 						"fapi",
-						"v3",
+						"v1",
 						"exchangeInfo"
 					],
 					"query": [
@@ -1731,7 +1731,7 @@
 			}
 		},
 		{
-			"name": "Swap - GetSymbol",
+			"name": "Swap - Get Market",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1752,13 +1752,13 @@
 					}
 				},
 				"url": {
-					"raw": "{{binance_fapi_base_url}}/fapi/v3/exchangeInfo?symbol=BTCUSDT&showPermissionSets=false",
+					"raw": "{{binance_fapi_base_url}}/fapi/v1/exchangeInfo?symbol=BTCUSDT&showPermissionSets=false",
 					"host": [
 						"{{binance_fapi_base_url}}"
 					],
 					"path": [
 						"fapi",
-						"v3",
+						"v1",
 						"exchangeInfo"
 					],
 					"query": [
