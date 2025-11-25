@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -234,7 +235,7 @@ func (o *OKX) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
 			SettleCcy string `json:"settleCcy"`
 			Uly       string `json:"uly"`    // underlying，用于合约市场
 			CtType    string `json:"ctType"` // linear, inverse
-			CtVal     string `json:"ctVal"`   // 合约面值（1张合约等于多少个币）
+			CtVal     string `json:"ctVal"`  // 合约面值（1张合约等于多少个币）
 			State     string `json:"state"`
 			MinSz     string `json:"minSz"`
 			MaxSz     string `json:"maxSz"`
@@ -644,7 +645,7 @@ func (o *OKX) FetchBalance(ctx context.Context) (types.Balances, error) {
 }
 
 // CreateOrder 创建订单
-func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, opts ...types.OrderOption) (*types.Order, error) {
+func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
 	if o.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
 	}
@@ -656,6 +657,17 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 	// 处理通用选项 - 客户端订单ID统一使用 ClientOrderID
 	if options.ClientOrderID != nil {
 		params["clientOrderId"] = *options.ClientOrderID
+	}
+
+	// 判断订单类型：如果 options.Price 设置了且不为空，则为限价单，否则为市价单
+	var orderType types.OrderType
+	var priceStr string
+	if options.Price != nil && *options.Price != "" {
+		orderType = types.OrderTypeLimit
+		priceStr = *options.Price
+	} else {
+		orderType = types.OrderTypeMarket
+		priceStr = ""
 	}
 
 	// 处理 OKX 特定选项
@@ -683,20 +695,6 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 		return nil, fmt.Errorf("get market ID: %w", err)
 	}
 
-	// 解析 amount 和 price 字符串为 float64 用于计算
-	amountFloat, err := strconv.ParseFloat(amount, 64)
-	if err != nil {
-		return nil, fmt.Errorf("invalid amount: %w", err)
-	}
-
-	var priceFloat float64
-	if price != "" {
-		priceFloat, err = strconv.ParseFloat(price, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid price: %w", err)
-		}
-	}
-
 	// 确定交易模式
 	tdMode := "cash" // 现货
 	if market.Contract {
@@ -709,14 +707,23 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 	// 对于合约订单，如果存在合约乘数，需要将币数量转换为张数
 	sz := amount
 	if market.Contract && market.ContractMultiplier > 0 {
+		// 使用 math/big 进行精确计算
 		// 转换公式：张数 = 币的个数 / ctVal
-		contractSize := amountFloat / market.ContractMultiplier
+		amountBig := new(big.Float).SetPrec(256)
+		amountBig, _, err = amountBig.Parse(amount, 10)
+		if err != nil {
+			return nil, fmt.Errorf("invalid amount: %w", err)
+		}
+		multiplierBig := new(big.Float).SetFloat64(market.ContractMultiplier)
+		contractSizeBig := new(big.Float).Quo(amountBig, multiplierBig)
+
 		// 格式化精度，使用合约的精度要求
 		szPrecision := market.Precision.Amount
 		if szPrecision == 0 {
 			szPrecision = 8 // 默认精度
 		}
-		sz = strconv.FormatFloat(contractSize, 'f', szPrecision, 64)
+		contractSizeFloat, _ := contractSizeBig.Float64()
+		sz = strconv.FormatFloat(contractSizeFloat, 'f', szPrecision, 64)
 	}
 
 	reqBody := map[string]interface{}{
@@ -738,7 +745,7 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 	}
 
 	if orderType == types.OrderTypeLimit {
-		reqBody["px"] = price // 直接使用字符串
+		reqBody["px"] = priceStr // 直接使用字符串
 	}
 
 	// 生成客户端订单ID（如果未提供）
@@ -807,6 +814,13 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 			errMsg = result.Msg
 		}
 		return nil, fmt.Errorf("okx api error: %s (code: %s)", errMsg, data.SCode)
+	}
+
+	// 解析 amount 和 price 字符串为 float64 用于设置 Order 字段
+	amountFloat, _ := strconv.ParseFloat(amount, 64)
+	var priceFloat float64
+	if priceStr != "" {
+		priceFloat, _ = strconv.ParseFloat(priceStr, 64)
 	}
 
 	order := &types.Order{

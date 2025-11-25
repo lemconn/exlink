@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 
 	"github.com/lemconn/exlink"
 	"github.com/lemconn/exlink/base"
@@ -68,7 +67,7 @@ func main() {
 	}
 	fmt.Printf("Current spot price: %s\n", ticker.Last)
 
-	amount := 0.001 // Order quantity (adjust according to actual situation)
+	amount := "0.001" // Order quantity (adjust according to actual situation)
 
 	// ========== Contract Trading Examples ==========
 	fmt.Println("=== Contract Trading Examples ===")
@@ -102,9 +101,9 @@ func main() {
 }
 
 // openLongPosition opens a long position (buy to open long)
-func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
+func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
 	// Bybit uses reduceOnly=false to open position (if supported)
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", types.WithExtraParam("reduceOnly", false))
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithExtraParam("reduceOnly", false))
 	if err != nil {
 		fmt.Printf("Failed to open long position: %v", err)
 	} else {
@@ -114,9 +113,9 @@ func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string
 }
 
 // closeLongPosition closes a long position (sell to close long)
-func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
+func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
 	// Bybit uses reduceOnly=true to close position (if supported)
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", types.WithExtraParam("reduceOnly", true))
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithExtraParam("reduceOnly", true))
 	if err != nil {
 		fmt.Printf("Failed to close long position: %v", err)
 	} else {
@@ -126,9 +125,9 @@ func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol strin
 }
 
 // openShortPosition opens a short position (sell to open short)
-func openShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
+func openShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
 	// Bybit uses reduceOnly=false to open position (if supported)
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", types.WithExtraParam("reduceOnly", false))
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithExtraParam("reduceOnly", false))
 	if err != nil {
 		fmt.Printf("Failed to open short position: %v", err)
 	} else {
@@ -138,9 +137,9 @@ func openShortPosition(ctx context.Context, exchange base.Exchange, symbol strin
 }
 
 // closeShortPosition closes a short position (buy to close short)
-func closeShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
+func closeShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
 	// Bybit uses reduceOnly=true to close position (if supported)
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0", types.WithExtraParam("reduceOnly", true))
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithExtraParam("reduceOnly", true))
 	if err != nil {
 		fmt.Printf("Failed to close short position: %v", err)
 	} else {
@@ -150,8 +149,8 @@ func closeShortPosition(ctx context.Context, exchange base.Exchange, symbol stri
 }
 
 // buySpot buys spot assets
-func buySpot(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0")
+func buySpot(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount)
 	if err != nil {
 		fmt.Printf("Failed to buy spot: %v", err)
 	} else {
@@ -161,8 +160,8 @@ func buySpot(ctx context.Context, exchange base.Exchange, symbol string, amount 
 }
 
 // sellSpot sells spot assets
-func sellSpot(ctx context.Context, exchange base.Exchange, symbol string, amount float64) {
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, types.OrderTypeMarket, strconv.FormatFloat(amount, 'f', -1, 64), "0")
+func sellSpot(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount)
 	if err != nil {
 		fmt.Printf("Failed to sell spot: %v", err)
 	} else {
