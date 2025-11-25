@@ -22,7 +22,7 @@ type Exchange interface {
 	FetchBalance(ctx context.Context) (types.Balances, error) // 获取余额
 
 	// 订单操作
-	CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, opts ...types.OrderOption) (*types.Order, error) // 创建订单
+	CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) // 创建订单
 	CancelOrder(ctx context.Context, orderID, symbol string) error                                                                                                               // 取消订单
 	FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error)                                                                                                // 查询订单
 	FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error)                                                                          // 查询订单列表

@@ -148,8 +148,8 @@ import (
     "github.com/lemconn/exlink/types"
 )
 
-// Create a limit order
-order, err := exchange.CreateOrder(ctx, "BTC/USDT", types.OrderSideBuy, types.OrderTypeLimit, "0.001", "50000", nil)
+// Create a limit order (with price option, it becomes a limit order)
+order, err := exchange.CreateOrder(ctx, "BTC/USDT", types.OrderSideBuy, "0.001", types.WithPrice("50000"))
 if err != nil {
     log.Fatal(err)
 }

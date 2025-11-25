@@ -622,7 +622,7 @@ func (b *Binance) FetchBalance(ctx context.Context) (types.Balances, error) {
 // CreateOrder 创建订单
 // 参考: https://developers.binance.com/docs/binance-spot-api-docs/rest-api/trading-endpoints#new-order-trade
 // 参考: https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/New-Order
-func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, opts ...types.OrderOption) (*types.Order, error) {
+func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
 	if b.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
 	}
@@ -634,6 +634,17 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 	// 处理通用选项 - 客户端订单ID统一使用 ClientOrderID
 	if options.ClientOrderID != nil {
 		params["clientOrderId"] = *options.ClientOrderID
+	}
+
+	// 判断订单类型：如果 options.Price 设置了且不为空，则为限价单，否则为市价单
+	var orderType types.OrderType
+	var priceStr string
+	if options.Price != nil && *options.Price != "" {
+		orderType = types.OrderTypeLimit
+		priceStr = *options.Price
+	} else {
+		orderType = types.OrderTypeMarket
+		priceStr = ""
 	}
 
 	// 处理 Binance 特定选项
@@ -664,15 +675,16 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 		return nil, fmt.Errorf("get market ID: %w", err)
 	}
 
-	// 解析 amount 和 price 字符串为 float64 用于计算
+	// 解析 amount 字符串为 float64 用于计算
 	amountFloat, err := strconv.ParseFloat(amount, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid amount: %w", err)
 	}
 
+	// 解析 price 字符串为 float64 用于计算（如果存在）
 	var priceFloat float64
-	if price != "" {
-		priceFloat, err = strconv.ParseFloat(price, 64)
+	if priceStr != "" {
+		priceFloat, err = strconv.ParseFloat(priceStr, 64)
 		if err != nil {
 			return nil, fmt.Errorf("invalid price: %w", err)
 		}
@@ -844,15 +856,15 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 	}
 
 	// 提取价格
-	priceStr := "0"
+	responsePriceStr := "0"
 	if p, ok := data["price"].(string); ok {
-		priceStr = p
+		responsePriceStr = p
 	}
 
 	// 解析数量
 	origQty, _ := strconv.ParseFloat(origQtyStr, 64)
 	executedQty, _ := strconv.ParseFloat(executedQtyStr, 64)
-	orderPrice, _ := strconv.ParseFloat(priceStr, 64)
+	orderPrice, _ := strconv.ParseFloat(responsePriceStr, 64)
 
 	// 如果响应中没有 origQty，使用传入的 amount
 	if origQty == 0 {

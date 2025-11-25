@@ -130,6 +130,7 @@ type OrderOption func(*orderOptions)
 type orderOptions struct {
 	// 通用选项
 	ClientOrderID *string // 客户端订单ID（所有交易所通用）
+	Price         *string // 订单价格（限价单，如果设置则为限价单，未设置则为市价单）
 
 	// Binance 特定选项
 	PositionSide  *PositionSide // 持仓方向 (LONG/SHORT，仅 hedge mode)
@@ -144,10 +145,10 @@ type orderOptions struct {
 	TgtCcy *string // 目标货币 (base_ccy/quote_ccy，现货订单)
 
 	// Gate 特定选项
-	Size        *int64   // 合约数量（合约订单）
-	TIF         *string  // 时间有效性（合约订单：gtc/ioc/fok）
-	TimeInForce *string  // 时间有效性（现货订单：ioc/fok）
-	Cost        *float64 // 成本（现货市价买入）
+	Size        *int64                // 合约数量（合约订单）
+	TIF         *OrderTimeInForceType // 时间有效性（合约订单：gtc/ioc/fok）
+	TimeInForce *OrderTimeInForceType // 时间有效性（现货订单：ioc/fok）
+	Cost        *float64              // 成本（现货市价买入）
 
 	// 扩展参数（用于处理其他未定义的参数）
 	ExtraParams map[string]interface{}
@@ -157,6 +158,13 @@ type orderOptions struct {
 func WithClientOrderID(id string) OrderOption {
 	return func(opts *orderOptions) {
 		opts.ClientOrderID = &id
+	}
+}
+
+// WithPrice 设置订单价格（通用，如果设置则为限价单，未设置则为市价单）
+func WithPrice(price string) OrderOption {
+	return func(opts *orderOptions) {
+		opts.Price = &price
 	}
 }
 
@@ -203,14 +211,14 @@ func WithSize(size int64) OrderOption {
 }
 
 // WithTIF 设置时间有效性（Gate 合约订单：gtc/ioc/fok）
-func WithTIF(tif string) OrderOption {
+func WithTIF(tif OrderTimeInForceType) OrderOption {
 	return func(opts *orderOptions) {
 		opts.TIF = &tif
 	}
 }
 
 // WithTimeInForce 设置时间有效性（Gate 现货订单：ioc/fok）
-func WithTimeInForce(timeInForce string) OrderOption {
+func WithTimeInForce(timeInForce OrderTimeInForceType) OrderOption {
 	return func(opts *orderOptions) {
 		opts.TimeInForce = &timeInForce
 	}

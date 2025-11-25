@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -750,7 +751,7 @@ func (g *Gate) FetchBalance(ctx context.Context) (types.Balances, error) {
 }
 
 // CreateOrder 创建订单
-func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, orderType types.OrderType, amount, price string, opts ...types.OrderOption) (*types.Order, error) {
+func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
 	if g.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
 	}
@@ -764,6 +765,17 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 		params["clientOrderId"] = *options.ClientOrderID
 	}
 
+	// 判断订单类型：如果 options.Price 设置了且不为空，则为限价单，否则为市价单
+	var orderType types.OrderType
+	var priceStr string
+	if options.Price != nil && *options.Price != "" {
+		orderType = types.OrderTypeLimit
+		priceStr = *options.Price
+	} else {
+		orderType = types.OrderTypeMarket
+		priceStr = ""
+	}
+
 	// 处理 Gate 特定选项
 	if options.Size != nil {
 		params["size"] = *options.Size
@@ -772,10 +784,12 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 		params["reduce_only"] = *options.ReduceOnly
 	}
 	if options.TIF != nil {
-		params["tif"] = *options.TIF
+		// futures order
+		params["tif"] = options.TIF.Lower()
 	}
 	if options.TimeInForce != nil {
-		params["time_in_force"] = *options.TimeInForce
+		// spot order
+		params["time_in_force"] = options.TimeInForce.Lower()
 	}
 	if options.Cost != nil {
 		params["cost"] = *options.Cost
@@ -796,15 +810,16 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 		return nil, fmt.Errorf("get market ID: %w", err)
 	}
 
-	// 解析 amount 和 price 字符串为 float64 用于计算
+	// 解析 amount 字符串为 float64 用于计算
 	amountFloat, err := strconv.ParseFloat(amount, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid amount: %w", err)
 	}
 
+	// 解析 price 字符串为 float64 用于计算（如果存在）
 	var priceFloat float64
-	if price != "" {
-		priceFloat, err = strconv.ParseFloat(price, 64)
+	if priceStr != "" {
+		priceFloat, err = strconv.ParseFloat(priceStr, 64)
 		if err != nil {
 			return nil, fmt.Errorf("invalid price: %w", err)
 		}
@@ -866,7 +881,7 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 				// 向后兼容：如果没有合约乘数，直接使用 amount
 				contractSize = amountFloat
 			}
-			
+
 			// 转换为整数（使用 math.Ceil 确保至少为 1（对于正数）或 -1（对于负数））
 			var sizeInt int64
 			if contractSize >= 0 {
@@ -874,7 +889,7 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 			} else {
 				sizeInt = int64(math.Min(-1, math.Floor(contractSize)))
 			}
-			
+
 			if side == types.OrderSideBuy {
 				size = sizeInt // 正数表示买入
 			} else {
@@ -939,16 +954,40 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 				// 如果有 cost 参数，使用 cost；否则使用 amount * price 计算 cost
 				if cost, ok := params["cost"].(float64); ok {
 					reqBody["amount"] = strconv.FormatFloat(cost, 'f', -1, 64)
-				} else if priceFloat > 0 {
-					cost := amountFloat * priceFloat
-					reqBody["amount"] = strconv.FormatFloat(cost, 'f', -1, 64)
+				} else if priceStr != "" {
+					// 使用 math/big 进行精确计算
+					amountBig := new(big.Float).SetPrec(256)
+					amountBig, _, err = amountBig.Parse(amount, 10)
+					if err != nil {
+						return nil, fmt.Errorf("invalid amount: %w", err)
+					}
+					priceBig := new(big.Float).SetPrec(256)
+					priceBig, _, err = priceBig.Parse(priceStr, 10)
+					if err != nil {
+						return nil, fmt.Errorf("invalid price: %w", err)
+					}
+					costBig := new(big.Float).Mul(amountBig, priceBig)
+					costFloat, _ := costBig.Float64()
+					reqBody["amount"] = strconv.FormatFloat(costFloat, 'f', -1, 64)
 				} else {
 					// 如果没有价格，尝试获取当前价格
 					ticker, err := g.FetchTicker(ctx, symbol)
 					if err == nil && ticker.Last != "" {
-						if lastPrice, parseErr := strconv.ParseFloat(ticker.Last, 64); parseErr == nil && lastPrice > 0 {
-							cost := amountFloat * lastPrice
-							reqBody["amount"] = strconv.FormatFloat(cost, 'f', -1, 64)
+						// 使用 math/big 进行精确计算
+						amountBig := new(big.Float).SetPrec(256)
+						amountBig, _, err = amountBig.Parse(amount, 10)
+						if err == nil {
+							lastPriceBig := new(big.Float).SetPrec(256)
+							lastPriceBig, _, err = lastPriceBig.Parse(ticker.Last, 10)
+							if err == nil {
+								costBig := new(big.Float).Mul(amountBig, lastPriceBig)
+								costFloat, _ := costBig.Float64()
+								reqBody["amount"] = strconv.FormatFloat(costFloat, 'f', -1, 64)
+							} else {
+								reqBody["amount"] = strconv.FormatFloat(amountFloat, 'f', -1, 64)
+							}
+						} else {
+							reqBody["amount"] = strconv.FormatFloat(amountFloat, 'f', -1, 64)
 						}
 					} else {
 						reqBody["amount"] = strconv.FormatFloat(amountFloat, 'f', -1, 64)
