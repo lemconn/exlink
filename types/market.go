@@ -21,6 +21,7 @@ type Market struct {
 	Linear    bool       `json:"linear,omitempty"`   // 是否为线性合约（U本位）
 	Inverse   bool       `json:"inverse,omitempty"`  // 是否为反向合约（币本位）
 	Contract  bool       `json:"contract,omitempty"` // 是否为合约市场
+	ContractMultiplier float64  `json:"contract_multiplier,omitempty"` // 合约乘数（1张合约等于多少个币），仅合约市场有效
 	Precision struct {
 		Amount int `json:"amount"` // 数量精度
 		Price  int `json:"price"`  // 价格精度

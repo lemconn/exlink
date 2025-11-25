@@ -326,7 +326,7 @@
 			}
 		},
 		{
-			"name": "Spot - GetSymbols",
+			"name": "Spot - Get Markets",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -362,7 +362,7 @@
 			}
 		},
 		{
-			"name": "Spot - GetSymbol",
+			"name": "Spot - Get Market",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -763,7 +763,7 @@
 			}
 		},
 		{
-			"name": "Swap - GetSymbols",
+			"name": "Swap - Get Markets",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -800,7 +800,7 @@
 			}
 		},
 		{
-			"name": "Swap - GetSymbol",
+			"name": "Swap - Get Market",
 			"request": {
 				"method": "GET",
 				"header": [

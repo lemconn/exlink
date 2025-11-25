@@ -33,6 +33,7 @@ func main() {
 		exlink.WithSecretKey(secretKey),
 		exlink.WithProxy(proxyURL),
 		exlink.WithSandbox(true), // Sandbox mode
+		exlink.WithFetchMarkets(exlink.MarketFuture, exlink.MarketSpot),
 	}
 
 	exchange, err := exlink.NewExchange(exlink.ExchangeBybit, opts...)

@@ -234,6 +234,7 @@ func (o *OKX) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
 			SettleCcy string `json:"settleCcy"`
 			Uly       string `json:"uly"`    // underlying，用于合约市场
 			CtType    string `json:"ctType"` // linear, inverse
+			CtVal     string `json:"ctVal"`   // 合约面值（1张合约等于多少个币）
 			State     string `json:"state"`
 			MinSz     string `json:"minSz"`
 			MaxSz     string `json:"maxSz"`
@@ -339,6 +340,11 @@ func (o *OKX) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
 			if len(parts) > 1 {
 				market.Precision.Price = len(strings.TrimRight(parts[1], "0"))
 			}
+		}
+
+		// 解析合约乘数（ctVal：1张合约等于多少个币）
+		if item.CtVal != "" {
+			market.ContractMultiplier, _ = strconv.ParseFloat(item.CtVal, 64)
 		}
 
 		markets = append(markets, market)
@@ -700,12 +706,25 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 		}
 	}
 
+	// 对于合约订单，如果存在合约乘数，需要将币数量转换为张数
+	sz := amount
+	if market.Contract && market.ContractMultiplier > 0 {
+		// 转换公式：张数 = 币的个数 / ctVal
+		contractSize := amountFloat / market.ContractMultiplier
+		// 格式化精度，使用合约的精度要求
+		szPrecision := market.Precision.Amount
+		if szPrecision == 0 {
+			szPrecision = 8 // 默认精度
+		}
+		sz = strconv.FormatFloat(contractSize, 'f', szPrecision, 64)
+	}
+
 	reqBody := map[string]interface{}{
 		"instId":  okxSymbol,
 		"tdMode":  tdMode,
 		"side":    strings.ToLower(string(side)),
 		"ordType": strings.ToLower(string(orderType)),
-		"sz":      amount, // 直接使用字符串
+		"sz":      sz,
 	}
 
 	// 对于现货交易，需要设置 tgtCcy 参数

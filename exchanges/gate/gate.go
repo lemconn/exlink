@@ -247,6 +247,11 @@ func (g *Gate) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
 		market.Limits.Amount.Min = float64(s.OrderSizeMin)
 		market.Limits.Amount.Max = float64(s.OrderSizeMax)
 
+		// 解析合约乘数（quanto_multiplier：1张合约等于多少个币）
+		if s.QuantoMultiplier != "" {
+			market.ContractMultiplier, _ = strconv.ParseFloat(s.QuantoMultiplier, 64)
+		}
+
 		markets = append(markets, market)
 	}
 
@@ -851,17 +856,29 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 				return nil, fmt.Errorf("invalid size parameter type")
 			}
 		} else {
-			// 根据 side 和 amount 计算 size（使用 math.Ceil 确保至少为 1）
-			var amountInt int64
-			if amountFloat >= 0 {
-				amountInt = int64(math.Max(1, math.Ceil(amountFloat)))
+			// 根据 side 和 amount 计算 size
+			// 如果存在合约乘数，需要将币数量转换为张数
+			var contractSize float64
+			if market.ContractMultiplier > 0 {
+				// 转换公式：张数 = 币的个数 / quanto_multiplier
+				contractSize = amountFloat / market.ContractMultiplier
 			} else {
-				amountInt = int64(math.Min(-1, math.Floor(amountFloat)))
+				// 向后兼容：如果没有合约乘数，直接使用 amount
+				contractSize = amountFloat
 			}
-			if side == types.OrderSideBuy {
-				size = amountInt // 正数表示买入
+			
+			// 转换为整数（使用 math.Ceil 确保至少为 1（对于正数）或 -1（对于负数））
+			var sizeInt int64
+			if contractSize >= 0 {
+				sizeInt = int64(math.Max(1, math.Ceil(contractSize)))
 			} else {
-				size = -amountInt // 负数表示卖出
+				sizeInt = int64(math.Min(-1, math.Floor(contractSize)))
+			}
+			
+			if side == types.OrderSideBuy {
+				size = sizeInt // 正数表示买入
+			} else {
+				size = -sizeInt // 负数表示卖出
 			}
 		}
 		// Gate 合约订单的 size 可以是正数（买入）或负数（卖出）
