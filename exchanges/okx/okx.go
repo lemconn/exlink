@@ -306,16 +306,17 @@ func (o *OKX) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
 		normalizedSymbol := common.NormalizeContractSymbol(baseCcy, quoteCcy, settle)
 
 		market := &types.Market{
-			ID:       item.InstID,
-			Symbol:   normalizedSymbol,
-			Base:     baseCcy,
-			Quote:    quoteCcy,
-			Settle:   settle,
-			Type:     types.MarketTypeSwap,
-			Active:   item.State == "live",
-			Contract: true,
-			Linear:   item.CtType == "linear",  // U本位
-			Inverse:  item.CtType == "inverse", // 币本位
+			ID:            item.InstID,
+			Symbol:        normalizedSymbol,
+			Base:          baseCcy,
+			Quote:         quoteCcy,
+			Settle:        settle,
+			Type:          types.MarketTypeSwap,
+			Active:        item.State == "live",
+			Contract:      true,
+			ContractValue: item.CtVal,               // 合约面值（每张合约等于多少个币）
+			Linear:        item.CtType == "linear",  // U本位
+			Inverse:       item.CtType == "inverse", // 币本位
 		}
 
 		// 解析精度和限制
@@ -341,11 +342,6 @@ func (o *OKX) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
 			if len(parts) > 1 {
 				market.Precision.Price = len(strings.TrimRight(parts[1], "0"))
 			}
-		}
-
-		// 解析合约乘数（ctVal：1张合约等于多少个币）
-		if item.CtVal != "" {
-			market.ContractMultiplier, _ = strconv.ParseFloat(item.CtVal, 64)
 		}
 
 		markets = append(markets, market)
@@ -705,8 +701,12 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 	}
 
 	// 对于合约订单，如果存在合约乘数，需要将币数量转换为张数
+	exContractValue, ok := new(big.Float).SetString(market.ContractValue)
+	if !ok {
+		return nil, fmt.Errorf("invalid contract value: %s", market.ContractValue)
+	}
 	sz := amount
-	if market.Contract && market.ContractMultiplier > 0 {
+	if market.Contract && exContractValue.Cmp(big.NewFloat(0.0)) > 0 {
 		// 使用 math/big 进行精确计算
 		// 转换公式：张数 = 币的个数 / ctVal
 		amountBig := new(big.Float).SetPrec(256)
@@ -714,7 +714,7 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 		if err != nil {
 			return nil, fmt.Errorf("invalid amount: %w", err)
 		}
-		multiplierBig := new(big.Float).SetFloat64(market.ContractMultiplier)
+		multiplierBig := exContractValue
 		contractSizeBig := new(big.Float).Quo(amountBig, multiplierBig)
 
 		// 格式化精度，使用合约的精度要求

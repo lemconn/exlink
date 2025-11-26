@@ -227,16 +227,17 @@ func (g *Gate) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
 		normalizedSymbol := common.NormalizeContractSymbol(base, quote, strings.ToUpper(settle))
 
 		market := &types.Market{
-			ID:       s.Name,
-			Symbol:   normalizedSymbol,
-			Base:     base,
-			Quote:    quote,
-			Settle:   strings.ToUpper(settle),
-			Type:     types.MarketTypeSwap,
-			Active:   !s.InDelisting,
-			Contract: true,
-			Linear:   true, // U本位永续合约
-			Inverse:  false,
+			ID:            s.Name,
+			Symbol:        normalizedSymbol,
+			Base:          base,
+			Quote:         quote,
+			Settle:        strings.ToUpper(settle),
+			Type:          types.MarketTypeSwap,
+			Active:        !s.InDelisting,
+			Contract:      true,
+			ContractValue: s.QuantoMultiplier, // 合约面值（每张合约等于多少个币）
+			Linear:        true,               // U本位永续合约
+			Inverse:       false,
 		}
 
 		// 解析精度
@@ -247,11 +248,6 @@ func (g *Gate) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
 		// 解析限制
 		market.Limits.Amount.Min = float64(s.OrderSizeMin)
 		market.Limits.Amount.Max = float64(s.OrderSizeMax)
-
-		// 解析合约乘数（quanto_multiplier：1张合约等于多少个币）
-		if s.QuantoMultiplier != "" {
-			market.ContractMultiplier, _ = strconv.ParseFloat(s.QuantoMultiplier, 64)
-		}
 
 		markets = append(markets, market)
 	}
@@ -873,21 +869,25 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 		} else {
 			// 根据 side 和 amount 计算 size
 			// 如果存在合约乘数，需要将币数量转换为张数
-			var contractSize float64
-			if market.ContractMultiplier > 0 {
+			exContractValue, ok := new(big.Float).SetString(market.ContractValue)
+			if !ok {
+				return nil, fmt.Errorf("invalid contract value: %s", market.ContractValue)
+			}
+			contractSize := new(big.Float)
+			if exContractValue.Cmp(big.NewFloat(0.0)) > 0 {
 				// 转换公式：张数 = 币的个数 / quanto_multiplier
-				contractSize = amountFloat / market.ContractMultiplier
+				contractSize = exContractValue.Quo(big.NewFloat(amountFloat), exContractValue)
 			} else {
 				// 向后兼容：如果没有合约乘数，直接使用 amount
-				contractSize = amountFloat
+				contractSize = big.NewFloat(amountFloat)
 			}
 
 			// 转换为整数（使用 math.Ceil 确保至少为 1（对于正数）或 -1（对于负数））
 			var sizeInt int64
-			if contractSize >= 0 {
-				sizeInt = int64(math.Max(1, math.Ceil(contractSize)))
+			if contractSize.Cmp(big.NewFloat(0.0)) >= 0 {
+				sizeInt, _ = contractSize.Int64()
 			} else {
-				sizeInt = int64(math.Min(-1, math.Floor(contractSize)))
+				return nil, fmt.Errorf("invalid contract size: %d", sizeInt)
 			}
 
 			if side == types.OrderSideBuy {
