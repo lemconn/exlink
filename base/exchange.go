@@ -23,10 +23,10 @@ type Exchange interface {
 
 	// 订单操作
 	CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) // 创建订单
-	CancelOrder(ctx context.Context, orderID, symbol string) error                                                                                                               // 取消订单
-	FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error)                                                                                                // 查询订单
-	FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error)                                                                          // 查询订单列表
-	FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error)                                                                                                  // 查询未成交订单
+	CancelOrder(ctx context.Context, orderID, symbol string) error                                                                        // 取消订单
+	FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error)                                                         // 查询订单
+	FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error)                                   // 查询订单列表
+	FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error)                                                           // 查询未成交订单
 
 	// 交易记录
 	FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error)   // 获取交易记录
@@ -40,6 +40,10 @@ type Exchange interface {
 	// 工具方法
 	LoadMarkets(ctx context.Context, reload bool) error // 加载市场信息
 	GetMarket(symbol string) (*types.Market, error)     // 获取市场信息
+
+	// 双向持仓模式
+	SetHedgeMode(hedgeMode bool) // 设置是否为双向持仓模式
+	IsHedgeMode() bool           // 是否为双向持仓模式
 }
 
 // BaseExchange 交易所基础实现
@@ -95,6 +99,19 @@ func (e *BaseExchange) GetProxy() string {
 	return e.proxyURL
 }
 
+// SetHedgeMode 设置是否为双向持仓模式
+func (e *BaseExchange) SetHedgeMode(hedgeMode bool) {
+	e.options["hedgeMode"] = hedgeMode
+}
+
+// IsHedgeMode 是否为双向持仓模式
+func (e *BaseExchange) IsHedgeMode() bool {
+	if v, ok := e.options["hedgeMode"].(bool); ok {
+		return v
+	}
+	return false
+}
+
 // SetMarkets 设置市场信息
 func (e *BaseExchange) SetMarkets(markets []*types.Market) {
 	e.markets = make(map[string]*types.Market)
@@ -131,4 +148,3 @@ func (e *BaseExchange) GetMarketID(symbol string) (string, error) {
 	// 由于 BaseExchange 不知道具体的转换函数，我们返回错误，让具体交易所实现
 	return "", ErrMarketNotFound
 }
-

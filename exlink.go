@@ -32,7 +32,8 @@ const (
 type ExchangeOptions struct {
 	APIKey       string
 	SecretKey    string
-	Passphrase   string
+	Password     string // 密码（用于 OKX 等需要 password 的交易所）
+	HedgeMode    bool   // 是否为双向持仓模式（用于合约下单时控制参数）
 	Sandbox      bool
 	Proxy        string
 	BaseURL      string
@@ -58,10 +59,10 @@ func WithSecretKey(secretKey string) Option {
 	}
 }
 
-// WithPassphrase 设置 Passphrase（用于 OKX 等需要 passphrase 的交易所）
-func WithPassphrase(passphrase string) Option {
+// WithPassword 设置 Password（用于 OKX 等需要 password 的交易所）
+func WithPassword(password string) Option {
 	return func(opts *ExchangeOptions) {
-		opts.Passphrase = passphrase
+		opts.Password = password
 	}
 }
 
@@ -97,6 +98,13 @@ func WithFetchMarkets(markets ...types.MarketType) Option {
 func WithDebug(debug bool) Option {
 	return func(opts *ExchangeOptions) {
 		opts.Debug = debug
+	}
+}
+
+// WithHedgeMode 设置是否为双向持仓模式（用于合约下单时控制参数）
+func WithHedgeMode(hedgeMode bool) Option {
+	return func(opts *ExchangeOptions) {
+		opts.HedgeMode = hedgeMode
 	}
 }
 
@@ -171,8 +179,11 @@ func NewExchange(name string, opts ...Option) (base.Exchange, error) {
 		}
 		optionsMap["fetchMarkets"] = marketStrings
 	}
-	if options.Passphrase != "" {
-		optionsMap["passphrase"] = options.Passphrase
+	if options.Password != "" {
+		optionsMap["password"] = options.Password
+	}
+	if options.HedgeMode {
+		optionsMap["hedgeMode"] = options.HedgeMode
 	}
 	if options.Debug {
 		optionsMap["debug"] = options.Debug
@@ -193,6 +204,11 @@ func NewExchange(name string, opts ...Option) (base.Exchange, error) {
 	exchange, err := factory(options.APIKey, options.SecretKey, optionsMap)
 	if err != nil {
 		return nil, err
+	}
+
+	// 设置双向持仓模式
+	if options.HedgeMode {
+		exchange.SetHedgeMode(true)
 	}
 
 	// 加载市场信息
