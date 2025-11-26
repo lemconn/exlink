@@ -25,8 +25,8 @@ func getOKXSecretKey() string {
 	return os.Getenv("OKX_SECRET_KEY")
 }
 
-func getOKXPassphrase() string {
-	return os.Getenv("OKX_PASSPHRASE")
+func getOKXPassword() string {
+	return os.Getenv("OKX_PASSWORD")
 }
 
 func getOptions() map[string]interface{} {
@@ -37,8 +37,8 @@ func getOptions() map[string]interface{} {
 	if proxyURL := getProxyURL(); proxyURL != "" {
 		options["proxy"] = proxyURL
 	}
-	if passphrase := getOKXPassphrase(); passphrase != "" {
-		options["passphrase"] = passphrase
+	if password := getOKXPassword(); password != "" {
+		options["password"] = password
 	}
 	return options
 }
@@ -222,8 +222,8 @@ func TestOKX_CreateContractOrder_BuyOpenLong(t *testing.T) {
 	// Read API credentials from environment variables
 	apiKey := getOKXAPIKey()
 	secretKey := getOKXSecretKey()
-	passphrase := getOKXPassphrase()
-	if apiKey == "" || secretKey == "" || passphrase == "" {
+	password := getOKXPassword()
+	if apiKey == "" || secretKey == "" || password == "" {
 		t.Skip("OKX API credentials not set in environment variables")
 	}
 
@@ -287,8 +287,8 @@ func TestOKX_CreateContractOrder_SellCloseLong(t *testing.T) {
 	// Read API credentials from environment variables
 	apiKey := getOKXAPIKey()
 	secretKey := getOKXSecretKey()
-	passphrase := getOKXPassphrase()
-	if apiKey == "" || secretKey == "" || passphrase == "" {
+	password := getOKXPassword()
+	if apiKey == "" || secretKey == "" || password == "" {
 		t.Skip("OKX API credentials not set in environment variables")
 	}
 
@@ -352,8 +352,8 @@ func TestOKX_CreateContractOrder_SellOpenShort(t *testing.T) {
 	// Read API credentials from environment variables
 	apiKey := getOKXAPIKey()
 	secretKey := getOKXSecretKey()
-	passphrase := getOKXPassphrase()
-	if apiKey == "" || secretKey == "" || passphrase == "" {
+	password := getOKXPassword()
+	if apiKey == "" || secretKey == "" || password == "" {
 		t.Skip("OKX API credentials not set in environment variables")
 	}
 
@@ -417,8 +417,8 @@ func TestOKX_CreateContractOrder_BuyCloseShort(t *testing.T) {
 	// Read API credentials from environment variables
 	apiKey := getOKXAPIKey()
 	secretKey := getOKXSecretKey()
-	passphrase := getOKXPassphrase()
-	if apiKey == "" || secretKey == "" || passphrase == "" {
+	password := getOKXPassword()
+	if apiKey == "" || secretKey == "" || password == "" {
 		t.Skip("OKX API credentials not set in environment variables")
 	}
 
@@ -482,8 +482,8 @@ func TestOKX_FetchBalance(t *testing.T) {
 	// Read API credentials from environment variables
 	apiKey := getOKXAPIKey()
 	secretKey := getOKXSecretKey()
-	passphrase := getOKXPassphrase()
-	if apiKey == "" || secretKey == "" || passphrase == "" {
+	password := getOKXPassword()
+	if apiKey == "" || secretKey == "" || password == "" {
 		t.Skip("OKX API credentials not set in environment variables")
 	}
 
@@ -529,8 +529,8 @@ func TestOKX_CreateSpotOrder_Buy(t *testing.T) {
 	// Read API credentials from environment variables
 	apiKey := getOKXAPIKey()
 	secretKey := getOKXSecretKey()
-	passphrase := getOKXPassphrase()
-	if apiKey == "" || secretKey == "" || passphrase == "" {
+	password := getOKXPassword()
+	if apiKey == "" || secretKey == "" || password == "" {
 		t.Skip("OKX API credentials not set in environment variables")
 	}
 
@@ -593,8 +593,8 @@ func TestOKX_CreateSpotOrder_Sell(t *testing.T) {
 	// Read API credentials from environment variables
 	apiKey := getOKXAPIKey()
 	secretKey := getOKXSecretKey()
-	passphrase := getOKXPassphrase()
-	if apiKey == "" || secretKey == "" || passphrase == "" {
+	password := getOKXPassword()
+	if apiKey == "" || secretKey == "" || password == "" {
 		t.Skip("OKX API credentials not set in environment variables")
 	}
 

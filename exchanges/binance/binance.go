@@ -731,12 +731,19 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 
 	// 处理合约订单的特殊参数
 	if market.Contract && market.Linear {
+		// 检查是否为双向持仓模式（hedge mode）
+		hedgeMode := b.IsHedgeMode()
+
 		// 合约订单：处理 positionSide 参数（仅在 hedge mode 下需要）
 		// 如果 params 中明确指定了 positionSide，则使用它
-		// 否则不设置（one-way mode）
+		// 如果 hedgeMode == true 但未提供 positionSide，则报错
+		// 如果 hedgeMode == false，则不设置 positionSide（one-way mode）
 		if positionSide, ok := params["positionSide"].(string); ok && positionSide != "" {
 			// 使用 PositionSide 类型进行大小写转换
 			reqParams["positionSide"] = types.PositionSide(positionSide).Upper()
+		} else if hedgeMode {
+			// 双向持仓模式下，如果没有提供 positionSide，报错
+			return nil, fmt.Errorf("positionSide is required in hedge mode, use types.WithPositionSide() to specify")
 		}
 		// 处理 reduceOnly 参数
 		if reduceOnly, ok := params["reduceOnly"].(bool); ok && reduceOnly {

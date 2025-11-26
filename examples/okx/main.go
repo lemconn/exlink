@@ -16,13 +16,13 @@ func main() {
 	// Get API keys from environment variables (please set them in actual use)
 	apiKey := os.Getenv("OKX_API_KEY")
 	secretKey := os.Getenv("OKX_SECRET_KEY")
-	passphrase := os.Getenv("OKX_PASSPHRASE")
+	password := os.Getenv("OKX_PASSWORD")
 
 	// Get proxy URL from environment variable
 	proxyURL := os.Getenv("PROXY_URL")
 
-	if apiKey == "" || secretKey == "" || passphrase == "" {
-		fmt.Println("Warning: OKX_API_KEY, OKX_SECRET_KEY and OKX_PASSPHRASE environment variables are not set")
+	if apiKey == "" || secretKey == "" || password == "" {
+		fmt.Println("Warning: OKX_API_KEY, OKX_SECRET_KEY and OKX_PASSWORD environment variables are not set")
 		fmt.Println("Example code will demonstrate usage, but actual calls will fail")
 		return
 	}
@@ -31,7 +31,7 @@ func main() {
 	opts := []exlink.Option{
 		exlink.WithAPIKey(apiKey),
 		exlink.WithSecretKey(secretKey),
-		exlink.WithPassphrase(passphrase),
+		exlink.WithPassword(password),
 		exlink.WithProxy(proxyURL),
 		exlink.WithSandbox(true), // Sandbox mode
 		exlink.WithFetchMarkets(exlink.MarketFuture, exlink.MarketSpot),

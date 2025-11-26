@@ -45,7 +45,7 @@ func NewOKX(apiKey, secretKey string, options map[string]interface{}) (base.Exch
 	if v, ok := options["proxy"].(string); ok {
 		proxyURL = v
 	}
-	if v, ok := options["passphrase"].(string); ok {
+	if v, ok := options["password"].(string); ok {
 		passphrase = v
 	}
 
@@ -83,7 +83,7 @@ func NewOKX(apiKey, secretKey string, options map[string]interface{}) (base.Exch
 
 	// 设置其他选项
 	for k, v := range options {
-		if k != "baseURL" && k != "sandbox" && k != "proxy" && k != "passphrase" && k != "debug" {
+		if k != "baseURL" && k != "sandbox" && k != "proxy" && k != "password" && k != "debug" {
 			exchange.SetOption(k, v)
 		}
 	}
