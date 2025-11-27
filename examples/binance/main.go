@@ -102,9 +102,8 @@ func main() {
 
 // openLongPosition opens a long position (buy to open long)
 func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
-	// In Binance one-way mode, buy means open long
-	// In two-way mode, you can use: types.WithPositionSide(types.PositionSideLong)
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount)
+	// PositionSideLong + SideBuy = 开多
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithPositionSide(types.PositionSideLong))
 	if err != nil {
 		fmt.Printf("Failed to open long position: %v", err)
 	} else {
@@ -115,7 +114,8 @@ func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string
 
 // closeLongPosition closes a long position (sell to close long)
 func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithReduceOnly(true))
+	// PositionSideLong + SideSell = 平多，会自动设置 reduceOnly = true
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithPositionSide(types.PositionSideLong))
 	if err != nil {
 		fmt.Printf("Failed to close long position: %v", err)
 	} else {
@@ -126,9 +126,8 @@ func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol strin
 
 // openShortPosition opens a short position (sell to open short)
 func openShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
-	// In Binance one-way mode, sell means open short
-	// In two-way mode, you can use: types.WithPositionSide(types.PositionSideShort)
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount)
+	// PositionSideShort + SideSell = 开空
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithPositionSide(types.PositionSideShort))
 	if err != nil {
 		fmt.Printf("Failed to open short position: %v", err)
 	} else {
@@ -139,7 +138,8 @@ func openShortPosition(ctx context.Context, exchange base.Exchange, symbol strin
 
 // closeShortPosition closes a short position (buy to close short)
 func closeShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithReduceOnly(true))
+	// PositionSideShort + SideBuy = 平空，会自动设置 reduceOnly = true
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithPositionSide(types.PositionSideShort))
 	if err != nil {
 		fmt.Printf("Failed to close short position: %v", err)
 	} else {

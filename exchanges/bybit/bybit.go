@@ -767,9 +767,9 @@ func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.Order
 		priceStr = ""
 	}
 
-	// 合并扩展参数
-	for k, v := range options.ExtraParams {
-		params[k] = v
+	// 处理 Bybit 特定选项
+	if options.ReduceOnly != nil {
+		params["reduceOnly"] = *options.ReduceOnly
 	}
 
 	market, err := b.GetMarket(symbol)
@@ -886,7 +886,7 @@ func (b *Bybit) CreateOrder(ctx context.Context, symbol string, side types.Order
 
 	// 合并额外参数（排除已处理的参数）
 	for k, v := range params {
-		if k != "clientOrderId" {
+		if k != "clientOrderId" && k != "reduceOnly" {
 			reqBody[k] = v
 		}
 	}

@@ -133,16 +133,15 @@ type orderOptions struct {
 	Price         *string // 订单价格（限价单，如果设置则为限价单，未设置则为市价单）
 
 	// Binance 特定选项
-	PositionSide  *PositionSide // 持仓方向 (LONG/SHORT，仅 hedge mode)
-	ReduceOnly    *bool         // 仅减仓（合约订单，Binance/Gate 通用）
-	QuoteOrderQty *float64      // 按计价货币数量（现货市价买入）
+	PositionSide *PositionSide // 持仓方向 (LONG/SHORT，仅 hedge mode)
 
 	// Bybit 特定选项
 	// （无特定选项）
 
 	// OKX 特定选项
-	TdMode *string // 交易模式 (cash/cross/isolated)
-	TgtCcy *string // 目标货币 (base_ccy/quote_ccy，现货订单)
+	TdMode  *string // 交易模式 (cash/cross/isolated)
+	TgtCcy  *string // 目标货币 (base_ccy/quote_ccy，现货订单)
+	PosSide *string // 持仓方向 (long/short，合约订单)
 
 	// Gate 特定选项
 	Size        *int64                // 合约数量（合约订单）
@@ -150,8 +149,8 @@ type orderOptions struct {
 	TimeInForce *OrderTimeInForceType // 时间有效性（现货订单：ioc/fok）
 	Cost        *float64              // 成本（现货市价买入）
 
-	// 扩展参数（用于处理其他未定义的参数）
-	ExtraParams map[string]interface{}
+	// 通用选项（多个交易所使用）
+	ReduceOnly *bool // 仅减仓（合约订单，Gate/Bybit 通用）
 }
 
 // WithClientOrderID 设置客户端订单ID（通用，所有交易所都支持）
@@ -168,24 +167,10 @@ func WithPrice(price string) OrderOption {
 	}
 }
 
-// WithReduceOnly 设置仅减仓（合约订单，Binance/Gate 通用）
-func WithReduceOnly(reduceOnly bool) OrderOption {
-	return func(opts *orderOptions) {
-		opts.ReduceOnly = &reduceOnly
-	}
-}
-
 // WithPositionSide 设置持仓方向（Binance 合约订单，仅 hedge mode）
 func WithPositionSide(positionSide PositionSide) OrderOption {
 	return func(opts *orderOptions) {
 		opts.PositionSide = &positionSide
-	}
-}
-
-// WithQuoteOrderQty 设置按计价货币数量（Binance 现货市价买入）
-func WithQuoteOrderQty(qty float64) OrderOption {
-	return func(opts *orderOptions) {
-		opts.QuoteOrderQty = &qty
 	}
 }
 
@@ -203,10 +188,24 @@ func WithTgtCcy(tgtCcy string) OrderOption {
 	}
 }
 
+// WithPosSide 设置持仓方向（OKX 合约订单：long/short）
+func WithPosSide(posSide string) OrderOption {
+	return func(opts *orderOptions) {
+		opts.PosSide = &posSide
+	}
+}
+
 // WithSize 设置合约数量（Gate 合约订单）
 func WithSize(size int64) OrderOption {
 	return func(opts *orderOptions) {
 		opts.Size = &size
+	}
+}
+
+// WithReduceOnly 设置仅减仓（Gate 合约订单）
+func WithReduceOnly(reduceOnly bool) OrderOption {
+	return func(opts *orderOptions) {
+		opts.ReduceOnly = &reduceOnly
 	}
 }
 
@@ -231,21 +230,9 @@ func WithCost(cost float64) OrderOption {
 	}
 }
 
-// WithExtraParam 设置扩展参数（用于处理其他未定义的参数）
-func WithExtraParam(key string, value interface{}) OrderOption {
-	return func(opts *orderOptions) {
-		if opts.ExtraParams == nil {
-			opts.ExtraParams = make(map[string]interface{})
-		}
-		opts.ExtraParams[key] = value
-	}
-}
-
 // ApplyOrderOptions 应用订单选项
 func ApplyOrderOptions(opts ...OrderOption) *orderOptions {
-	options := &orderOptions{
-		ExtraParams: make(map[string]interface{}),
-	}
+	options := &orderOptions{}
 	for _, opt := range opts {
 		opt(options)
 	}

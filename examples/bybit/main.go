@@ -103,7 +103,7 @@ func main() {
 // openLongPosition opens a long position (buy to open long)
 func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
 	// Bybit uses reduceOnly=false to open position (if supported)
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithExtraParam("reduceOnly", false))
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithReduceOnly(false))
 	if err != nil {
 		fmt.Printf("Failed to open long position: %v", err)
 	} else {
@@ -115,7 +115,7 @@ func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string
 // closeLongPosition closes a long position (sell to close long)
 func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
 	// Bybit uses reduceOnly=true to close position (if supported)
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithExtraParam("reduceOnly", true))
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithReduceOnly(true))
 	if err != nil {
 		fmt.Printf("Failed to close long position: %v", err)
 	} else {
@@ -127,7 +127,7 @@ func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol strin
 // openShortPosition opens a short position (sell to open short)
 func openShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
 	// Bybit uses reduceOnly=false to open position (if supported)
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithExtraParam("reduceOnly", false))
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithReduceOnly(false))
 	if err != nil {
 		fmt.Printf("Failed to open short position: %v", err)
 	} else {
@@ -139,7 +139,7 @@ func openShortPosition(ctx context.Context, exchange base.Exchange, symbol strin
 // closeShortPosition closes a short position (buy to close short)
 func closeShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
 	// Bybit uses reduceOnly=true to close position (if supported)
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithExtraParam("reduceOnly", true))
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithReduceOnly(true))
 	if err != nil {
 		fmt.Printf("Failed to close short position: %v", err)
 	} else {

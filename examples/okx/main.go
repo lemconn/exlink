@@ -105,7 +105,7 @@ func main() {
 // openLongPosition opens a long position (buy to open long)
 func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
 	// OKX uses posSide to specify position direction
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithExtraParam("posSide", "long"))
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithPosSide("long"))
 	if err != nil {
 		fmt.Printf("Failed to open long position: %v", err)
 	} else {
@@ -117,7 +117,7 @@ func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string
 // closeLongPosition closes a long position (sell to close long)
 func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
 	// To close long position, need to specify posSide="long"
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithExtraParam("posSide", "long"))
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithPosSide("long"))
 	if err != nil {
 		fmt.Printf("Failed to close long position: %v", err)
 	} else {
@@ -129,7 +129,7 @@ func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol strin
 // openShortPosition opens a short position (sell to open short)
 func openShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
 	// OKX uses posSide="short" to open short
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithExtraParam("posSide", "short"))
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithPosSide("short"))
 	if err != nil {
 		fmt.Printf("Failed to open short position: %v", err)
 	} else {
@@ -141,7 +141,7 @@ func openShortPosition(ctx context.Context, exchange base.Exchange, symbol strin
 // closeShortPosition closes a short position (buy to close short)
 func closeShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
 	// To close short position, need to specify posSide="short"
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithExtraParam("posSide", "short"))
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithPosSide("short"))
 	if err != nil {
 		fmt.Printf("Failed to close short position: %v", err)
 	} else {
