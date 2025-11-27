@@ -615,6 +615,105 @@
 			}
 		},
 		{
+			"name": "Swap - Set Account Position Mode",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "Timestamp",
+						"value": "",
+						"description": "Unix timestamp in seconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "SIGN",
+						"value": "",
+						"description": "HMAC-SHA512 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"dual_mode\": true\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/dual_mode",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"dual_mode"
+					]
+				},
+				"description": "Set dual position mode for USDT perpetual futures. dual_mode=true to enable dual-side position mode (双向持仓), dual_mode=false to disable (单向持仓). settle=usdt for USDT settlement."
+			}
+		},
+		{
+			"name": "Swap - Get Account Info",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "Timestamp",
+						"value": "",
+						"description": "Unix timestamp in seconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "SIGN",
+						"value": "",
+						"description": "HMAC-SHA512 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/accounts",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"accounts"
+					]
+				},
+				"description": "Get account information for USDT perpetual futures. Returns account balance, available balance, margin, unrealized PnL, and other account details."
+			}
+		},
+		{
 			"name": "Swap - Get Account Positions",
 			"request": {
 				"method": "GET",
