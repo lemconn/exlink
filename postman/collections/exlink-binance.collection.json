@@ -1301,6 +1301,67 @@
 			}
 		},
 		{
+			"name": "Swap - Get Account Info",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "X-MBX-APIKEY",
+						"value": "",
+						"description": "API KEY",
+						"disabled": false
+					},
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_fapi_base_url}}/fapi/v3/account",
+					"host": [
+						"{{binance_fapi_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v3",
+						"account"
+					],
+					"query": [
+						{
+							"key": "recvWindow",
+							"value": "5000",
+							"description": "Optional. The value cannot be greater than 60000.",
+							"disabled": true
+						},
+						{
+							"key": "timestamp",
+							"value": "",
+							"description": "UTC timestamp in ms",
+							"disabled": false
+						},
+						{
+							"key": "signature",
+							"value": "",
+							"description": "Signature",
+							"disabled": false
+						}
+					]
+				},
+				"description": "Get account information for perpetual swap (futures) trading. Returns account balance, available balance, margin, unrealized PnL, and other account details. Requires timestamp and signature parameters."
+			}
+		},
+		{
 			"name": "Swap - Get Account Positions V2",
 			"request": {
 				"method": "GET",
@@ -1514,7 +1575,7 @@
 			}
 		},
 		{
-			"name": "Swap - Change Account Position Mode",
+			"name": "Swap - Set Account Position Mode",
 			"request": {
 				"method": "POST",
 				"header": [

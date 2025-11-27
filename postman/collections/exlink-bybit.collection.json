@@ -708,9 +708,9 @@
 			}
 		},
 		{
-			"name": "Swap - Get Account Positions",
+			"name": "Swap - Set Account Position Mode",
 			"request": {
-				"method": "GET",
+				"method": "POST",
 				"header": [
 					{
 						"key": "Content-Type",
@@ -742,8 +742,115 @@
 						"disabled": false
 					}
 				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"mode\": 3\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
 				"url": {
-					"raw": "{{bybit_base_url}}/v5/position/list?category=linear",
+					"raw": "{{bybit_base_url}}/v5/position/switch-mode",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"position",
+						"switch-mode"
+					]
+				},
+			"description": "Switch position mode for USDT perpetual contracts. category=linear for USDT Contract. mode: 0 for Merged Single (one-way mode), 3 for Both Sides (dual-side mode). Either symbol or coin is required, symbol has a higher priority."
+		}
+	},
+	{
+		"name": "Swap - Get Account Info",
+		"request": {
+			"method": "GET",
+			"header": [
+				{
+					"key": "Content-Type",
+					"value": "application/json",
+					"type": "text"
+				},
+				{
+					"key": "X-BAPI-API-KEY",
+					"value": "",
+					"description": "API Key",
+					"disabled": false
+				},
+				{
+					"key": "X-BAPI-TIMESTAMP",
+					"value": "",
+					"description": "Timestamp in milliseconds (automatically generated)",
+					"disabled": false
+				},
+				{
+					"key": "X-BAPI-RECV-WINDOW",
+					"value": "5000",
+					"description": "Receive window in milliseconds (default: 5000)",
+					"disabled": false
+				},
+				{
+					"key": "X-BAPI-SIGN",
+					"value": "",
+					"description": "HMAC-SHA256 signature (automatically generated)",
+					"disabled": false
+				}
+			],
+			"url": {
+				"raw": "{{bybit_base_url}}/v5/account/info",
+				"host": [
+					"{{bybit_base_url}}"
+				],
+				"path": [
+					"v5",
+					"account",
+					"info"
+				]
+			},
+			"description": "Get account information for unified account. Returns account type, margin mode, DCP status, and other account configuration details."
+		}
+	},
+	{
+		"name": "Swap - Get Account Positions",
+		"request": {
+			"method": "GET",
+			"header": [
+				{
+					"key": "Content-Type",
+					"value": "application/json",
+					"type": "text"
+				},
+				{
+					"key": "X-BAPI-API-KEY",
+					"value": "",
+					"description": "API Key",
+					"disabled": false
+				},
+				{
+					"key": "X-BAPI-TIMESTAMP",
+					"value": "",
+					"description": "Timestamp in milliseconds (automatically generated)",
+					"disabled": false
+				},
+				{
+					"key": "X-BAPI-RECV-WINDOW",
+					"value": "5000",
+					"description": "Receive window in milliseconds (default: 5000)",
+					"disabled": false
+				},
+				{
+					"key": "X-BAPI-SIGN",
+					"value": "",
+					"description": "HMAC-SHA256 signature (automatically generated)",
+					"disabled": false
+				}
+			],
+			"url": {
+				"raw": "{{bybit_base_url}}/v5/position/list?category=linear",
 					"host": [
 						"{{bybit_base_url}}"
 					],
