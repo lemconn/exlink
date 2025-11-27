@@ -673,10 +673,8 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 	if options.TgtCcy != nil {
 		params["tgtCcy"] = *options.TgtCcy
 	}
-
-	// 合并扩展参数
-	for k, v := range options.ExtraParams {
-		params[k] = v
+	if options.PosSide != nil {
+		params["posSide"] = *options.PosSide
 	}
 
 	// 获取市场信息
@@ -760,7 +758,7 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 
 	// 合并额外参数（排除已处理的参数）
 	for k, v := range params {
-		if k != "tdMode" && k != "tgtCcy" && k != "clientOrderId" {
+		if k != "tdMode" && k != "tgtCcy" && k != "posSide" && k != "clientOrderId" {
 			reqBody[k] = v
 		}
 	}

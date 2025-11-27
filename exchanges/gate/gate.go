@@ -791,11 +791,6 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 		params["cost"] = *options.Cost
 	}
 
-	// 合并扩展参数
-	for k, v := range options.ExtraParams {
-		params[k] = v
-	}
-
 	market, err := g.GetMarket(symbol)
 	if err != nil {
 		return nil, err

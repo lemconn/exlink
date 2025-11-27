@@ -11,6 +11,7 @@ import (
 	"github.com/lemconn/exlink/base"
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/types"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -627,41 +628,8 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 		return nil, base.ErrAuthenticationRequired
 	}
 
-	// 解析选项并转换为 params map
+	// 解析订单选项
 	options := types.ApplyOrderOptions(opts...)
-	params := make(map[string]interface{})
-
-	// 处理通用选项 - 客户端订单ID统一使用 ClientOrderID
-	if options.ClientOrderID != nil {
-		params["clientOrderId"] = *options.ClientOrderID
-	}
-
-	// 判断订单类型：如果 options.Price 设置了且不为空，则为限价单，否则为市价单
-	var orderType types.OrderType
-	var priceStr string
-	if options.Price != nil && *options.Price != "" {
-		orderType = types.OrderTypeLimit
-		priceStr = *options.Price
-	} else {
-		orderType = types.OrderTypeMarket
-		priceStr = ""
-	}
-
-	// 处理 Binance 特定选项
-	if options.PositionSide != nil {
-		params["positionSide"] = string(*options.PositionSide)
-	}
-	if options.ReduceOnly != nil {
-		params["reduceOnly"] = *options.ReduceOnly
-	}
-	if options.QuoteOrderQty != nil {
-		params["quoteOrderQty"] = *options.QuoteOrderQty
-	}
-
-	// 合并扩展参数
-	for k, v := range options.ExtraParams {
-		params[k] = v
-	}
 
 	// 获取市场信息以判断使用哪个API
 	market, err := b.GetMarket(symbol)
@@ -675,119 +643,104 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 		return nil, fmt.Errorf("get market ID: %w", err)
 	}
 
-	// 解析 amount 字符串为 float64 用于计算
-	amountFloat, err := strconv.ParseFloat(amount, 64)
+	// 判断订单类型：如果 options.Price 设置了且不为空，则为限价单，否则为市价单
+	var orderType types.OrderType
+	var priceStr string
+	if options.Price != nil && *options.Price != "" {
+		orderType = types.OrderTypeLimit
+		priceStr = *options.Price
+	} else {
+		orderType = types.OrderTypeMarket
+		priceStr = ""
+	}
+
+	// 解析 amount 字符串为 decimal
+	amountDecimal, err := decimal.NewFromString(amount)
 	if err != nil {
 		return nil, fmt.Errorf("invalid amount: %w", err)
 	}
+	if amountDecimal.LessThanOrEqual(decimal.Zero) {
+		return nil, fmt.Errorf("amount must be greater than 0")
+	}
 
-	// 解析 price 字符串为 float64 用于计算（如果存在）
-	var priceFloat float64
+	// 解析 price 字符串为 decimal（如果存在）
+	var priceDecimal decimal.Decimal
 	if priceStr != "" {
-		priceFloat, err = strconv.ParseFloat(priceStr, 64)
+		priceDecimal, err = decimal.NewFromString(priceStr)
 		if err != nil {
 			return nil, fmt.Errorf("invalid price: %w", err)
 		}
+		if priceDecimal.LessThanOrEqual(decimal.Zero) {
+			return nil, fmt.Errorf("limit order requires price > 0")
+		}
 	}
 
+	// 构建基础请求参数
 	reqTimestamp := common.GetTimestamp()
 	reqParams := map[string]interface{}{
 		"symbol":    binanceSymbol,
-		"side":      strings.ToUpper(string(side)),
-		"type":      strings.ToUpper(string(orderType)),
+		"side":      side.Upper(),
+		"type":      orderType.Upper(),
 		"timestamp": reqTimestamp,
 	}
 
-	// 处理数量格式化
-	// 现货和合约都使用 quantity 参数，但精度要求不同
+	// 格式化数量
 	amountPrecision := market.Precision.Amount
 	if amountPrecision == 0 {
 		amountPrecision = 8 // 默认精度
 	}
 
-	// 对于合约订单，根据实际测试，使用更保守的精度策略
+	// 对于合约订单，使用更保守的精度策略
 	if market.Contract {
 		// 合约订单：如果数量是整数，使用 0 精度；否则使用 1 位小数精度
-		if amountFloat >= 1.0 && amountFloat == float64(int64(amountFloat)) {
+		if amountDecimal.IsInteger() && amountDecimal.GreaterThanOrEqual(decimal.NewFromInt(1)) {
 			amountPrecision = 0
 		} else {
 			amountPrecision = 1
 		}
 	}
-	reqParams["quantity"] = strconv.FormatFloat(amountFloat, 'f', amountPrecision, 64)
+	reqParams["quantity"] = amountDecimal.StringFixed(int32(amountPrecision))
 
-	// 处理价格（限价单需要）
+	// 处理限价单的价格和 timeInForce
 	if orderType == types.OrderTypeLimit {
-		if priceFloat <= 0 {
-			return nil, fmt.Errorf("limit order requires price > 0")
-		}
 		pricePrecision := market.Precision.Price
 		if pricePrecision == 0 {
 			pricePrecision = 8 // 默认精度
 		}
-		reqParams["price"] = strconv.FormatFloat(priceFloat, 'f', pricePrecision, 64)
-		reqParams["timeInForce"] = "GTC" // 默认使用 GTC (Good Till Cancel)
+		reqParams["price"] = priceDecimal.StringFixed(int32(pricePrecision))
+
+		// 处理 timeInForce：如果设置了则使用，否则使用默认值 GTC
+		if options.TimeInForce != nil {
+			reqParams["timeInForce"] = options.TimeInForce.Upper()
+		} else {
+			reqParams["timeInForce"] = types.OrderTimeInForceGTC.Upper()
+		}
 	}
 
-	// 处理合约订单的特殊参数
+	// 根据市场类型处理不同的订单逻辑
 	if market.Contract && market.Linear {
-		// 检查是否为双向持仓模式（hedge mode）
-		hedgeMode := b.IsHedgeMode()
+		// ========== 永续合约订单处理 ==========
+		// 单向持仓模式下，所有合约订单都需要设置 positionSide 为 "BOTH"
+		reqParams["positionSide"] = "BOTH"
 
-		// 合约订单：处理 positionSide 参数（仅在 hedge mode 下需要）
-		// 如果 params 中明确指定了 positionSide，则使用它
-		// 如果 hedgeMode == true 但未提供 positionSide，则报错
-		// 如果 hedgeMode == false，则不设置 positionSide（one-way mode）
-		if positionSide, ok := params["positionSide"].(string); ok && positionSide != "" {
-			// 使用 PositionSide 类型进行大小写转换
-			reqParams["positionSide"] = types.PositionSide(positionSide).Upper()
-		} else if hedgeMode {
-			// 双向持仓模式下，如果没有提供 positionSide，报错
-			return nil, fmt.Errorf("positionSide is required in hedge mode, use types.WithPositionSide() to specify")
-		}
-		// 处理 reduceOnly 参数
-		if reduceOnly, ok := params["reduceOnly"].(bool); ok && reduceOnly {
-			reqParams["reduceOnly"] = "true"
-		}
-	}
-
-	// 处理现货订单的特殊参数
-	if !market.Contract {
-		// 现货市价买入可以使用 quoteOrderQty（按计价货币数量）
-		if orderType == types.OrderTypeMarket && side == types.OrderSideBuy {
-			if quoteOrderQty, ok := params["quoteOrderQty"].(float64); ok && quoteOrderQty > 0 {
-				pricePrecision := market.Precision.Price
-				if pricePrecision == 0 {
-					pricePrecision = 8
-				}
-				reqParams["quoteOrderQty"] = strconv.FormatFloat(quoteOrderQty, 'f', pricePrecision, 64)
-				// 如果使用 quoteOrderQty，则不需要 quantity
-				delete(reqParams, "quantity")
+		// 自动判断 reduceOnly：根据 PositionSide 和 Side 的组合
+		// 平多：PositionSideLong + SideSell -> reduceOnly = true
+		// 平空：PositionSideShort + SideBuy -> reduceOnly = true
+		// 开多：PositionSideLong + SideBuy -> reduceOnly = false（不设置）
+		// 开空：PositionSideShort + SideSell -> reduceOnly = false（不设置）
+		if options.PositionSide != nil {
+			if (*options.PositionSide == types.PositionSideLong && side == types.OrderSideSell) ||
+				(*options.PositionSide == types.PositionSideShort && side == types.OrderSideBuy) {
+				reqParams["reduceOnly"] = "true"
 			}
 		}
 	}
 
 	// 生成客户端订单ID（如果未提供）
-	// Binance 使用 newClientOrderId 参数
-	if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
-		// 如果用户提供了 clientOrderId，使用它
-		reqParams["newClientOrderId"] = clientOrderId
+	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
+		reqParams["newClientOrderId"] = *options.ClientOrderID
 	} else {
-		// 如果未提供，自动生成
 		reqParams["newClientOrderId"] = common.GenerateClientOrderID(b.Name(), side)
-	}
-
-	// 处理其他参数（排除已处理的参数）
-	excludedParams := map[string]bool{
-		"positionSide":  true,
-		"reduceOnly":    true,
-		"quoteOrderQty": true,
-		"clientOrderId": true, // 已处理，避免重复
-	}
-	for k, v := range params {
-		if !excludedParams[k] {
-			reqParams[k] = v
-		}
 	}
 
 	// 构建签名
@@ -796,7 +749,6 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 	reqParams["signature"] = signature
 
 	// 发送请求
-	// Binance API 要求参数作为查询字符串传递，而不是 JSON body
 	var resp []byte
 	var apiErr error
 	if market.Contract && market.Linear {
@@ -811,107 +763,140 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 		return nil, fmt.Errorf("create order: %w", apiErr)
 	}
 
-	// 解析响应（支持现货和合约订单的响应格式）
-	var data map[string]interface{}
-	if err := json.Unmarshal(resp, &data); err != nil {
-		return nil, fmt.Errorf("unmarshal order: %w", err)
-	}
+	// 解析响应
+	if market.Contract && market.Linear {
+		// 合约订单响应
+		var respData types.BinanceContractOrderResponse
+		if err := json.Unmarshal(resp, &respData); err != nil {
+			return nil, fmt.Errorf("unmarshal contract order response: %w", err)
+		}
 
-	// 检查是否有错误码（部分成功的情况）
-	if code, ok := data["code"].(float64); ok && code != 0 {
-		return nil, fmt.Errorf("order rejected: %v", data["msg"])
-	}
+		// 解析数量
+		origQty, _ := decimal.NewFromString(respData.OrigQty)
+		executedQty, _ := decimal.NewFromString(respData.ExecutedQty)
+		if origQty.IsZero() {
+			origQty = amountDecimal
+		}
+		orderPrice, _ := decimal.NewFromString(respData.Price)
+		avgPrice, _ := decimal.NewFromString(respData.AvgPrice)
+		cumQuote, _ := decimal.NewFromString(respData.CumQuote)
 
-	// 提取订单ID（合约订单可能使用 strategyId）
-	var orderID int64
-	if id, ok := data["orderId"].(float64); ok {
-		orderID = int64(id)
-	} else if id, ok := data["strategyId"].(float64); ok {
-		orderID = int64(id)
+		// 构建订单对象
+		order := &types.Order{
+			ID:            strconv.FormatInt(respData.OrderID, 10),
+			ClientOrderID: respData.ClientOrderID,
+			Symbol:        symbol,
+			Type:          orderType,
+			Side:          side,
+			Amount:        origQty.InexactFloat64(),
+			Price:         orderPrice.InexactFloat64(),
+			Filled:        executedQty.InexactFloat64(),
+			Remaining:     origQty.Sub(executedQty).InexactFloat64(),
+			Cost:          cumQuote.InexactFloat64(),
+			Average:       avgPrice.InexactFloat64(),
+			Timestamp:     time.UnixMilli(respData.UpdateTime),
+		}
+
+		// 转换状态
+		switch respData.Status {
+		case "NEW":
+			order.Status = types.OrderStatusNew
+		case "PARTIALLY_FILLED":
+			order.Status = types.OrderStatusPartiallyFilled
+		case "FILLED":
+			order.Status = types.OrderStatusFilled
+		case "CANCELED", "CANCELLED":
+			order.Status = types.OrderStatusCanceled
+		case "EXPIRED":
+			order.Status = types.OrderStatusExpired
+		case "REJECTED":
+			order.Status = types.OrderStatusRejected
+		default:
+			order.Status = types.OrderStatusNew
+		}
+
+		return order, nil
 	} else {
-		return nil, fmt.Errorf("missing orderId in response")
+		// 现货订单响应
+		var respData types.BinanceSpotOrderResponse
+		if err := json.Unmarshal(resp, &respData); err != nil {
+			return nil, fmt.Errorf("unmarshal spot order response: %w", err)
+		}
+
+		// 解析数量
+		origQty, _ := decimal.NewFromString(respData.OrigQty)
+		executedQty, _ := decimal.NewFromString(respData.ExecutedQty)
+		if origQty.IsZero() {
+			origQty = amountDecimal
+		}
+		orderPrice, _ := decimal.NewFromString(respData.Price)
+		cummulativeQuoteQty, _ := decimal.NewFromString(respData.CummulativeQuoteQty)
+
+		// 计算平均价格和手续费
+		var avgPrice decimal.Decimal
+		var totalFee decimal.Decimal
+		var feeCurrency string
+		if len(respData.Fills) > 0 {
+			var totalCost decimal.Decimal
+			for _, fill := range respData.Fills {
+				fillPrice, _ := decimal.NewFromString(fill.Price)
+				fillQty, _ := decimal.NewFromString(fill.Qty)
+				commission, _ := decimal.NewFromString(fill.Commission)
+				totalCost = totalCost.Add(fillPrice.Mul(fillQty))
+				totalFee = totalFee.Add(commission)
+				if feeCurrency == "" {
+					feeCurrency = fill.CommissionAsset
+				}
+			}
+			if !executedQty.IsZero() {
+				avgPrice = totalCost.Div(executedQty)
+			}
+		}
+
+		// 构建订单对象
+		order := &types.Order{
+			ID:            strconv.FormatInt(respData.OrderID, 10),
+			ClientOrderID: respData.ClientOrderID,
+			Symbol:        symbol,
+			Type:          orderType,
+			Side:          side,
+			Amount:        origQty.InexactFloat64(),
+			Price:         orderPrice.InexactFloat64(),
+			Filled:        executedQty.InexactFloat64(),
+			Remaining:     origQty.Sub(executedQty).InexactFloat64(),
+			Cost:          cummulativeQuoteQty.InexactFloat64(),
+			Average:       avgPrice.InexactFloat64(),
+			Timestamp:     time.UnixMilli(respData.TransactTime),
+		}
+
+		// 设置手续费
+		if !totalFee.IsZero() && feeCurrency != "" {
+			order.Fee = &types.Fee{
+				Currency: feeCurrency,
+				Cost:     totalFee.InexactFloat64(),
+			}
+		}
+
+		// 转换状态
+		switch respData.Status {
+		case "NEW":
+			order.Status = types.OrderStatusNew
+		case "PARTIALLY_FILLED":
+			order.Status = types.OrderStatusPartiallyFilled
+		case "FILLED":
+			order.Status = types.OrderStatusFilled
+		case "CANCELED", "CANCELLED":
+			order.Status = types.OrderStatusCanceled
+		case "EXPIRED":
+			order.Status = types.OrderStatusExpired
+		case "REJECTED":
+			order.Status = types.OrderStatusRejected
+		default:
+			order.Status = types.OrderStatusNew
+		}
+
+		return order, nil
 	}
-
-	// 提取时间戳（现货使用 transactTime，合约可能使用 updateTime 或 time）
-	var timestamp int64
-	if t, ok := data["transactTime"].(float64); ok {
-		timestamp = int64(t)
-	} else if t, ok := data["updateTime"].(float64); ok {
-		timestamp = int64(t)
-	} else if t, ok := data["time"].(float64); ok {
-		timestamp = int64(t)
-	} else if t, ok := data["createTime"].(float64); ok {
-		timestamp = int64(t)
-	} else {
-		return nil, fmt.Errorf("missing timestamp in response")
-	}
-
-	// 提取数量（合约订单可能使用 quantity）
-	origQtyStr := ""
-	if qty, ok := data["origQty"].(string); ok {
-		origQtyStr = qty
-	} else if qty, ok := data["quantity"].(string); ok {
-		origQtyStr = qty
-	}
-
-	// 提取执行数量
-	executedQtyStr := "0"
-	if qty, ok := data["executedQty"].(string); ok {
-		executedQtyStr = qty
-	} else if qty, ok := data["cumQty"].(string); ok {
-		executedQtyStr = qty
-	}
-
-	// 提取价格
-	responsePriceStr := "0"
-	if p, ok := data["price"].(string); ok {
-		responsePriceStr = p
-	}
-
-	// 解析数量
-	origQty, _ := strconv.ParseFloat(origQtyStr, 64)
-	executedQty, _ := strconv.ParseFloat(executedQtyStr, 64)
-	orderPrice, _ := strconv.ParseFloat(responsePriceStr, 64)
-
-	// 如果响应中没有 origQty，使用传入的 amount
-	if origQty == 0 {
-		origQty = amountFloat
-	}
-
-	// 构建订单对象
-	order := &types.Order{
-		ID:            strconv.FormatInt(orderID, 10),
-		ClientOrderID: getString(data, "clientOrderId", "newClientStrategyId"),
-		Symbol:        symbol, // 使用标准化格式
-		Type:          orderType,
-		Side:          side,
-		Amount:        origQty,
-		Price:         orderPrice,
-		Filled:        executedQty,
-		Remaining:     origQty - executedQty,
-		Timestamp:     time.UnixMilli(timestamp),
-	}
-
-	// 转换状态
-	status := getString(data, "status", "strategyStatus")
-	switch status {
-	case "NEW":
-		order.Status = types.OrderStatusNew
-	case "PARTIALLY_FILLED":
-		order.Status = types.OrderStatusPartiallyFilled
-	case "FILLED":
-		order.Status = types.OrderStatusFilled
-	case "CANCELED", "CANCELLED":
-		order.Status = types.OrderStatusCanceled
-	case "EXPIRED":
-		order.Status = types.OrderStatusExpired
-	case "REJECTED":
-		order.Status = types.OrderStatusRejected
-	default:
-		order.Status = types.OrderStatusNew
-	}
-
-	return order, nil
 }
 
 // getString 从 map 中获取字符串值，支持多个键名
