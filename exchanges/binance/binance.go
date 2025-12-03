@@ -25,10 +25,12 @@ const (
 // Binance Binance交易所实现
 type Binance struct {
 	*base.BaseExchange
-	client     *common.HTTPClient
-	fapiClient *common.HTTPClient // 永续合约API客户端
-	apiKey     string
-	secretKey  string
+	client          *common.HTTPClient
+	fapiClient      *common.HTTPClient // 永续合约API客户端
+	apiKey          string
+	secretKey       string
+	positionMode    *bool      // 持仓模式缓存: true=双向, false=单向
+	positionModeExp time.Time  // 持仓模式缓存过期时间
 }
 
 // NewBinance 创建Binance交易所实例
@@ -620,6 +622,45 @@ func (b *Binance) FetchBalance(ctx context.Context) (types.Balances, error) {
 	return balances, nil
 }
 
+// getPositionMode 获取持仓模式（带缓存）
+// 返回: true=双向持仓(hedge mode), false=单向持仓(one-way mode)
+func (b *Binance) getPositionMode(ctx context.Context) (bool, error) {
+	// 检查缓存是否有效（5分钟）
+	if b.positionMode != nil && time.Now().Before(b.positionModeExp) {
+		return *b.positionMode, nil
+	}
+
+	// 查询持仓模式
+	// 参考: https://developers.binance.com/docs/derivatives/usds-margined-futures/account/rest-api/Get-Current-Position-Mode
+	reqTimestamp := common.GetTimestamp()
+	reqParams := map[string]interface{}{
+		"timestamp": reqTimestamp,
+	}
+
+	queryString := common.BuildQueryString(reqParams)
+	signature := common.SignHMAC256(queryString, b.secretKey)
+	reqParams["signature"] = signature
+
+	resp, err := b.fapiClient.Request(ctx, "GET", "/fapi/v1/positionSide/dual", reqParams, nil)
+	if err != nil {
+		return false, fmt.Errorf("get position mode: %w", err)
+	}
+
+	var result struct {
+		DualSidePosition bool `json:"dualSidePosition"`
+	}
+
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return false, fmt.Errorf("unmarshal position mode: %w", err)
+	}
+
+	// 缓存结果
+	b.positionMode = &result.DualSidePosition
+	b.positionModeExp = time.Now().Add(5 * time.Minute)
+
+	return result.DualSidePosition, nil
+}
+
 // CreateOrder 创建订单
 // 参考: https://developers.binance.com/docs/binance-spot-api-docs/rest-api/trading-endpoints#new-order-trade
 // 参考: https://developers.binance.com/docs/derivatives/usds-margined-futures/trade/rest-api/New-Order
@@ -720,15 +761,35 @@ func (b *Binance) CreateOrder(ctx context.Context, symbol string, side types.Ord
 	// 根据市场类型处理不同的订单逻辑
 	if market.Contract && market.Linear {
 		// ========== 永续合约订单处理 ==========
-		// 单向持仓模式下，所有合约订单都需要设置 positionSide 为 "BOTH"
-		reqParams["positionSide"] = "BOTH"
+		// 合约下单必须指定 PositionSide
+		if options.PositionSide == nil {
+			return nil, fmt.Errorf("contract order requires PositionSide (long/short)")
+		}
 
-		// 自动判断 reduceOnly：根据 PositionSide 和 Side 的组合
-		// 平多：PositionSideLong + SideSell -> reduceOnly = true
-		// 平空：PositionSideShort + SideBuy -> reduceOnly = true
-		// 开多：PositionSideLong + SideBuy -> reduceOnly = false（不设置）
-		// 开空：PositionSideShort + SideSell -> reduceOnly = false（不设置）
-		if options.PositionSide != nil {
+		// 获取持仓模式
+		isDualMode, err := b.getPositionMode(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("get position mode: %w", err)
+		}
+
+		if isDualMode {
+			// 双向持仓模式
+			// 开多/平多: positionSide=LONG
+			// 开空/平空: positionSide=SHORT
+			if *options.PositionSide == types.PositionSideLong {
+				reqParams["positionSide"] = "LONG"
+			} else {
+				reqParams["positionSide"] = "SHORT"
+			}
+		} else {
+			// 单向持仓模式
+			reqParams["positionSide"] = "BOTH"
+
+			// 判断是否为平仓操作
+			// 平多：PositionSideLong + SideSell -> reduceOnly = true
+			// 平空：PositionSideShort + SideBuy -> reduceOnly = true
+			// 开多：PositionSideLong + SideBuy -> 不设置 reduceOnly
+			// 开空：PositionSideShort + SideSell -> 不设置 reduceOnly
 			if (*options.PositionSide == types.PositionSideLong && side == types.OrderSideSell) ||
 				(*options.PositionSide == types.PositionSideShort && side == types.OrderSideBuy) {
 				reqParams["reduceOnly"] = "true"

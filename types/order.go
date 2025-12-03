@@ -45,6 +45,14 @@ func (t OrderType) Lower() string {
 	return strings.ToLower(string(t))
 }
 
+func (t OrderType) Capitalize() string {
+	s := strings.ToLower(string(t))
+	if len(s) == 0 {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
 func (t OrderType) IsMarket() bool {
 	return t == OrderTypeMarket
 }
@@ -126,31 +134,12 @@ type Fee struct {
 // OrderOption 订单选项函数类型
 type OrderOption func(*orderOptions)
 
-// orderOptions 订单选项
+// orderOptions 订单选项（简化版，仅保留必要的通用选项）
 type orderOptions struct {
-	// 通用选项
-	ClientOrderID *string // 客户端订单ID（所有交易所通用）
-	Price         *string // 订单价格（限价单，如果设置则为限价单，未设置则为市价单）
-
-	// Binance 特定选项
-	PositionSide *PositionSide // 持仓方向 (LONG/SHORT，仅 hedge mode)
-
-	// Bybit 特定选项
-	// （无特定选项）
-
-	// OKX 特定选项
-	TdMode  *string // 交易模式 (cash/cross/isolated)
-	TgtCcy  *string // 目标货币 (base_ccy/quote_ccy，现货订单)
-	PosSide *string // 持仓方向 (long/short，合约订单)
-
-	// Gate 特定选项
-	Size        *int64                // 合约数量（合约订单）
-	TIF         *OrderTimeInForceType // 时间有效性（合约订单：gtc/ioc/fok）
-	TimeInForce *OrderTimeInForceType // 时间有效性（现货订单：ioc/fok）
-	Cost        *float64              // 成本（现货市价买入）
-
-	// 通用选项（多个交易所使用）
-	ReduceOnly *bool // 仅减仓（合约订单，Gate/Bybit 通用）
+	ClientOrderID *string               // 客户端订单ID（所有交易所通用）
+	Price         *string               // 订单价格（限价单，如果设置则为限价单，未设置则为市价单）
+	PositionSide  *PositionSide         // 持仓方向 (long/short，合约订单)
+	TimeInForce   *OrderTimeInForceType // 时间有效性（gtc/ioc/fok，所有交易所通用）
 }
 
 // WithClientOrderID 设置客户端订单ID（通用，所有交易所都支持）
@@ -167,66 +156,17 @@ func WithPrice(price string) OrderOption {
 	}
 }
 
-// WithPositionSide 设置持仓方向（Binance 合约订单，仅 hedge mode）
+// WithPositionSide 设置持仓方向（合约订单: long/short）
 func WithPositionSide(positionSide PositionSide) OrderOption {
 	return func(opts *orderOptions) {
 		opts.PositionSide = &positionSide
 	}
 }
 
-// WithTdMode 设置交易模式（OKX：cash/cross/isolated）
-func WithTdMode(tdMode string) OrderOption {
-	return func(opts *orderOptions) {
-		opts.TdMode = &tdMode
-	}
-}
-
-// WithTgtCcy 设置目标货币（OKX 现货订单：base_ccy/quote_ccy）
-func WithTgtCcy(tgtCcy string) OrderOption {
-	return func(opts *orderOptions) {
-		opts.TgtCcy = &tgtCcy
-	}
-}
-
-// WithPosSide 设置持仓方向（OKX 合约订单：long/short）
-func WithPosSide(posSide string) OrderOption {
-	return func(opts *orderOptions) {
-		opts.PosSide = &posSide
-	}
-}
-
-// WithSize 设置合约数量（Gate 合约订单）
-func WithSize(size int64) OrderOption {
-	return func(opts *orderOptions) {
-		opts.Size = &size
-	}
-}
-
-// WithReduceOnly 设置仅减仓（Gate 合约订单）
-func WithReduceOnly(reduceOnly bool) OrderOption {
-	return func(opts *orderOptions) {
-		opts.ReduceOnly = &reduceOnly
-	}
-}
-
-// WithTIF 设置时间有效性（Gate 合约订单：gtc/ioc/fok）
-func WithTIF(tif OrderTimeInForceType) OrderOption {
-	return func(opts *orderOptions) {
-		opts.TIF = &tif
-	}
-}
-
-// WithTimeInForce 设置时间有效性（Gate 现货订单：ioc/fok）
+// WithTimeInForce 设置时间有效性（gtc/ioc/fok，所有交易所通用）
 func WithTimeInForce(timeInForce OrderTimeInForceType) OrderOption {
 	return func(opts *orderOptions) {
 		opts.TimeInForce = &timeInForce
-	}
-}
-
-// WithCost 设置成本（Gate 现货市价买入）
-func WithCost(cost float64) OrderOption {
-	return func(opts *orderOptions) {
-		opts.Cost = &cost
 	}
 }
 

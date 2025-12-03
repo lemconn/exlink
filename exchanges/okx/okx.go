@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/lemconn/exlink/base"
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/types"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -23,10 +23,12 @@ const (
 // OKX OKX交易所实现
 type OKX struct {
 	*base.BaseExchange
-	client     *common.HTTPClient
-	apiKey     string
-	secretKey  string
-	passphrase string
+	client          *common.HTTPClient
+	apiKey          string
+	secretKey       string
+	passphrase      string
+	positionMode    *string    // 持仓模式缓存: "long_short_mode"=双向, "net_mode"=单向
+	positionModeExp time.Time  // 持仓模式缓存过期时间
 }
 
 // NewOKX 创建OKX交易所实例
@@ -640,22 +642,70 @@ func (o *OKX) FetchBalance(ctx context.Context) (types.Balances, error) {
 	return balances, nil
 }
 
+// getPositionMode 获取持仓模式（带缓存）
+// 返回: "long_short_mode"=双向持仓, "net_mode"=单向持仓
+func (o *OKX) getPositionMode(ctx context.Context) (string, error) {
+	// 检查缓存是否有效（5分钟）
+	if o.positionMode != nil && time.Now().Before(o.positionModeExp) {
+		return *o.positionMode, nil
+	}
+
+	// 查询账户配置
+	// 参考: https://www.okx.com/docs-v5/en/#rest-api-account-get-account-configuration
+	timestamp := common.GetISO8601Timestamp()
+	signature := o.signRequest("GET", "/api/v5/account/config", timestamp, "", nil)
+
+	o.client.SetHeader("OK-ACCESS-SIGN", signature)
+	o.client.SetHeader("OK-ACCESS-TIMESTAMP", timestamp)
+	o.client.SetHeader("OK-ACCESS-PASSPHRASE", o.passphrase)
+
+	resp, err := o.client.Get(ctx, "/api/v5/account/config", nil)
+	if err != nil {
+		return "", fmt.Errorf("get account config: %w", err)
+	}
+
+	var result struct {
+		Code string `json:"code"`
+		Msg  string `json:"msg"`
+		Data []struct {
+			PosMode string `json:"posMode"` // long_short_mode 或 net_mode
+		} `json:"data"`
+	}
+
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return "", fmt.Errorf("unmarshal account config: %w", err)
+	}
+
+	if result.Code != "0" {
+		return "", fmt.Errorf("okx api error: %s", result.Msg)
+	}
+
+	if len(result.Data) == 0 {
+		return "", fmt.Errorf("no account config data")
+	}
+
+	posMode := result.Data[0].PosMode
+	if posMode == "" {
+		posMode = "net_mode" // 默认单向持仓
+	}
+
+	// 缓存结果
+	o.positionMode = &posMode
+	o.positionModeExp = time.Now().Add(5 * time.Minute)
+
+	return posMode, nil
+}
+
 // CreateOrder 创建订单
 func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
 	if o.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
 	}
 
-	// 解析选项并转换为 params map
+	// 解析选项
 	options := types.ApplyOrderOptions(opts...)
-	params := make(map[string]interface{})
 
-	// 处理通用选项 - 客户端订单ID统一使用 ClientOrderID
-	if options.ClientOrderID != nil {
-		params["clientOrderId"] = *options.ClientOrderID
-	}
-
-	// 判断订单类型：如果 options.Price 设置了且不为空，则为限价单，否则为市价单
+	// 判断订单类型
 	var orderType types.OrderType
 	var priceStr string
 	if options.Price != nil && *options.Price != "" {
@@ -664,17 +714,6 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 	} else {
 		orderType = types.OrderTypeMarket
 		priceStr = ""
-	}
-
-	// 处理 OKX 特定选项
-	if options.TdMode != nil {
-		params["tdMode"] = *options.TdMode
-	}
-	if options.TgtCcy != nil {
-		params["tgtCcy"] = *options.TgtCcy
-	}
-	if options.PosSide != nil {
-		params["posSide"] = *options.PosSide
 	}
 
 	// 获取市场信息
@@ -690,38 +729,32 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 	}
 
 	// 确定交易模式
-	tdMode := "cash" // 现货
+	tdMode := "cash" // 现货默认 cash
 	if market.Contract {
-		tdMode = "cross" // 合约默认使用全仓模式
-		if v, ok := params["tdMode"].(string); ok {
-			tdMode = v
-		}
+		tdMode = "cross" // 合约默认全仓
 	}
 
-	// 对于合约订单，如果存在合约乘数，需要将币数量转换为张数
-	exContractValue, ok := new(big.Float).SetString(market.ContractValue)
-	if !ok {
-		return nil, fmt.Errorf("invalid contract value: %s", market.ContractValue)
-	}
+	// 计算 sz（数量）
 	sz := amount
-	if market.Contract && exContractValue.Cmp(big.NewFloat(0.0)) > 0 {
-		// 使用 math/big 进行精确计算
+	if market.Contract {
+		// 合约需要将币数量转换为张数
 		// 转换公式：张数 = 币的个数 / ctVal
-		amountBig := new(big.Float).SetPrec(256)
-		amountBig, _, err = amountBig.Parse(amount, 10)
+		exContractValue, err := decimal.NewFromString(market.ContractValue)
+		if err != nil || exContractValue.LessThanOrEqual(decimal.Zero) {
+			return nil, fmt.Errorf("invalid contract value: %s", market.ContractValue)
+		}
+
+		amountDecimal, err := decimal.NewFromString(amount)
 		if err != nil {
 			return nil, fmt.Errorf("invalid amount: %w", err)
 		}
-		multiplierBig := exContractValue
-		contractSizeBig := new(big.Float).Quo(amountBig, multiplierBig)
 
-		// 格式化精度，使用合约的精度要求
+		contractSizeDecimal := amountDecimal.Div(exContractValue)
 		szPrecision := market.Precision.Amount
 		if szPrecision == 0 {
-			szPrecision = 8 // 默认精度
+			szPrecision = 8
 		}
-		contractSizeFloat, _ := contractSizeBig.Float64()
-		sz = strconv.FormatFloat(contractSizeFloat, 'f', szPrecision, 64)
+		sz = contractSizeDecimal.StringFixed(int32(szPrecision))
 	}
 
 	reqBody := map[string]interface{}{
@@ -732,35 +765,56 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 		"sz":      sz,
 	}
 
-	// 对于现货交易，需要设置 tgtCcy 参数
-	// tgtCcy: base_ccy 表示 sz 是基础货币数量，quote_ccy 表示 sz 是计价货币数量
+	// 现货订单设置 tgtCcy
 	if !market.Contract {
-		tgtCcy := "base_ccy" // 默认使用基础货币
-		if v, ok := params["tgtCcy"].(string); ok {
-			tgtCcy = v
-		}
-		reqBody["tgtCcy"] = tgtCcy
+		reqBody["tgtCcy"] = "base_ccy"
 	}
 
+	// 限价单设置价格
 	if orderType == types.OrderTypeLimit {
-		reqBody["px"] = priceStr // 直接使用字符串
+		reqBody["px"] = priceStr
 	}
 
-	// 生成客户端订单ID（如果未提供）
-	// OKX 使用 clOrdId 参数
-	if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
-		// 如果用户提供了 clientOrderId，使用它
-		reqBody["clOrdId"] = clientOrderId
-	} else {
-		// 如果未提供，自动生成
-		reqBody["clOrdId"] = common.GenerateClientOrderID(o.Name(), side)
-	}
-
-	// 合并额外参数（排除已处理的参数）
-	for k, v := range params {
-		if k != "tdMode" && k != "tgtCcy" && k != "posSide" && k != "clientOrderId" {
-			reqBody[k] = v
+	// 合约订单处理持仓方向
+	if market.Contract {
+		if options.PositionSide == nil {
+			return nil, fmt.Errorf("contract order requires PositionSide (long/short)")
 		}
+
+		// 获取持仓模式
+		posMode, err := o.getPositionMode(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("get position mode: %w", err)
+		}
+
+		if posMode == "long_short_mode" {
+			// 双向持仓模式
+			// 开多/平多: posSide=long
+			// 开空/平空: posSide=short
+			if *options.PositionSide == types.PositionSideLong {
+				reqBody["posSide"] = "long"
+			} else {
+				reqBody["posSide"] = "short"
+			}
+		} else {
+			// 单向持仓模式
+			reqBody["posSide"] = "net"
+
+			// 判断是否为平仓操作
+			// 平多：PositionSideLong + SideSell -> reduceOnly = true
+			// 平空：PositionSideShort + SideBuy -> reduceOnly = true
+			if (*options.PositionSide == types.PositionSideLong && side == types.OrderSideSell) ||
+				(*options.PositionSide == types.PositionSideShort && side == types.OrderSideBuy) {
+				reqBody["reduceOnly"] = true
+			}
+		}
+	}
+
+	// 客户端订单ID
+	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
+		reqBody["clOrdId"] = *options.ClientOrderID
+	} else {
+		reqBody["clOrdId"] = common.GenerateClientOrderID(o.Name(), side)
 	}
 
 	bodyStr, _ := json.Marshal(reqBody)
@@ -804,7 +858,6 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 		return nil, fmt.Errorf("okx api error: no order data returned")
 	}
 
-	// 检查订单数据中的错误码
 	data := result.Data[0]
 	if data.SCode != "" && data.SCode != "0" {
 		errMsg := data.SMsg
@@ -814,7 +867,6 @@ func (o *OKX) CreateOrder(ctx context.Context, symbol string, side types.OrderSi
 		return nil, fmt.Errorf("okx api error: %s (code: %s)", errMsg, data.SCode)
 	}
 
-	// 解析 amount 和 price 字符串为 float64 用于设置 Order 字段
 	amountFloat, _ := strconv.ParseFloat(amount, 64)
 	var priceFloat float64
 	if priceStr != "" {

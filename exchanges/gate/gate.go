@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
-	"math/big"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +12,7 @@ import (
 	"github.com/lemconn/exlink/base"
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/types"
+	"github.com/shopspring/decimal"
 )
 
 const (
@@ -24,9 +24,9 @@ const (
 // Gate Gate交易所实现
 type Gate struct {
 	*base.BaseExchange
-	client    *common.HTTPClient
-	apiKey    string
-	secretKey string
+	client          *common.HTTPClient
+	apiKey          string
+	secretKey       string
 }
 
 // NewGate 创建Gate交易所实例
@@ -746,22 +746,16 @@ func (g *Gate) FetchBalance(ctx context.Context) (types.Balances, error) {
 	return balances, nil
 }
 
-// CreateOrder 创建订单
+// CreateOrder 创建订单（简化版）
 func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
 	if g.secretKey == "" {
 		return nil, base.ErrAuthenticationRequired
 	}
 
-	// 解析选项并转换为 params map
+	// 解析选项
 	options := types.ApplyOrderOptions(opts...)
-	params := make(map[string]interface{})
 
-	// 处理通用选项 - 客户端订单ID统一使用 ClientOrderID
-	if options.ClientOrderID != nil {
-		params["clientOrderId"] = *options.ClientOrderID
-	}
-
-	// 判断订单类型：如果 options.Price 设置了且不为空，则为限价单，否则为市价单
+	// 判断订单类型
 	var orderType types.OrderType
 	var priceStr string
 	if options.Price != nil && *options.Price != "" {
@@ -770,25 +764,6 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 	} else {
 		orderType = types.OrderTypeMarket
 		priceStr = ""
-	}
-
-	// 处理 Gate 特定选项
-	if options.Size != nil {
-		params["size"] = *options.Size
-	}
-	if options.ReduceOnly != nil {
-		params["reduce_only"] = *options.ReduceOnly
-	}
-	if options.TIF != nil {
-		// futures order
-		params["tif"] = options.TIF.Lower()
-	}
-	if options.TimeInForce != nil {
-		// spot order
-		params["time_in_force"] = options.TimeInForce.Lower()
-	}
-	if options.Cost != nil {
-		params["cost"] = *options.Cost
 	}
 
 	market, err := g.GetMarket(symbol)
@@ -801,13 +776,11 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 		return nil, fmt.Errorf("get market ID: %w", err)
 	}
 
-	// 解析 amount 字符串为 float64 用于计算
 	amountFloat, err := strconv.ParseFloat(amount, 64)
 	if err != nil {
 		return nil, fmt.Errorf("invalid amount: %w", err)
 	}
 
-	// 解析 price 字符串为 float64 用于计算（如果存在）
 	var priceFloat float64
 	if priceStr != "" {
 		priceFloat, err = strconv.ParseFloat(priceStr, 64)
@@ -820,108 +793,87 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 	reqBody := map[string]interface{}{}
 
 	if market.Contract {
-		// 合约订单
+		// ========== 合约订单 ==========
 		settle := strings.ToLower(market.Settle)
 		path = fmt.Sprintf("/api/v4/futures/%s/orders", settle)
 		reqBody["contract"] = gateSymbol
-		// 非期权合约需要在请求体中包含 settle
 		if !strings.Contains(strings.ToLower(market.ID), "option") {
 			reqBody["settle"] = settle
 		}
 
-		// 合约订单使用 size 参数（整数），正数表示买入，负数表示卖出
-		// 从 params 中获取 size，如果没有则根据 side 和 amount 计算
+		// 合约下单必须指定 PositionSide
+		if options.PositionSide == nil {
+			return nil, fmt.Errorf("contract order requires PositionSide (long/short)")
+		}
+
+		// 计算 size（张数）: 张数 = 币的个数 / quanto_multiplier
 		var size int64
-		if sizeVal, ok := params["size"]; ok {
-			// 支持字符串格式的 size（可能是浮点数字符串，需要转换为整数）
-			switch v := sizeVal.(type) {
-			case string:
-				// 先解析为浮点数，再转换为整数
-				sizeFloat, err := strconv.ParseFloat(v, 64)
-				if err != nil {
-					return nil, fmt.Errorf("invalid size parameter: %w", err)
-				}
-				// 使用 math.Ceil 确保至少为 1（对于正数）或 -1（对于负数）
-				if sizeFloat >= 0 {
-					size = int64(math.Max(1, math.Ceil(sizeFloat)))
-				} else {
-					size = int64(math.Min(-1, math.Floor(sizeFloat)))
-				}
-			case int64:
-				size = v
-			case int:
-				size = int64(v)
-			case float64:
-				// 使用 math.Ceil 确保至少为 1（对于正数）或 -1（对于负数）
-				if v >= 0 {
-					size = int64(math.Max(1, math.Ceil(v)))
-				} else {
-					size = int64(math.Min(-1, math.Floor(v)))
-				}
-			default:
-				return nil, fmt.Errorf("invalid size parameter type")
+		exContractValue, err := decimal.NewFromString(market.ContractValue)
+		if err == nil && exContractValue.GreaterThan(decimal.Zero) {
+			amountDecimal := decimal.NewFromFloat(amountFloat)
+			contractSizeDecimal := amountDecimal.Div(exContractValue)
+			contractSizeFloat, _ := contractSizeDecimal.Float64()
+			size = int64(math.Ceil(contractSizeFloat))
+			if size < 1 {
+				size = 1
 			}
 		} else {
-			// 根据 side 和 amount 计算 size
-			// 如果存在合约乘数，需要将币数量转换为张数
-			exContractValue, ok := new(big.Float).SetString(market.ContractValue)
-			if !ok {
-				return nil, fmt.Errorf("invalid contract value: %s", market.ContractValue)
+			size = int64(math.Ceil(amountFloat))
+			if size < 1 {
+				size = 1
 			}
-			contractSize := new(big.Float)
-			if exContractValue.Cmp(big.NewFloat(0.0)) > 0 {
-				// 转换公式：张数 = 币的个数 / quanto_multiplier
-				contractSize = exContractValue.Quo(big.NewFloat(amountFloat), exContractValue)
-			} else {
-				// 向后兼容：如果没有合约乘数，直接使用 amount
-				contractSize = big.NewFloat(amountFloat)
-			}
+		}
 
-			// 转换为整数（使用 math.Ceil 确保至少为 1（对于正数）或 -1（对于负数））
-			var sizeInt int64
-			if contractSize.Cmp(big.NewFloat(0.0)) >= 0 {
-				sizeInt, _ = contractSize.Int64()
-			} else {
-				return nil, fmt.Errorf("invalid contract size: %d", sizeInt)
-			}
-
+		// 根据 side + PositionSide 确定 size 符号 和 reduce_only
+		// 开多: PositionSideLong + SideBuy -> size正数, reduce_only=false
+		// 平多: PositionSideLong + SideSell -> size负数, reduce_only=true
+		// 开空: PositionSideShort + SideSell -> size负数, reduce_only=false
+		// 平空: PositionSideShort + SideBuy -> size正数, reduce_only=true
+		var reduceOnly bool
+		if *options.PositionSide == types.PositionSideLong {
 			if side == types.OrderSideBuy {
-				size = sizeInt // 正数表示买入
+				// 开多
+				reqBody["size"] = size
+				reduceOnly = false
 			} else {
-				size = -sizeInt // 负数表示卖出
+				// 平多
+				reqBody["size"] = -size
+				reduceOnly = true
+			}
+		} else { // PositionSideShort
+			if side == types.OrderSideSell {
+				// 开空
+				reqBody["size"] = -size
+				reduceOnly = false
+			} else {
+				// 平空
+				reqBody["size"] = size
+				reduceOnly = true
 			}
 		}
-		// Gate 合约订单的 size 可以是正数（买入）或负数（卖出）
-		// 如果 size 是负数且没有设置 reduce_only，可能需要根据实际情况处理
-		reqBody["size"] = size
 
-		// 处理 reduce_only 参数
-		if reduceOnly, ok := params["reduce_only"].(bool); ok {
-			reqBody["reduce_only"] = reduceOnly
+		// 设置 reduce_only
+		if reduceOnly {
+			reqBody["reduce_only"] = true
 		}
 
-		// 设置价格
+		// 价格设置
 		if orderType == types.OrderTypeMarket {
-			reqBody["price"] = "0" // 市价单使用 0
+			reqBody["price"] = "0"
 		} else {
 			reqBody["price"] = strconv.FormatFloat(priceFloat, 'f', -1, 64)
 		}
 
-		// 设置 time_in_force (tif)
-		if tif, ok := params["tif"].(string); ok {
-			reqBody["tif"] = tif
-		} else if orderType == types.OrderTypeLimit {
-			reqBody["tif"] = "gtc" // 限价单默认 gtc
+		// TimeInForce 设置（统一使用 tif 字段）
+		if options.TimeInForce != nil {
+			reqBody["tif"] = options.TimeInForce.Lower()
+		} else if orderType == types.OrderTypeMarket {
+			reqBody["tif"] = "ioc" // 市价单固定 ioc
 		} else {
-			reqBody["tif"] = "ioc" // 市价单默认 ioc
-		}
-
-		// 处理 reduce_only
-		if reduceOnly, ok := params["reduce_only"].(bool); ok {
-			reqBody["reduce_only"] = reduceOnly
+			reqBody["tif"] = "gtc" // 限价单默认 gtc
 		}
 	} else {
-		// 现货订单
+		// ========== 现货订单 ==========
 		path = "/api/v4/spot/orders"
 		reqBody["currency_pair"] = gateSymbol
 		reqBody["side"] = strings.ToLower(string(side))
@@ -930,90 +882,43 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 			reqBody["type"] = "limit"
 			reqBody["price"] = strconv.FormatFloat(priceFloat, 'f', -1, 64)
 			reqBody["amount"] = strconv.FormatFloat(amountFloat, 'f', -1, 64)
-			reqBody["time_in_force"] = "gtc"
+			
+			// TimeInForce 设置（统一使用 time_in_force 字段）
+			if options.TimeInForce != nil {
+				reqBody["time_in_force"] = options.TimeInForce.Lower()
+			} else {
+				reqBody["time_in_force"] = "gtc"
+			}
 		} else {
 			reqBody["type"] = "market"
-			// 现货市价单不支持 gtc，使用 ioc 或 fok
-			if tif, ok := params["time_in_force"].(string); ok {
-				if tif == "ioc" || tif == "fok" {
-					reqBody["time_in_force"] = tif
-				} else {
-					reqBody["time_in_force"] = "ioc" // 默认使用 ioc
-				}
-			} else {
-				reqBody["time_in_force"] = "ioc" // 默认使用 ioc
-			}
+			reqBody["time_in_force"] = "ioc" // 市价单固定 ioc
 
-			// 现货市价买入订单需要使用 cost（报价货币数量）而不是 amount（基础货币数量）
+			// 现货市价买单: 需要通过Ticker换算成USDT数量
 			if side == types.OrderSideBuy {
-				// 如果有 cost 参数，使用 cost；否则使用 amount * price 计算 cost
-				if cost, ok := params["cost"].(float64); ok {
-					reqBody["amount"] = strconv.FormatFloat(cost, 'f', -1, 64)
-				} else if priceStr != "" {
-					// 使用 math/big 进行精确计算
-					amountBig := new(big.Float).SetPrec(256)
-					amountBig, _, err = amountBig.Parse(amount, 10)
-					if err != nil {
-						return nil, fmt.Errorf("invalid amount: %w", err)
-					}
-					priceBig := new(big.Float).SetPrec(256)
-					priceBig, _, err = priceBig.Parse(priceStr, 10)
-					if err != nil {
-						return nil, fmt.Errorf("invalid price: %w", err)
-					}
-					costBig := new(big.Float).Mul(amountBig, priceBig)
-					costFloat, _ := costBig.Float64()
-					reqBody["amount"] = strconv.FormatFloat(costFloat, 'f', -1, 64)
-				} else {
-					// 如果没有价格，尝试获取当前价格
-					ticker, err := g.FetchTicker(ctx, symbol)
-					if err == nil && ticker.Last != "" {
-						// 使用 math/big 进行精确计算
-						amountBig := new(big.Float).SetPrec(256)
-						amountBig, _, err = amountBig.Parse(amount, 10)
-						if err == nil {
-							lastPriceBig := new(big.Float).SetPrec(256)
-							lastPriceBig, _, err = lastPriceBig.Parse(ticker.Last, 10)
-							if err == nil {
-								costBig := new(big.Float).Mul(amountBig, lastPriceBig)
-								costFloat, _ := costBig.Float64()
-								reqBody["amount"] = strconv.FormatFloat(costFloat, 'f', -1, 64)
-							} else {
-								reqBody["amount"] = strconv.FormatFloat(amountFloat, 'f', -1, 64)
-							}
-						} else {
-							reqBody["amount"] = strconv.FormatFloat(amountFloat, 'f', -1, 64)
-						}
-					} else {
-						reqBody["amount"] = strconv.FormatFloat(amountFloat, 'f', -1, 64)
-					}
+				ticker, err := g.FetchTicker(ctx, symbol)
+				if err != nil {
+					return nil, fmt.Errorf("fetch ticker for market buy: %w", err)
 				}
+
+				lastPrice, _ := strconv.ParseFloat(ticker.Last, 64)
+				if lastPrice == 0 {
+					return nil, fmt.Errorf("invalid ticker price")
+				}
+
+				cost := amountFloat * lastPrice
+				reqBody["amount"] = strconv.FormatFloat(cost, 'f', -1, 64)
 			} else {
-				// 现货市价卖出订单使用 amount（基础货币数量）
+				// 现货市价卖单: 直接使用 amount
 				reqBody["amount"] = strconv.FormatFloat(amountFloat, 'f', -1, 64)
 			}
 		}
 	}
 
-	// 生成客户端订单ID（如果未提供）
-	// Gate 使用 text 参数
-	if clientOrderId, hasClientOrderId := params["clientOrderId"]; hasClientOrderId {
-		// 如果用户提供了 clientOrderId，使用它
-		reqBody["text"] = clientOrderId
+	// 客户端订单ID
+	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
+		reqBody["text"] = *options.ClientOrderID
 	} else {
-		// 如果未提供，自动生成
 		reqBody["text"] = common.GenerateClientOrderID(g.Name(), side)
-	}
-
-	// 合并额外参数（排除已处理的参数）
-	excludedKeys := map[string]bool{
-		"size": true, "tif": true, "reduce_only": true, "time_in_force": true,
-		"clientOrderId": true, // 已处理，避免重复
-	}
-	for k, v := range params {
-		if !excludedKeys[k] {
-			reqBody[k] = v
-		}
 	}
 
 	resp, err := g.signAndRequest(ctx, "POST", path, nil, reqBody)
@@ -1021,7 +926,6 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 		return nil, fmt.Errorf("create order: %w", err)
 	}
 
-	// 合约订单和现货订单的响应格式不同，使用通用结构解析
 	var data map[string]interface{}
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
@@ -1030,82 +934,15 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 	order := &types.Order{
 		ID:        getString(data, "id"),
 		Symbol:    symbol,
+		Type:      orderType,
+		Side:      side,
 		Amount:    amountFloat,
 		Price:     priceFloat,
 		Timestamp: time.Now(),
+		Status:    types.OrderStatusNew,
 	}
 
-	// 解析价格
-	if priceStr := getString(data, "price"); priceStr != "" {
-		order.Price, _ = strconv.ParseFloat(priceStr, 64)
-	}
-
-	// 解析数量：合约订单使用 size，现货订单使用 amount
-	if market.Contract {
-		// 合约订单：size 是整数，正数表示买入，负数表示卖出
-		if sizeVal, ok := data["size"]; ok {
-			var size int64
-			switch v := sizeVal.(type) {
-			case float64:
-				size = int64(v)
-			case int64:
-				size = v
-			case int:
-				size = int64(v)
-			case string:
-				size, _ = strconv.ParseInt(v, 10, 64)
-			}
-			if size < 0 {
-				order.Amount = float64(-size)
-				order.Side = types.OrderSideSell
-			} else {
-				order.Amount = float64(size)
-				order.Side = types.OrderSideBuy
-			}
-		}
-		// 解析剩余数量
-		if leftVal, ok := data["left"]; ok {
-			var left int64
-			switch v := leftVal.(type) {
-			case float64:
-				left = int64(v)
-			case int64:
-				left = v
-			case int:
-				left = int64(v)
-			case string:
-				left, _ = strconv.ParseInt(v, 10, 64)
-			}
-			if left < 0 {
-				order.Remaining = float64(-left)
-			} else {
-				order.Remaining = float64(left)
-			}
-			order.Filled = order.Amount - order.Remaining
-		}
-	} else {
-		// 现货订单：使用 amount
-		if amountStr := getString(data, "amount"); amountStr != "" {
-			order.Amount, _ = strconv.ParseFloat(amountStr, 64)
-		}
-		// 解析剩余数量
-		if leftStr := getString(data, "left"); leftStr != "" {
-			left, _ := strconv.ParseFloat(leftStr, 64)
-			order.Remaining = left
-			order.Filled = order.Amount - left
-		}
-	}
-
-	// 解析 type
-	if typeStr := getString(data, "type"); typeStr != "" {
-		if strings.ToLower(typeStr) == "market" {
-			order.Type = types.OrderTypeMarket
-		} else {
-			order.Type = types.OrderTypeLimit
-		}
-	}
-
-	// 转换状态
+	// 解析状态
 	if statusStr := getString(data, "status"); statusStr != "" {
 		switch statusStr {
 		case "open":
@@ -1114,8 +951,6 @@ func (g *Gate) CreateOrder(ctx context.Context, symbol string, side types.OrderS
 			order.Status = types.OrderStatusFilled
 		case "cancelled":
 			order.Status = types.OrderStatusCanceled
-		default:
-			order.Status = types.OrderStatusNew
 		}
 	}
 

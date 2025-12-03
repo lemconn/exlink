@@ -48,6 +48,7 @@ func GenerateClientOrderID(exchange string, side types.OrderSide) string {
 
 	// Generate two random characters (uppercase letters + digits)
 	// Character set: 0-9, A-Z (36 characters)
+	// Note: 保留 math/big 用于加密随机数生成（这是crypto/rand的标准用法）
 	charset := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	randomChars := make([]byte, 2)
 	for i := range randomChars {

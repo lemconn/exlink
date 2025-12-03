@@ -256,9 +256,9 @@ func TestOKX_CreateContractOrder_BuyOpenLong(t *testing.T) {
 	last, _ := strconv.ParseFloat(ticker.Last, 64)
 	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", bid, ask, last)
 
-	// Buy to open long: side="buy", posSide="long"
-	// Use market order with posSide="long" to open long position
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, strconv.FormatFloat(amount, 'f', -1, 64), types.WithPosSide("long"))
+	// Buy to open long: side="buy", PositionSide="long"
+	// Use market order with PositionSide to open long position
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, strconv.FormatFloat(amount, 'f', -1, 64), types.WithPositionSide(types.PositionSideLong))
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create buy open long order: %v", err)
@@ -321,9 +321,9 @@ func TestOKX_CreateContractOrder_SellCloseLong(t *testing.T) {
 	last, _ := strconv.ParseFloat(ticker.Last, 64)
 	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", bid, ask, last)
 
-	// Sell to close long: side="sell", posSide="long"
-	// Use market order with posSide="long" to close long position
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, strconv.FormatFloat(amount, 'f', -1, 64), types.WithPosSide("long"))
+	// Sell to close long: side="sell", PositionSide="long"
+	// Use market order with PositionSide="long" to close long position
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, strconv.FormatFloat(amount, 'f', -1, 64), types.WithPositionSide(types.PositionSideLong))
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create sell close long order: %v", err)
@@ -386,9 +386,9 @@ func TestOKX_CreateContractOrder_SellOpenShort(t *testing.T) {
 	last, _ := strconv.ParseFloat(ticker.Last, 64)
 	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", bid, ask, last)
 
-	// Sell to open short: side="sell", posSide="short"
-	// Use market order with posSide="short" to open short position
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, strconv.FormatFloat(amount, 'f', -1, 64), types.WithPosSide("short"))
+	// Sell to open short: side="sell", PositionSide="short"
+	// Use market order with PositionSide="short" to open short position
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, strconv.FormatFloat(amount, 'f', -1, 64), types.WithPositionSide(types.PositionSideShort))
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create sell open short order: %v", err)
@@ -451,9 +451,9 @@ func TestOKX_CreateContractOrder_BuyCloseShort(t *testing.T) {
 	last, _ := strconv.ParseFloat(ticker.Last, 64)
 	fmt.Printf("Current price: bid=%f, ask=%f, last=%f\n", bid, ask, last)
 
-	// Buy to close short: side="buy", posSide="short"
-	// Use market order with posSide="short" to close short position
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, strconv.FormatFloat(amount, 'f', -1, 64), types.WithPosSide("short"))
+	// Buy to close short: side="buy", PositionSide="short"
+	// Use market order with PositionSide="short" to close short position
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, strconv.FormatFloat(amount, 'f', -1, 64), types.WithPositionSide(types.PositionSideShort))
 	if err != nil {
 		skipIfNetworkError(t, err)
 		t.Fatalf("Failed to create buy close short order: %v", err)
