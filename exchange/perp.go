@@ -1,0 +1,80 @@
+package exchange
+
+import (
+	"context"
+	"time"
+
+	"github.com/lemconn/exlink/types"
+)
+
+// PerpExchange 永续合约交易接口
+type PerpExchange interface {
+	// ========== 市场数据 ==========
+
+	// LoadMarkets 加载市场信息
+	LoadMarkets(ctx context.Context, reload bool) error
+
+	// FetchMarkets 获取市场列表
+	FetchMarkets(ctx context.Context) ([]*types.Market, error)
+
+	// GetMarket 获取单个市场信息
+	GetMarket(symbol string) (*types.Market, error)
+
+	// FetchTicker 获取行情（单个）
+	FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error)
+
+	// FetchTickers 批量获取行情
+	FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error)
+
+	// FetchOrderBook 获取订单簿
+	// FetchOrderBook(ctx context.Context, symbol string, limit ...int) (*types.OrderBook, error)
+	// TODO: 添加 OrderBook 类型到 types 包后启用
+
+	// FetchOHLCV 获取K线数据
+	FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error)
+
+	// ========== 账户信息 ==========
+
+	// FetchPositions 获取持仓
+	FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error)
+
+	// ========== 订单操作 ==========
+
+	// CreateOrder 创建订单
+	CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error)
+
+	// CancelOrder 取消订单
+	CancelOrder(ctx context.Context, orderID, symbol string) error
+
+	// FetchOrder 查询订单
+	FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error)
+
+	// FetchOrders 查询订单列表
+	FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error)
+
+	// FetchOpenOrders 查询未成交订单
+	FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error)
+
+	// ========== 交易记录 ==========
+
+	// FetchTrades 获取交易记录（公共）
+	FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error)
+
+	// FetchMyTrades 获取我的交易记录
+	FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error)
+
+	// ========== 合约特有功能 ==========
+
+	// SetLeverage 设置杠杆
+	SetLeverage(ctx context.Context, symbol string, leverage int) error
+
+	// SetMarginMode 设置保证金模式（isolated/cross）
+	SetMarginMode(ctx context.Context, symbol string, mode string) error
+
+	// SetHedgeMode 设置双向持仓模式
+	SetHedgeMode(hedgeMode bool)
+
+	// IsHedgeMode 是否为双向持仓模式
+	IsHedgeMode() bool
+}
+
