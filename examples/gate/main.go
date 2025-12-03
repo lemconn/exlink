@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 
 	"github.com/lemconn/exlink"
 	"github.com/lemconn/exlink/base"
@@ -103,13 +102,8 @@ func main() {
 
 // openLongPosition opens a long position (buy to open long)
 func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
-	// Gate uses size parameter, positive value means buy (open long)
-	amountFloat, _ := strconv.ParseFloat(amount, 64)
-	size := int64(amountFloat)
-	if size == 0 {
-		size = 1
-	}
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithSize(size))
+	// Open long position: buy with PositionSideLong
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithPositionSide(types.PositionSideLong))
 	if err != nil {
 		fmt.Printf("Failed to open long position: %v", err)
 	} else {
@@ -120,13 +114,8 @@ func openLongPosition(ctx context.Context, exchange base.Exchange, symbol string
 
 // closeLongPosition closes a long position (sell to close long)
 func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
-	// Gate uses size parameter (negative value means sell) and reduce_only to close position
-	amountFloat, _ := strconv.ParseFloat(amount, 64)
-	size := int64(-amountFloat)
-	if size == 0 {
-		size = -1
-	}
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithSize(size), types.WithReduceOnly(true))
+	// Close long position: sell with PositionSideLong
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithPositionSide(types.PositionSideLong))
 	if err != nil {
 		fmt.Printf("Failed to close long position: %v", err)
 	} else {
@@ -137,13 +126,8 @@ func closeLongPosition(ctx context.Context, exchange base.Exchange, symbol strin
 
 // openShortPosition opens a short position (sell to open short)
 func openShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
-	// Gate uses size parameter, negative value means sell (open short)
-	amountFloat, _ := strconv.ParseFloat(amount, 64)
-	size := int64(-amountFloat)
-	if size == 0 {
-		size = -1
-	}
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithSize(size))
+	// Open short position: sell with PositionSideShort
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideSell, amount, types.WithPositionSide(types.PositionSideShort))
 	if err != nil {
 		fmt.Printf("Failed to open short position: %v", err)
 	} else {
@@ -154,13 +138,8 @@ func openShortPosition(ctx context.Context, exchange base.Exchange, symbol strin
 
 // closeShortPosition closes a short position (buy to close short)
 func closeShortPosition(ctx context.Context, exchange base.Exchange, symbol string, amount string) {
-	// Gate uses size parameter (positive value means buy) and reduce_only to close position
-	amountFloat, _ := strconv.ParseFloat(amount, 64)
-	size := int64(amountFloat)
-	if size == 0 {
-		size = 1
-	}
-	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithSize(size), types.WithReduceOnly(true))
+	// Close short position: buy with PositionSideShort
+	order, err := exchange.CreateOrder(ctx, symbol, types.OrderSideBuy, amount, types.WithPositionSide(types.PositionSideShort))
 	if err != nil {
 		fmt.Printf("Failed to close short position: %v", err)
 	} else {

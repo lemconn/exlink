@@ -138,13 +138,14 @@
 					}
 				},
 				"url": {
-					"raw": "{{bybit_base_url}}/v5/order",
+					"raw": "{{bybit_base_url}}/v5/order/create",
 					"host": [
 						"{{bybit_base_url}}"
 					],
 					"path": [
 						"v5",
-						"order"
+						"order",
+						"create"
 					]
 				},
 				"description": "Spot buy: Buy spot assets. category=spot, side=Buy, orderType=Market, qty is base currency amount. For market buy, you can use marketUnit=quoteCoin and qty as quote currency amount."
@@ -195,13 +196,14 @@
 					}
 				},
 				"url": {
-					"raw": "{{bybit_base_url}}/v5/order",
+					"raw": "{{bybit_base_url}}/v5/order/create",
 					"host": [
 						"{{bybit_base_url}}"
 					],
 					"path": [
 						"v5",
-						"order"
+						"order",
+						"create"
 					]
 				},
 				"description": "Spot sell: Sell spot assets. category=spot, side=Sell, orderType=Market, qty is base currency amount."
@@ -524,13 +526,14 @@
 					}
 				},
 				"url": {
-					"raw": "{{bybit_base_url}}/v5/order",
+					"raw": "{{bybit_base_url}}/v5/order/create",
 					"host": [
 						"{{bybit_base_url}}"
 					],
 					"path": [
 						"v5",
-						"order"
+						"order",
+						"create"
 					]
 				},
 				"description": "Perpetual swap open long: Buy to open long position. category=linear, side=Buy, orderType=Market, reduceOnly=false."
@@ -581,13 +584,14 @@
 					}
 				},
 				"url": {
-					"raw": "{{bybit_base_url}}/v5/order",
+					"raw": "{{bybit_base_url}}/v5/order/create",
 					"host": [
 						"{{bybit_base_url}}"
 					],
 					"path": [
 						"v5",
-						"order"
+						"order",
+						"create"
 					]
 				},
 				"description": "Perpetual swap close long: Sell to close long position. category=linear, side=Sell, orderType=Market, reduceOnly=true."
@@ -638,13 +642,14 @@
 					}
 				},
 				"url": {
-					"raw": "{{bybit_base_url}}/v5/order",
+					"raw": "{{bybit_base_url}}/v5/order/create",
 					"host": [
 						"{{bybit_base_url}}"
 					],
 					"path": [
 						"v5",
-						"order"
+						"order",
+						"create"
 					]
 				},
 				"description": "Perpetual swap open short: Sell to open short position. category=linear, side=Sell, orderType=Market, reduceOnly=false."
@@ -701,7 +706,8 @@
 					],
 					"path": [
 						"v5",
-						"order"
+						"order",
+						"create"
 					]
 				},
 				"description": "Perpetual swap close short: Buy to close short position. category=linear, side=Buy, orderType=Market, reduceOnly=true."
