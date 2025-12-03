@@ -27,8 +27,6 @@ type Gate struct {
 	client          *common.HTTPClient
 	apiKey          string
 	secretKey       string
-	positionMode    *bool      // 持仓模式缓存: true=双向, false=单向
-	positionModeExp time.Time  // 持仓模式缓存过期时间
 }
 
 // NewGate 创建Gate交易所实例
@@ -746,36 +744,6 @@ func (g *Gate) FetchBalance(ctx context.Context) (types.Balances, error) {
 	}
 
 	return balances, nil
-}
-
-// getPositionMode 获取持仓模式（带缓存）
-// 返回: true=双向持仓, false=单向持仓
-func (g *Gate) getPositionMode(ctx context.Context) (bool, error) {
-	// 检查缓存是否有效（5分钟）
-	if g.positionMode != nil && time.Now().Before(g.positionModeExp) {
-		return *g.positionMode, nil
-	}
-
-	// 查询合约账户信息
-	// 参考: https://www.gate.io/docs/developers/apiv4/en/#list-perpetual-contract-account
-	resp, err := g.signAndRequest(ctx, "GET", "/api/v4/futures/usdt/accounts", nil, nil)
-	if err != nil {
-		return false, fmt.Errorf("get futures accounts: %w", err)
-	}
-
-	var result struct {
-		InDualMode bool `json:"in_dual_mode"`
-	}
-
-	if err := json.Unmarshal(resp, &result); err != nil {
-		return false, fmt.Errorf("unmarshal futures accounts: %w", err)
-	}
-
-	// 缓存结果
-	g.positionMode = &result.InDualMode
-	g.positionModeExp = time.Now().Add(5 * time.Minute)
-
-	return result.InDualMode, nil
 }
 
 // CreateOrder 创建订单（简化版）
