@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
 
 // OrderSide 订单方向
 type OrderSide string
@@ -67,9 +71,9 @@ type Fee struct {
 	// Currency 手续费币种
 	Currency string `json:"currency"`
 	// Cost 手续费金额
-	Cost float64 `json:"cost"`
+	Cost decimal.Decimal `json:"cost"`
 	// Rate 手续费率
-	Rate float64 `json:"rate,omitempty"`
+	Rate decimal.Decimal `json:"rate,omitempty"`
 }
 
 // OrderOption 订单选项
@@ -99,17 +103,17 @@ type Order struct {
 	// Side 订单方向
 	Side OrderSide `json:"side"`
 	// Amount 订单数量
-	Amount float64 `json:"amount"`
+	Amount decimal.Decimal `json:"amount"`
 	// Price 订单价格
-	Price float64 `json:"price"`
+	Price decimal.Decimal `json:"price"`
 	// Filled 已成交数量
-	Filled float64 `json:"filled"`
+	Filled decimal.Decimal `json:"filled"`
 	// Remaining 未成交数量
-	Remaining float64 `json:"remaining"`
+	Remaining decimal.Decimal `json:"remaining"`
 	// Cost 成交金额
-	Cost float64 `json:"cost"`
+	Cost decimal.Decimal `json:"cost"`
 	// Average 平均成交价格
-	Average float64 `json:"average"`
+	Average decimal.Decimal `json:"average"`
 	// Status 订单状态
 	Status OrderStatus `json:"status"`
 	// Fee 手续费
@@ -119,4 +123,3 @@ type Order struct {
 	// Info 交易所原始信息
 	Info map[string]interface{} `json:"info,omitempty"`
 }
-

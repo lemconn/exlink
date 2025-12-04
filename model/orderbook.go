@@ -1,11 +1,13 @@
 package model
 
+import "github.com/shopspring/decimal"
+
 // OrderBookEntry 订单簿条目
 type OrderBookEntry struct {
 	// Price 价格
-	Price float64 `json:"price"`
+	Price decimal.Decimal `json:"price"`
 	// Amount 数量
-	Amount float64 `json:"amount"`
+	Amount decimal.Decimal `json:"amount"`
 }
 
 // OrderBook 订单簿
@@ -19,4 +21,3 @@ type OrderBook struct {
 	// Timestamp 时间戳
 	Timestamp int64 `json:"timestamp"`
 }
-
