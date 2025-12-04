@@ -11,7 +11,7 @@ type Timestamp time.Time
 
 func (t *Timestamp) UnmarshalJSON(b []byte) error {
 	// 1) 去掉空格 & 引号
-	s := strings.Trim(string(b), `" \t\n\r`)
+	s := strings.TrimSpace(strings.Trim(string(b), `"`))
 	if s == "" || s == "null" {
 		return nil
 	}
