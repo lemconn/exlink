@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
 
 // Trade 交易记录
 type Trade struct {
@@ -15,11 +19,11 @@ type Trade struct {
 	// Side 方向
 	Side string `json:"side"`
 	// Amount 数量
-	Amount float64 `json:"amount"`
+	Amount decimal.Decimal `json:"amount"`
 	// Price 价格
-	Price float64 `json:"price"`
+	Price decimal.Decimal `json:"price"`
 	// Cost 成交金额
-	Cost float64 `json:"cost"`
+	Cost decimal.Decimal `json:"cost"`
 	// Fee 手续费
 	Fee *Fee `json:"fee,omitempty"`
 	// Timestamp 时间戳
@@ -27,4 +31,3 @@ type Trade struct {
 	// Info 交易所原始信息
 	Info map[string]interface{} `json:"info,omitempty"`
 }
-

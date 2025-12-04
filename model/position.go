@@ -1,6 +1,10 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
 
 // Position 持仓信息（用于合约）
 type Position struct {
@@ -9,26 +13,25 @@ type Position struct {
 	// Side 持仓方向
 	Side PositionSide `json:"side"`
 	// Amount 持仓数量
-	Amount float64 `json:"amount"`
+	Amount decimal.Decimal `json:"amount"`
 	// EntryPrice 开仓价格
-	EntryPrice float64 `json:"entry_price"`
+	EntryPrice decimal.Decimal `json:"entry_price"`
 	// MarkPrice 标记价格
-	MarkPrice float64 `json:"mark_price"`
+	MarkPrice decimal.Decimal `json:"mark_price"`
 	// LiquidationPrice 强平价格
-	LiquidationPrice float64 `json:"liquidation_price"`
+	LiquidationPrice decimal.Decimal `json:"liquidation_price"`
 	// UnrealizedPnl 未实现盈亏
-	UnrealizedPnl float64 `json:"unrealized_pnl"`
+	UnrealizedPnl decimal.Decimal `json:"unrealized_pnl"`
 	// RealizedPnl 已实现盈亏
-	RealizedPnl float64 `json:"realized_pnl"`
+	RealizedPnl decimal.Decimal `json:"realized_pnl"`
 	// Leverage 杠杆倍数
-	Leverage float64 `json:"leverage"`
+	Leverage decimal.Decimal `json:"leverage"`
 	// Margin 保证金
-	Margin float64 `json:"margin"`
+	Margin decimal.Decimal `json:"margin"`
 	// Percentage 持仓占比
-	Percentage float64 `json:"percentage"`
+	Percentage decimal.Decimal `json:"percentage"`
 	// Timestamp 时间戳
 	Timestamp time.Time `json:"timestamp"`
 	// Info 交易所原始信息
 	Info map[string]interface{} `json:"info,omitempty"`
 }
-

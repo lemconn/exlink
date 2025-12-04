@@ -1,5 +1,7 @@
 package model
 
+import "github.com/shopspring/decimal"
+
 // MarketType 市场类型
 type MarketType string
 
@@ -60,23 +62,23 @@ type Market struct {
 		// Amount 数量限制
 		Amount struct {
 			// Min 最小数量
-			Min float64 `json:"min"`
+			Min decimal.Decimal `json:"min"`
 			// Max 最大数量
-			Max float64 `json:"max"`
+			Max decimal.Decimal `json:"max"`
 		} `json:"amount"`
 		// Price 价格限制
 		Price struct {
 			// Min 最小价格
-			Min float64 `json:"min"`
+			Min decimal.Decimal `json:"min"`
 			// Max 最大价格
-			Max float64 `json:"max"`
+			Max decimal.Decimal `json:"max"`
 		} `json:"price"`
 		// Cost 成本限制
 		Cost struct {
 			// Min 最小成本
-			Min float64 `json:"min"`
+			Min decimal.Decimal `json:"min"`
 			// Max 最大成本
-			Max float64 `json:"max"`
+			Max decimal.Decimal `json:"max"`
 		} `json:"cost"`
 	} `json:"limits"`
 

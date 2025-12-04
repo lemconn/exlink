@@ -1,17 +1,19 @@
 package model
 
+import "github.com/shopspring/decimal"
+
 // Balance 余额信息
 type Balance struct {
 	// Currency 币种
 	Currency string `json:"currency"`
 	// Free 可用余额
-	Free float64 `json:"free"`
+	Free decimal.Decimal `json:"free"`
 	// Used 冻结余额
-	Used float64 `json:"used"`
+	Used decimal.Decimal `json:"used"`
 	// Total 总余额
-	Total float64 `json:"total"`
+	Total decimal.Decimal `json:"total"`
 	// Available 可用余额（同 Free）
-	Available float64 `json:"available"`
+	Available decimal.Decimal `json:"available"`
 }
 
 // Balances 所有余额（币种 -> 余额的映射）
@@ -24,10 +26,9 @@ func (b Balances) GetBalance(currency string) *Balance {
 	}
 	return &Balance{
 		Currency:  currency,
-		Free:      0,
-		Used:      0,
-		Total:     0,
-		Available: 0,
+		Free:      decimal.Zero,
+		Used:      decimal.Zero,
+		Total:     decimal.Zero,
+		Available: decimal.Zero,
 	}
 }
-
