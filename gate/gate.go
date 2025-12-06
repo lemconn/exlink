@@ -1,15 +1,21 @@
 package gate
 
 import (
+	"sync"
+
 	"github.com/lemconn/exlink/exchange"
+	"github.com/lemconn/exlink/types"
 )
 
 // Gate Gate 交易所实现
 type Gate struct {
-	client *Client
-	signer *Signer
-	spot   *GateSpot
-	perp   *GatePerp
+	client      *Client
+	signer      *Signer
+	spot        *GateSpot
+	perp        *GatePerp
+	spotMarkets map[string]*types.Market // 现货市场信息
+	perpMarkets map[string]*types.Market // 合约市场信息
+	mu          sync.RWMutex             // 保护市场信息的读写锁
 }
 
 // NewGate 创建 Gate 交易所实例
@@ -22,8 +28,10 @@ func NewGate(apiKey, secretKey string, options map[string]interface{}) (exchange
 	signer := NewSigner(secretKey)
 
 	gate := &Gate{
-		client: client,
-		signer: signer,
+		client:      client,
+		signer:      signer,
+		spotMarkets: make(map[string]*types.Market),
+		perpMarkets: make(map[string]*types.Market),
 	}
 
 	// 初始化现货和合约实现

@@ -1,15 +1,21 @@
 package binance
 
 import (
+	"sync"
+
 	"github.com/lemconn/exlink/exchange"
+	"github.com/lemconn/exlink/types"
 )
 
 // Binance Binance 交易所实现
 type Binance struct {
-	client *Client
-	signer *Signer
-	spot   *BinanceSpot
-	perp   *BinancePerp
+	client      *Client
+	signer      *Signer
+	spot        *BinanceSpot
+	perp        *BinancePerp
+	spotMarkets map[string]*types.Market // 现货市场信息
+	perpMarkets map[string]*types.Market // 合约市场信息
+	mu          sync.RWMutex             // 保护市场信息的读写锁
 }
 
 // NewBinance 创建 Binance 交易所实例
@@ -22,8 +28,10 @@ func NewBinance(apiKey, secretKey string, options map[string]interface{}) (excha
 	signer := NewSigner(secretKey)
 
 	binance := &Binance{
-		client: client,
-		signer: signer,
+		client:      client,
+		signer:      signer,
+		spotMarkets: make(map[string]*types.Market),
+		perpMarkets: make(map[string]*types.Market),
 	}
 
 	// 初始化现货和合约实现

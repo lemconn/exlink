@@ -1,23 +1,14 @@
 package exlink
 
 import (
-	"context"
 	"fmt"
 	"sync"
 
-	"github.com/lemconn/exlink/base"
-	"github.com/lemconn/exlink/exchanges/binance"
-	"github.com/lemconn/exlink/exchanges/bybit"
-	"github.com/lemconn/exlink/exchanges/gate"
-	"github.com/lemconn/exlink/exchanges/okx"
-	"github.com/lemconn/exlink/types"
-)
-
-// 市场类型常量别名（方便使用）
-const (
-	MarketSpot   = types.MarketTypeSpot   // 现货市场
-	MarketSwap   = types.MarketTypeSwap   // 永续合约市场
-	MarketFuture = types.MarketTypeFuture // 永续合约市场（同义于 MarketSwap）
+	"github.com/lemconn/exlink/binance"
+	"github.com/lemconn/exlink/bybit"
+	"github.com/lemconn/exlink/exchange"
+	"github.com/lemconn/exlink/gate"
+	"github.com/lemconn/exlink/okx"
 )
 
 // 交易所名称常量
@@ -30,16 +21,15 @@ const (
 
 // ExchangeOptions 交易所配置选项
 type ExchangeOptions struct {
-	APIKey       string
-	SecretKey    string
-	Password     string // 密码（用于 OKX 等需要 password 的交易所）
-	HedgeMode    bool   // 是否为双向持仓模式（用于合约下单时控制参数）
-	Sandbox      bool
-	Proxy        string
-	BaseURL      string
-	FetchMarkets []types.MarketType
-	Debug        bool
-	Options      map[string]interface{} // 其他自定义选项
+	APIKey    string
+	SecretKey string
+	Password  string // 密码（用于 OKX 等需要 password 的交易所）
+	HedgeMode bool   // 是否为双向持仓模式（用于合约下单时控制参数）
+	Sandbox   bool
+	Proxy     string
+	BaseURL   string
+	Debug     bool
+	Options   map[string]interface{} // 其他自定义选项
 }
 
 // Option 配置选项函数类型
@@ -87,13 +77,6 @@ func WithBaseURL(baseURL string) Option {
 	}
 }
 
-// WithFetchMarkets 设置要加载的市场类型
-func WithFetchMarkets(markets ...types.MarketType) Option {
-	return func(opts *ExchangeOptions) {
-		opts.FetchMarkets = markets
-	}
-}
-
 // WithDebug 设置是否启用调试模式
 func WithDebug(debug bool) Option {
 	return func(opts *ExchangeOptions) {
@@ -119,18 +102,16 @@ func WithOption(key string, value interface{}) Option {
 }
 
 // ExchangeFactory 交易所工厂函数
-type ExchangeFactory func(apiKey, secretKey string, options map[string]interface{}) (base.Exchange, error)
+type ExchangeFactory func(apiKey, secretKey string, options map[string]interface{}) (exchange.Exchange, error)
 
 // Registry 交易所注册表
 type Registry struct {
 	mu        sync.RWMutex
 	factories map[string]ExchangeFactory
-	exchanges map[string]base.Exchange
 }
 
 var globalRegistry = &Registry{
 	factories: make(map[string]ExchangeFactory),
-	exchanges: make(map[string]base.Exchange),
 }
 
 // init 初始化函数，注册所有支持的交易所
@@ -149,7 +130,8 @@ func Register(name string, factory ExchangeFactory) {
 }
 
 // NewExchange 创建交易所实例（使用 Functional Options Pattern）
-func NewExchange(name string, opts ...Option) (base.Exchange, error) {
+// 返回 exchange.Exchange 接口，提供 Spot() 和 Perp() 方法
+func NewExchange(name string, opts ...Option) (exchange.Exchange, error) {
 	// 初始化默认选项
 	options := &ExchangeOptions{
 		Options: make(map[string]interface{}),
@@ -171,14 +153,6 @@ func NewExchange(name string, opts ...Option) (base.Exchange, error) {
 	if options.BaseURL != "" {
 		optionsMap["baseURL"] = options.BaseURL
 	}
-	if len(options.FetchMarkets) > 0 {
-		// 转换为字符串数组以兼容现有的 ExchangeFactory
-		marketStrings := make([]string, len(options.FetchMarkets))
-		for i, mt := range options.FetchMarkets {
-			marketStrings[i] = string(mt)
-		}
-		optionsMap["fetchMarkets"] = marketStrings
-	}
 	if options.Password != "" {
 		optionsMap["password"] = options.Password
 	}
@@ -198,26 +172,16 @@ func NewExchange(name string, opts ...Option) (base.Exchange, error) {
 	globalRegistry.mu.RUnlock()
 
 	if !ok {
-		return nil, fmt.Errorf("%w: %s", base.ErrExchangeNotSupported, name)
+		return nil, fmt.Errorf("exchange not supported: %s", name)
 	}
 
-	exchange, err := factory(options.APIKey, options.SecretKey, optionsMap)
+	// 直接调用工厂函数创建 exchange.Exchange 实例
+	ex, err := factory(options.APIKey, options.SecretKey, optionsMap)
 	if err != nil {
 		return nil, err
 	}
 
-	// 设置双向持仓模式
-	if options.HedgeMode {
-		exchange.SetHedgeMode(true)
-	}
-
-	// 加载市场信息
-	ctx := context.Background()
-	if err := exchange.LoadMarkets(ctx, false); err != nil {
-		return nil, fmt.Errorf("failed to load markets: %w", err)
-	}
-
-	return exchange, nil
+	return ex, nil
 }
 
 // GetSupportedExchanges 获取支持的交易所列表

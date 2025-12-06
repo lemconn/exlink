@@ -28,3 +28,4 @@ type Ticker struct {
 	Info map[string]interface{} `json:"info,omitempty"`
 }
 
+

@@ -1,15 +1,21 @@
 package okx
 
 import (
+	"sync"
+
 	"github.com/lemconn/exlink/exchange"
+	"github.com/lemconn/exlink/types"
 )
 
 // OKX OKX 交易所实现
 type OKX struct {
-	client *Client
-	signer *Signer
-	spot   *OKXSpot
-	perp   *OKXPerp
+	client      *Client
+	signer      *Signer
+	spot        *OKXSpot
+	perp        *OKXPerp
+	spotMarkets map[string]*types.Market // 现货市场信息
+	perpMarkets map[string]*types.Market // 合约市场信息
+	mu          sync.RWMutex             // 保护市场信息的读写锁
 }
 
 // NewOKX 创建 OKX 交易所实例
@@ -27,8 +33,10 @@ func NewOKX(apiKey, secretKey string, options map[string]interface{}) (exchange.
 	signer := NewSigner(secretKey, passphrase)
 
 	okx := &OKX{
-		client: client,
-		signer: signer,
+		client:      client,
+		signer:      signer,
+		spotMarkets: make(map[string]*types.Market),
+		perpMarkets: make(map[string]*types.Market),
 	}
 
 	// 初始化现货和合约实现
