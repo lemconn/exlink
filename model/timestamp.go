@@ -58,17 +58,17 @@ func (t *Timestamp) UnmarshalJSON(b []byte) error {
 func (t Timestamp) MarshalJSON() ([]byte, error) {
 	switch t.sourceFormat {
 	case "s":
-		return []byte(strconv.FormatInt(t.Time.Unix(), 10)), nil
+		return []byte(strconv.FormatInt(t.Unix(), 10)), nil
 	case "ms":
-		return []byte(strconv.FormatInt(t.Time.UnixMilli(), 10)), nil
+		return []byte(strconv.FormatInt(t.UnixMilli(), 10)), nil
 	case "us":
-		return []byte(strconv.FormatInt(t.Time.UnixMicro(), 10)), nil
+		return []byte(strconv.FormatInt(t.UnixMicro(), 10)), nil
 	case "ns":
-		return []byte(strconv.FormatInt(t.Time.UnixNano(), 10)), nil
+		return []byte(strconv.FormatInt(t.UnixNano(), 10)), nil
 	case "rfc3339":
-		return json.Marshal(t.Time.Format(time.RFC3339))
+		return json.Marshal(t.Format(time.RFC3339))
 	default:
 		// 默认使用毫秒时间戳（大多数交易所API使用毫秒时间戳）
-		return []byte(strconv.FormatInt(t.Time.UnixMilli(), 10)), nil
+		return []byte(strconv.FormatInt(t.UnixMilli(), 10)), nil
 	}
 }

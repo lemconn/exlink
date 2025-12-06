@@ -64,13 +64,21 @@ func main() {
     ctx := context.Background()
     
     // Create exchange instance (no API keys needed for public data)
-    exchange, err := exlink.NewExchange(exlink.ExchangeBinance)
+    ex, err := exlink.NewExchange(exlink.ExchangeBinance)
     if err != nil {
         log.Fatal(err)
     }
     
+    // Get spot interface
+    spot := ex.Spot()
+    
+    // Load markets
+    if err := spot.LoadMarkets(ctx, false); err != nil {
+        log.Fatal(err)
+    }
+    
     // Fetch ticker (using unified format BTC/USDT)
-    ticker, err := exchange.FetchTicker(ctx, "BTC/USDT")
+    ticker, err := spot.FetchTicker(ctx, "BTC/USDT")
     if err != nil {
         log.Fatal(err)
     }
@@ -83,7 +91,7 @@ func main() {
 
 ```go
 // Create authenticated exchange instance
-exchange, err := exlink.NewExchange(
+ex, err := exlink.NewExchange(
     exlink.ExchangeBinance,
     exlink.WithAPIKey("your-api-key"),
     exlink.WithSecretKey("your-secret-key"),
@@ -92,8 +100,16 @@ if err != nil {
     log.Fatal(err)
 }
 
+// Get spot interface
+spot := ex.Spot()
+
+// Load markets
+if err := spot.LoadMarkets(ctx, false); err != nil {
+    log.Fatal(err)
+}
+
 // Fetch balance
-balances, err := exchange.FetchBalance(ctx)
+balances, err := spot.FetchBalance(ctx)
 if err != nil {
     log.Fatal(err)
 }
@@ -105,18 +121,22 @@ fmt.Printf("BTC Balance: %.8f\n", btcBalance.Free)
 ### Options
 
 ```go
+import (
+    "github.com/lemconn/exlink"
+    "github.com/lemconn/exlink/model"
+)
+
 // Create exchange with options
-exchange, err := exlink.NewExchange(
+ex, err := exlink.NewExchange(
     exlink.ExchangeBinance,
     exlink.WithAPIKey("your-api-key"),
     exlink.WithSecretKey("your-secret-key"),
     exlink.WithSandbox(true),                              // Enable sandbox mode
     exlink.WithProxy("http://proxy.example.com:8080"),    // Set proxy
-    exlink.WithFetchMarkets(exlink.MarketSpot, exlink.MarketSwap), // Load specific market types
 )
 
 // OKX requires password for authenticated requests
-exchange, err := exlink.NewExchange(
+ex, err := exlink.NewExchange(
     exlink.ExchangeOKX,
     exlink.WithAPIKey("your-api-key"),
     exlink.WithSecretKey("your-secret-key"),
@@ -131,12 +151,16 @@ exchange, err := exlink.NewExchange(
 All exchanges use the unified `BASE/QUOTE` format (e.g., `BTC/USDT`). The library automatically converts to each exchange's native format:
 
 ```go
+// Get spot and perp interfaces
+spot := ex.Spot()
+perp := ex.Perp()
+
 // Use unified format - library auto-converts
-ticker, err := exchange.FetchTicker(ctx, "BTC/USDT") 
+ticker, err := spot.FetchTicker(ctx, "BTC/USDT") 
 // Binance: BTCUSDT, OKX: BTC-USDT, Gate: BTC_USDT, Bybit: BTCUSDT
 
 // For perpetual contracts
-ticker, err := exchange.FetchTicker(ctx, "BTC/USDT:USDT")
+ticker, err := perp.FetchTicker(ctx, "BTC/USDT:USDT")
 // Binance: BTCUSDT, OKX: BTC-USDT-SWAP, Gate: BTC_USDT, Bybit: BTCUSDT
 ```
 
@@ -148,27 +172,30 @@ import (
     "github.com/lemconn/exlink/types"
 )
 
+// Get spot interface
+spot := ex.Spot()
+
 // Create a limit order (with price option, it becomes a limit order)
-order, err := exchange.CreateOrder(ctx, "BTC/USDT", types.OrderSideBuy, "0.001", types.WithPrice("50000"))
+order, err := spot.CreateOrder(ctx, "BTC/USDT", types.OrderSideBuy, "0.001", types.WithPrice("50000"))
 if err != nil {
     log.Fatal(err)
 }
 fmt.Printf("Order created: %s\n", order.ID)
 
 // Fetch order status
-order, err = exchange.FetchOrder(ctx, order.ID, "BTC/USDT")
+order, err = spot.FetchOrder(ctx, order.ID, "BTC/USDT")
 if err != nil {
     log.Fatal(err)
 }
 
 // Cancel order
-err = exchange.CancelOrder(ctx, order.ID, "BTC/USDT")
+err = spot.CancelOrder(ctx, order.ID, "BTC/USDT")
 if err != nil {
     log.Fatal(err)
 }
 
 // Fetch open orders
-openOrders, err := exchange.FetchOpenOrders(ctx, "BTC/USDT")
+openOrders, err := spot.FetchOpenOrders(ctx, "BTC/USDT")
 if err != nil {
     log.Fatal(err)
 }
@@ -182,14 +209,17 @@ import (
     "github.com/lemconn/exlink"
 )
 
+// Get spot interface
+spot := ex.Spot()
+
 // Fetch public trades
-trades, err := exchange.FetchTrades(ctx, "BTC/USDT", time.Time{}, 100)
+trades, err := spot.FetchTrades(ctx, "BTC/USDT", time.Time{}, 100)
 if err != nil {
     log.Fatal(err)
 }
 
 // Fetch my trades (requires authentication)
-myTrades, err := exchange.FetchMyTrades(ctx, "BTC/USDT", time.Time{}, 100)
+myTrades, err := spot.FetchMyTrades(ctx, "BTC/USDT", time.Time{}, 100)
 if err != nil {
     log.Fatal(err)
 }
@@ -200,20 +230,23 @@ if err != nil {
 ```go
 import "github.com/lemconn/exlink"
 
+// Get perp interface
+perp := ex.Perp()
+
 // Fetch positions
-positions, err := exchange.FetchPositions(ctx, "BTC/USDT:USDT")
+positions, err := perp.FetchPositions(ctx, "BTC/USDT:USDT")
 if err != nil {
     log.Fatal(err)
 }
 
 // Set leverage (contracts only)
-err = exchange.SetLeverage(ctx, "BTC/USDT:USDT", 10)
+err = perp.SetLeverage(ctx, "BTC/USDT:USDT", 10)
 if err != nil {
     log.Fatal(err)
 }
 
 // Set margin mode (contracts only, not supported by Gate)
-err = exchange.SetMarginMode(ctx, "BTC/USDT:USDT", "isolated")
+err = perp.SetMarginMode(ctx, "BTC/USDT:USDT", "isolated")
 if err != nil {
     log.Fatal(err)
 }
@@ -227,9 +260,10 @@ For more complex usage examples, see the [examples](./examples) directory.
 
 To add support for a new exchange:
 
-1. Create a new package under `exchanges/` directory
-2. Implement the `Exchange` interface from `base` package
-3. Add the registration in `registry.go`'s `init()` function
+1. Create a new package under the root directory (e.g., `myexchange/`)
+2. Implement the `Exchange` interface from `exchange` package, which provides `Spot()` and `Perp()` methods
+3. Implement `SpotExchange` and `PerpExchange` interfaces for spot and perpetual futures trading
+4. Add the registration in `exlink.go`'s `init()` function
 
 Example:
 
@@ -237,29 +271,38 @@ Example:
 package myexchange
 
 import (
-    "github.com/lemconn/exlink/base"
-    "github.com/lemconn/exlink/common"
-    "github.com/lemconn/exlink/types"
+    "github.com/lemconn/exlink/exchange"
 )
 
 type MyExchange struct {
-    *base.BaseExchange
-    // ... other fields
+    spot *MyExchangeSpot
+    perp *MyExchangePerp
 }
 
-func NewMyExchange(apiKey, secretKey string, options map[string]interface{}) (base.Exchange, error) {
+func NewMyExchange(apiKey, secretKey string, options map[string]interface{}) (exchange.Exchange, error) {
     // ... initialization logic
     return &MyExchange{
-        BaseExchange: base.NewBaseExchange("myexchange"),
-        // ...
+        spot: NewMyExchangeSpot(...),
+        perp: NewMyExchangePerp(...),
     }, nil
+}
+
+func (e *MyExchange) Spot() exchange.SpotExchange {
+    return e.spot
+}
+
+func (e *MyExchange) Perp() exchange.PerpExchange {
+    return e.perp
+}
+
+func (e *MyExchange) Name() string {
+    return "myexchange"
 }
 ```
 
-Then add the registration in `registry.go`:
+Then add the registration in `exlink.go`:
 
 ```go
-// 首先定义常量
 const ExchangeMyExchange = "myexchange"
 
 func init() {
@@ -282,9 +325,9 @@ func init() {
 
 ### Market Types
 
-- `MarketSpot`: Spot market
-- `MarketSwap`: Perpetual swap market
-- `MarketFuture`: Perpetual swap market (synonym for MarketSwap)
+- `model.MarketTypeSpot`: Spot market
+- `model.MarketTypeSwap`: Perpetual swap market
+- `model.MarketTypeFuture`: Perpetual swap market (synonym for MarketTypeSwap)
 
 ### Order Types
 

@@ -20,3 +20,16 @@ func ToBybitSymbol(symbol string, isContract bool) (string, error) {
 	return base + quote, nil
 }
 
+// getPrecisionDigits 计算精度位数
+func getPrecisionDigits(value float64) int {
+	if value == 0 {
+		return 8
+	}
+	str := fmt.Sprintf("%.10f", value)
+	str = strings.TrimRight(str, "0")
+	parts := strings.Split(str, ".")
+	if len(parts) == 2 {
+		return len(parts[1])
+	}
+	return 0
+}

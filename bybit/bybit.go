@@ -1,15 +1,21 @@
 package bybit
 
 import (
+	"sync"
+
 	"github.com/lemconn/exlink/exchange"
+	"github.com/lemconn/exlink/types"
 )
 
 // Bybit Bybit 交易所实现
 type Bybit struct {
-	client *Client
-	signer *Signer
-	spot   *BybitSpot
-	perp   *BybitPerp
+	client      *Client
+	signer      *Signer
+	spot        *BybitSpot
+	perp        *BybitPerp
+	spotMarkets map[string]*types.Market // 现货市场信息
+	perpMarkets map[string]*types.Market // 合约市场信息
+	mu          sync.RWMutex             // 保护市场信息的读写锁
 }
 
 // NewBybit 创建 Bybit 交易所实例
@@ -20,10 +26,13 @@ func NewBybit(apiKey, secretKey string, options map[string]interface{}) (exchang
 	}
 
 	signer := NewSigner(secretKey)
+	signer.SetAPIKey(apiKey) // Bybit v5 签名需要 API Key
 
 	bybit := &Bybit{
-		client: client,
-		signer: signer,
+		client:      client,
+		signer:      signer,
+		spotMarkets: make(map[string]*types.Market),
+		perpMarkets: make(map[string]*types.Market),
 	}
 
 	// 初始化现货和合约实现
