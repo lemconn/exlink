@@ -1,46 +1,74 @@
 package model
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 )
 
-type Timestamp time.Time
+type Timestamp struct {
+	time.Time
+	// sourceFormat 记录输入格式，用于序列化时保持原始格式
+	// 可能的值: "s"(秒), "ms"(毫秒), "us"(微秒), "ns"(纳秒), "rfc3339"(RFC3339字符串)
+	sourceFormat string
+}
 
 func (t *Timestamp) UnmarshalJSON(b []byte) error {
-	// 1) 去掉空格 & 引号
 	s := strings.TrimSpace(strings.Trim(string(b), `"`))
 	if s == "" || s == "null" {
+		// 明确设置为零值
+		t.Time = time.Time{}
+		t.sourceFormat = ""
 		return nil
 	}
 
-	// 2) 解析为 int64（兼容字符串和数字）
-	ts, err := strconv.ParseInt(s, 10, 64)
+	// 尝试 int64（各种 timestamp）
+	if ts, err := strconv.ParseInt(s, 10, 64); err == nil {
+		switch len(s) {
+		case 10:
+			t.Time = time.Unix(ts, 0)
+			t.sourceFormat = "s"
+		case 13:
+			t.Time = time.UnixMilli(ts)
+			t.sourceFormat = "ms"
+		case 16:
+			t.Time = time.UnixMicro(ts)
+			t.sourceFormat = "us"
+		case 19:
+			t.Time = time.Unix(0, ts)
+			t.sourceFormat = "ns"
+		default:
+			return fmt.Errorf("unsupported timestamp length: %d (%s)", len(s), s)
+		}
+		return nil
+	}
+
+	// fallback: RFC3339 string
+	tt, err := time.Parse(time.RFC3339, s)
 	if err != nil {
-		return fmt.Errorf("invalid timestamp %q: %w", s, err)
+		return fmt.Errorf("invalid timestamp %s: %w", s, err)
 	}
-
-	// 3) 根据长度判断单位
-	var tm time.Time
-	switch len(s) {
-	case 10: // seconds
-		tm = time.Unix(ts, 0)
-	case 13: // milliseconds
-		tm = time.UnixMilli(ts)
-	case 16: // microseconds
-		tm = time.UnixMicro(ts)
-	case 19: // nanoseconds
-		tm = time.Unix(0, ts)
-	default:
-		return fmt.Errorf("unsupported timestamp length: %d (%s)", len(s), s)
-	}
-
-	*t = Timestamp(tm)
+	t.Time = tt
+	t.sourceFormat = "rfc3339"
 	return nil
 }
 
-func (t Timestamp) Time() time.Time {
-	return time.Time(t)
+func (t Timestamp) MarshalJSON() ([]byte, error) {
+	switch t.sourceFormat {
+	case "s":
+		return []byte(strconv.FormatInt(t.Time.Unix(), 10)), nil
+	case "ms":
+		return []byte(strconv.FormatInt(t.Time.UnixMilli(), 10)), nil
+	case "us":
+		return []byte(strconv.FormatInt(t.Time.UnixMicro(), 10)), nil
+	case "ns":
+		return []byte(strconv.FormatInt(t.Time.UnixNano(), 10)), nil
+	case "rfc3339":
+		return json.Marshal(t.Time.Format(time.RFC3339))
+	default:
+		// 默认使用毫秒时间戳（大多数交易所API使用毫秒时间戳）
+		return []byte(strconv.FormatInt(t.Time.UnixMilli(), 10)), nil
+	}
 }
