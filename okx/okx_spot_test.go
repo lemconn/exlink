@@ -3,6 +3,7 @@ package okx
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,6 +30,30 @@ func setupTestExchange() (exchange.Exchange, error) {
 	return NewOKX(apiKey, secretKey, options)
 }
 
+// shouldSkipTestForHTTPError 检查错误是否包含需要跳过测试的 HTTP 错误码
+// 如果错误信息包含 "http error 451"、"http error 429" 或 "http error 403"，返回 true
+func shouldSkipTestForHTTPError(t *testing.T, err error) bool {
+	if err == nil {
+		return false
+	}
+
+	errMsg := strings.ToLower(err.Error())
+	skipErrors := []string{
+		"http error 451",
+		"http error 429",
+		"http error 403",
+	}
+
+	for _, skipErr := range skipErrors {
+		if strings.Contains(errMsg, skipErr) {
+			t.Skipf("Skipping test due to HTTP error: %v", err)
+			return true
+		}
+	}
+
+	return false
+}
+
 func TestOKXSpot_FetchOHLCV(t *testing.T) {
 	// 创建 OKX 实例（从环境变量获取配置）
 	ex, err := setupTestExchange()
@@ -41,6 +66,9 @@ func TestOKXSpot_FetchOHLCV(t *testing.T) {
 	// 加载市场信息
 	ctx := context.Background()
 	if err := spot.LoadMarkets(ctx, false); err != nil {
+		if shouldSkipTestForHTTPError(t, err) {
+			return
+		}
 		t.Fatalf("Failed to load markets: %v", err)
 	}
 

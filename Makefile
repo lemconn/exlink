@@ -30,19 +30,19 @@ test: ## Run all exchange tests
 
 test-binance: ## Run Binance tests
 	@echo "Running Binance tests..."
-	go test -count=1 -v -timeout=60s ./binance/... -run "TestBinance.*_FetchOHLCV"
+	go test -count=1 -v -timeout=60s ./binance/...
 
 test-bybit: ## Run Bybit tests
 	@echo "Running Bybit tests..."
-	go test -count=1 -v -timeout=60s ./bybit/... -run "TestBybit.*_FetchOHLCV"
+	go test -count=1 -v -timeout=60s ./bybit/...
 
 test-okx: ## Run OKX tests
 	@echo "Running OKX tests..."
-	go test -count=1 -v -timeout=60s ./okx/... -run "TestOKX.*_FetchOHLCV"
+	go test -count=1 -v -timeout=60s ./okx/...
 
 test-gate: ## Run Gate tests
 	@echo "Running Gate tests..."
-	go test -count=1 -v -timeout=60s ./gate/... -run "TestGate.*_FetchOHLCV"
+	go test -count=1 -v -timeout=60s ./gate/...
 
 vet: ## Run go vet on all packages
 	go vet ./...

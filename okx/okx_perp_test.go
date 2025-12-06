@@ -18,6 +18,9 @@ func TestOKXPerp_FetchOHLCV(t *testing.T) {
 	// 加载市场信息
 	ctx := context.Background()
 	if err := perp.LoadMarkets(ctx, false); err != nil {
+		if shouldSkipTestForHTTPError(t, err) {
+			return
+		}
 		t.Fatalf("Failed to load markets: %v", err)
 	}
 
