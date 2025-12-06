@@ -4,6 +4,8 @@ import "strings"
 
 // TimeframeMap 时间框架映射表
 var TimeframeMap = map[string]string{
+	"1s":  "1s",
+	"10s": "10s",
 	"1m":  "1m",
 	"3m":  "3m",
 	"5m":  "5m",
@@ -16,9 +18,13 @@ var TimeframeMap = map[string]string{
 	"8h":  "8h",
 	"12h": "12h",
 	"1d":  "1d",
+	"2d":  "2d",
 	"3d":  "3d",
+	"7d":  "1w",  // 7天标准化为1周
+	"30d": "1M",  // 30天标准化为1月
 	"1w":  "1w",
 	"1M":  "1M",
+	"3M":  "3M",
 }
 
 // NormalizeTimeframe 标准化时间框架
@@ -54,6 +60,10 @@ func OKXTimeframe(timeframe string) string {
 		return "12H"
 	case "1d":
 		return "1D"
+	case "2d":
+		return "2D"
+	case "3d":
+		return "3D"
 	case "1w":
 		return "1W"
 	case "1M":
@@ -102,8 +112,15 @@ func BybitTimeframe(timeframe string) string {
 }
 
 // GateTimeframe 转换为Gate时间框架格式
+// Gate需要将1w转换为7d，1M转换为30d
 func GateTimeframe(timeframe string) string {
 	normalized := NormalizeTimeframe(timeframe)
-	// Gate使用相同格式，直接返回
-	return normalized
+	switch normalized {
+	case "1w":
+		return "7d"
+	case "1M":
+		return "30d"
+	default:
+		return normalized
+	}
 }

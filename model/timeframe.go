@@ -4,6 +4,10 @@ package model
 type Timeframe string
 
 const (
+	// Timeframe1s 1秒
+	Timeframe1s Timeframe = "1s"
+	// Timeframe10s 10秒
+	Timeframe10s Timeframe = "10s"
 	// Timeframe1m 1分钟
 	Timeframe1m Timeframe = "1m"
 	// Timeframe3m 3分钟
@@ -28,12 +32,16 @@ const (
 	Timeframe12h Timeframe = "12h"
 	// Timeframe1d 1天
 	Timeframe1d Timeframe = "1d"
+	// Timeframe2d 2天
+	Timeframe2d Timeframe = "2d"
 	// Timeframe3d 3天
 	Timeframe3d Timeframe = "3d"
 	// Timeframe1w 1周
 	Timeframe1w Timeframe = "1w"
 	// Timeframe1M 1月
 	Timeframe1M Timeframe = "1M"
+	// Timeframe3M 3月
+	Timeframe3M Timeframe = "3M"
 )
 
 // ToBinance 转换为Binance格式的timeframe
@@ -58,11 +66,15 @@ func (t Timeframe) ToOKX() string {
 		return "12H"
 	case Timeframe1d:
 		return "1D"
+	case Timeframe2d:
+		return "2D"
+	case Timeframe3d:
+		return "3D"
 	case Timeframe1w:
 		return "1W"
 	case Timeframe1M:
 		return "1M"
-	case "3M":
+	case Timeframe3M:
 		return "3M"
 	default:
 		return string(t)
@@ -105,7 +117,14 @@ func (t Timeframe) ToBybit() string {
 }
 
 // ToGate 转换为Gate格式的timeframe
-// Gate使用标准格式，直接返回
+// Gate需要将1w转换为7d，1M转换为30d
 func (t Timeframe) ToGate() string {
-	return string(t)
+	switch t {
+	case Timeframe1w:
+		return "7d"
+	case Timeframe1M:
+		return "30d"
+	default:
+		return string(t)
+	}
 }
