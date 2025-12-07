@@ -27,5 +27,3 @@ type Ticker struct {
 	// Info 交易所原始信息
 	Info map[string]interface{} `json:"info,omitempty"`
 }
-
-
