@@ -122,57 +122,17 @@ func (m *binanceSpotMarket) LoadMarkets(ctx context.Context, reload bool) error 
 	}
 	m.binance.mu.RUnlock()
 
-	// 加载现货市场
-	markets, err := m.loadSpotMarkets(ctx)
-	if err != nil {
-		return fmt.Errorf("load spot markets: %w", err)
-	}
-
-	// 存储市场信息
-	m.binance.mu.Lock()
-	if m.binance.spotMarkets == nil {
-		m.binance.spotMarkets = make(map[string]*types.Market)
-	}
-	for _, market := range markets {
-		m.binance.spotMarkets[market.Symbol] = market
-	}
-	m.binance.mu.Unlock()
-
-	return nil
-}
-
-// loadSpotMarkets 加载现货市场
-func (m *binanceSpotMarket) loadSpotMarkets(ctx context.Context) ([]*types.Market, error) {
+	// 获取现货市场信息
 	resp, err := m.binance.client.SpotClient.Get(ctx, "/api/v3/exchangeInfo", map[string]interface{}{
 		"showPermissionSets": false,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("fetch exchange info: %w", err)
+		return fmt.Errorf("fetch exchange info: %w", err)
 	}
 
-	var info struct {
-		Symbols []struct {
-			Symbol     string `json:"symbol"`
-			BaseAsset  string `json:"baseAsset"`
-			QuoteAsset string `json:"quoteAsset"`
-			Status     string `json:"status"`
-			Filters    []struct {
-				FilterType  string `json:"filterType"`
-				MinQty      string `json:"minQty,omitempty"`
-				MaxQty      string `json:"maxQty,omitempty"`
-				StepSize    string `json:"stepSize,omitempty"`
-				MinPrice    string `json:"minPrice,omitempty"`
-				MaxPrice    string `json:"maxPrice,omitempty"`
-				TickSize    string `json:"tickSize,omitempty"`
-				MinNotional string `json:"minNotional,omitempty"`
-			} `json:"filters"`
-			BaseAssetPrecision int `json:"baseAssetPrecision"`
-			QuotePrecision     int `json:"quotePrecision"`
-		} `json:"symbols"`
-	}
-
+	var info binanceSpotMarketsResponse
 	if err := json.Unmarshal(resp, &info); err != nil {
-		return nil, fmt.Errorf("unmarshal exchange info: %w", err)
+		return fmt.Errorf("unmarshal exchange info: %w", err)
 	}
 
 	markets := make([]*types.Market, 0)
@@ -200,35 +160,38 @@ func (m *binanceSpotMarket) loadSpotMarkets(ctx context.Context) ([]*types.Marke
 		for _, filter := range s.Filters {
 			switch filter.FilterType {
 			case "LOT_SIZE":
-				if filter.MinQty != "" {
-					market.Limits.Amount.Min, _ = strconv.ParseFloat(filter.MinQty, 64)
+				if !filter.MinQty.IsZero() {
+					market.Limits.Amount.Min = filter.MinQty.InexactFloat64()
 				}
-				if filter.MaxQty != "" {
-					market.Limits.Amount.Max, _ = strconv.ParseFloat(filter.MaxQty, 64)
+				if !filter.MaxQty.IsZero() {
+					market.Limits.Amount.Max = filter.MaxQty.InexactFloat64()
 				}
-				if filter.StepSize != "" {
-					// 计算精度
-					parts := strings.Split(filter.StepSize, ".")
+				if !filter.StepSize.IsZero() {
+					// 从 StepSize 计算数量精度
+					stepSizeStr := filter.StepSize.String()
+					parts := strings.Split(stepSizeStr, ".")
 					if len(parts) > 1 {
 						market.Precision.Amount = len(strings.TrimRight(parts[1], "0"))
 					}
 				}
 			case "PRICE_FILTER":
-				if filter.MinPrice != "" {
-					market.Limits.Price.Min, _ = strconv.ParseFloat(filter.MinPrice, 64)
+				if !filter.MinPrice.IsZero() {
+					market.Limits.Price.Min = filter.MinPrice.InexactFloat64()
 				}
-				if filter.MaxPrice != "" {
-					market.Limits.Price.Max, _ = strconv.ParseFloat(filter.MaxPrice, 64)
+				if !filter.MaxPrice.IsZero() {
+					market.Limits.Price.Max = filter.MaxPrice.InexactFloat64()
 				}
-				if filter.TickSize != "" {
-					parts := strings.Split(filter.TickSize, ".")
+				if !filter.TickSize.IsZero() {
+					// 从 TickSize 计算价格精度
+					tickSizeStr := filter.TickSize.String()
+					parts := strings.Split(tickSizeStr, ".")
 					if len(parts) > 1 {
 						market.Precision.Price = len(strings.TrimRight(parts[1], "0"))
 					}
 				}
 			case "MIN_NOTIONAL":
-				if filter.MinNotional != "" {
-					market.Limits.Cost.Min, _ = strconv.ParseFloat(filter.MinNotional, 64)
+				if !filter.MinNotional.IsZero() {
+					market.Limits.Cost.Min = filter.MinNotional.InexactFloat64()
 				}
 			}
 		}
@@ -236,7 +199,17 @@ func (m *binanceSpotMarket) loadSpotMarkets(ctx context.Context) ([]*types.Marke
 		markets = append(markets, market)
 	}
 
-	return markets, nil
+	// 存储市场信息
+	m.binance.mu.Lock()
+	if m.binance.spotMarkets == nil {
+		m.binance.spotMarkets = make(map[string]*types.Market)
+	}
+	for _, market := range markets {
+		m.binance.spotMarkets[market.Symbol] = market
+	}
+	m.binance.mu.Unlock()
+
+	return nil
 }
 
 // FetchMarkets 获取市场列表

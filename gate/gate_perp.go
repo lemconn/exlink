@@ -124,46 +124,17 @@ func (m *gatePerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	}
 	m.gate.mu.RUnlock()
 
-	// 加载永续合约市场
-	markets, err := m.loadSwapMarkets(ctx)
-	if err != nil {
-		return fmt.Errorf("load swap markets: %w", err)
-	}
-
-	// 存储市场信息
-	m.gate.mu.Lock()
-	if m.gate.perpMarkets == nil {
-		m.gate.perpMarkets = make(map[string]*types.Market)
-	}
-	for _, market := range markets {
-		m.gate.perpMarkets[market.Symbol] = market
-	}
-	m.gate.mu.Unlock()
-
-	return nil
-}
-
-// loadSwapMarkets 加载永续合约市场
-func (m *gatePerpMarket) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
+	// 获取永续合约市场信息
 	// Gate 永续合约使用 USDT 作为结算货币
 	settle := "usdt"
 	resp, err := m.gate.client.HTTPClient.Get(ctx, fmt.Sprintf("/api/v4/futures/%s/contracts", settle), nil)
 	if err != nil {
-		return nil, fmt.Errorf("fetch swap markets: %w", err)
+		return fmt.Errorf("fetch swap markets: %w", err)
 	}
 
-	var data []struct {
-		Name             string `json:"name"`
-		Type             string `json:"type"`
-		QuantoMultiplier string `json:"quanto_multiplier"`
-		OrderPriceRound  string `json:"order_price_round"`
-		OrderSizeMin     int    `json:"order_size_min"`
-		OrderSizeMax     int    `json:"order_size_max"`
-		InDelisting      bool   `json:"in_delisting"`
-	}
-
+	var data gatePerpMarketsResponse
 	if err := json.Unmarshal(resp, &data); err != nil {
-		return nil, fmt.Errorf("unmarshal swap markets: %w", err)
+		return fmt.Errorf("unmarshal swap markets: %w", err)
 	}
 
 	markets := make([]*types.Market, 0)
@@ -198,8 +169,10 @@ func (m *gatePerpMarket) loadSwapMarkets(ctx context.Context) ([]*types.Market, 
 		}
 
 		// 解析精度
-		orderPriceRound, _ := strconv.ParseFloat(s.OrderPriceRound, 64)
-		market.Precision.Price = getPrecisionDigits(orderPriceRound)
+		if !s.OrderPriceRound.IsZero() {
+			orderPriceRound := s.OrderPriceRound.InexactFloat64()
+			market.Precision.Price = getPrecisionDigits(orderPriceRound)
+		}
 		market.Precision.Amount = 0 // Gate 合约使用整数数量
 
 		// 解析限制
@@ -209,7 +182,17 @@ func (m *gatePerpMarket) loadSwapMarkets(ctx context.Context) ([]*types.Market, 
 		markets = append(markets, market)
 	}
 
-	return markets, nil
+	// 存储市场信息
+	m.gate.mu.Lock()
+	if m.gate.perpMarkets == nil {
+		m.gate.perpMarkets = make(map[string]*types.Market)
+	}
+	for _, market := range markets {
+		m.gate.perpMarkets[market.Symbol] = market
+	}
+	m.gate.mu.Unlock()
+
+	return nil
 }
 
 func (m *gatePerpMarket) FetchMarkets(ctx context.Context) ([]*types.Market, error) {

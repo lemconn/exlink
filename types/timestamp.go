@@ -1,4 +1,4 @@
-package model
+package types
 
 import (
 	"encoding/json"
@@ -8,14 +8,17 @@ import (
 	"time"
 )
 
-type Timestamp struct {
+// ExTimestamp 支持多种格式的时间戳类型
+// 用于 JSON 反序列化时处理不同格式的时间戳（秒、毫秒、微秒、纳秒、RFC3339）
+type ExTimestamp struct {
 	time.Time
 	// sourceFormat 记录输入格式，用于序列化时保持原始格式
 	// 可能的值: "s"(秒), "ms"(毫秒), "us"(微秒), "ns"(纳秒), "rfc3339"(RFC3339字符串)
 	sourceFormat string
 }
 
-func (t *Timestamp) UnmarshalJSON(b []byte) error {
+// UnmarshalJSON 自定义 JSON 反序列化，支持多种时间戳格式
+func (t *ExTimestamp) UnmarshalJSON(b []byte) error {
 	s := strings.TrimSpace(strings.Trim(string(b), `"`))
 	if s == "" || s == "null" {
 		// 明确设置为零值
@@ -55,7 +58,8 @@ func (t *Timestamp) UnmarshalJSON(b []byte) error {
 	return nil
 }
 
-func (t Timestamp) MarshalJSON() ([]byte, error) {
+// MarshalJSON 自定义 JSON 序列化，保持原始格式
+func (t ExTimestamp) MarshalJSON() ([]byte, error) {
 	switch t.sourceFormat {
 	case "s":
 		return []byte(strconv.FormatInt(t.Unix(), 10)), nil
