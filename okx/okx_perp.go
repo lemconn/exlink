@@ -123,61 +123,21 @@ func (m *okxPerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	}
 	m.okx.mu.RUnlock()
 
-	// 加载永续合约市场
-	markets, err := m.loadSwapMarkets(ctx)
-	if err != nil {
-		return fmt.Errorf("load swap markets: %w", err)
-	}
-
-	// 存储市场信息
-	m.okx.mu.Lock()
-	if m.okx.perpMarkets == nil {
-		m.okx.perpMarkets = make(map[string]*types.Market)
-	}
-	for _, market := range markets {
-		m.okx.perpMarkets[market.Symbol] = market
-	}
-	m.okx.mu.Unlock()
-
-	return nil
-}
-
-// loadSwapMarkets 加载永续合约市场
-func (m *okxPerpMarket) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
+	// 获取永续合约市场信息
 	resp, err := m.okx.client.HTTPClient.Get(ctx, "/api/v5/public/instruments", map[string]interface{}{
 		"instType": "SWAP",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("fetch swap instruments: %w", err)
+		return fmt.Errorf("fetch swap instruments: %w", err)
 	}
 
-	var result struct {
-		Code string `json:"code"`
-		Msg  string `json:"msg"`
-		Data []struct {
-			InstType  string `json:"instType"`
-			InstID    string `json:"instId"`
-			BaseCcy   string `json:"baseCcy"`
-			QuoteCcy  string `json:"quoteCcy"`
-			SettleCcy string `json:"settleCcy"`
-			Uly       string `json:"uly"`    // underlying，用于合约市场
-			CtType    string `json:"ctType"` // linear, inverse
-			CtVal     string `json:"ctVal"`  // 合约面值（1张合约等于多少个币）
-			State     string `json:"state"`
-			MinSz     string `json:"minSz"`
-			MaxSz     string `json:"maxSz"`
-			LotSz     string `json:"lotSz"`
-			TickSz    string `json:"tickSz"`
-			MinSzVal  string `json:"minSzVal"`
-		} `json:"data"`
-	}
-
+	var result okxPerpMarketsResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
-		return nil, fmt.Errorf("unmarshal swap instruments: %w", err)
+		return fmt.Errorf("unmarshal swap instruments: %w", err)
 	}
 
 	if result.Code != "0" {
-		return nil, fmt.Errorf("okx api error: %s", result.Msg)
+		return fmt.Errorf("okx api error: %s", result.Msg)
 	}
 
 	markets := make([]*types.Market, 0)
@@ -245,25 +205,27 @@ func (m *okxPerpMarket) loadSwapMarkets(ctx context.Context) ([]*types.Market, e
 		}
 
 		// 解析精度和限制
-		if item.MinSz != "" {
-			market.Limits.Amount.Min, _ = strconv.ParseFloat(item.MinSz, 64)
+		if !item.MinSz.IsZero() {
+			market.Limits.Amount.Min = item.MinSz.InexactFloat64()
 		}
-		if item.MaxSz != "" {
-			market.Limits.Amount.Max, _ = strconv.ParseFloat(item.MaxSz, 64)
+		if !item.MaxSz.IsZero() {
+			market.Limits.Amount.Max = item.MaxSz.InexactFloat64()
 		}
-		if item.MinSzVal != "" {
-			market.Limits.Cost.Min, _ = strconv.ParseFloat(item.MinSzVal, 64)
+		if !item.MinSzVal.IsZero() {
+			market.Limits.Cost.Min = item.MinSzVal.InexactFloat64()
 		}
 
 		// 计算精度
-		if item.LotSz != "" {
-			parts := strings.Split(item.LotSz, ".")
+		if !item.LotSz.IsZero() {
+			lotSzStr := item.LotSz.String()
+			parts := strings.Split(lotSzStr, ".")
 			if len(parts) > 1 {
 				market.Precision.Amount = len(strings.TrimRight(parts[1], "0"))
 			}
 		}
-		if item.TickSz != "" {
-			parts := strings.Split(item.TickSz, ".")
+		if !item.TickSz.IsZero() {
+			tickSzStr := item.TickSz.String()
+			parts := strings.Split(tickSzStr, ".")
 			if len(parts) > 1 {
 				market.Precision.Price = len(strings.TrimRight(parts[1], "0"))
 			}
@@ -272,7 +234,17 @@ func (m *okxPerpMarket) loadSwapMarkets(ctx context.Context) ([]*types.Market, e
 		markets = append(markets, market)
 	}
 
-	return markets, nil
+	// 存储市场信息
+	m.okx.mu.Lock()
+	if m.okx.perpMarkets == nil {
+		m.okx.perpMarkets = make(map[string]*types.Market)
+	}
+	for _, market := range markets {
+		m.okx.perpMarkets[market.Symbol] = market
+	}
+	m.okx.mu.Unlock()
+
+	return nil
 }
 
 func (m *okxPerpMarket) FetchMarkets(ctx context.Context) ([]*types.Market, error) {

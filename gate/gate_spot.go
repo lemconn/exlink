@@ -104,47 +104,15 @@ func (m *gateSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	}
 	m.gate.mu.RUnlock()
 
-	// 加载现货市场
-	markets, err := m.loadSpotMarkets(ctx)
-	if err != nil {
-		return fmt.Errorf("load spot markets: %w", err)
-	}
-
-	// 存储市场信息
-	m.gate.mu.Lock()
-	if m.gate.spotMarkets == nil {
-		m.gate.spotMarkets = make(map[string]*types.Market)
-	}
-	for _, market := range markets {
-		m.gate.spotMarkets[market.Symbol] = market
-	}
-	m.gate.mu.Unlock()
-
-	return nil
-}
-
-// loadSpotMarkets 加载现货市场
-func (m *gateSpotMarket) loadSpotMarkets(ctx context.Context) ([]*types.Market, error) {
+	// 获取现货市场信息
 	resp, err := m.gate.client.HTTPClient.Get(ctx, "/api/v4/spot/currency_pairs", nil)
 	if err != nil {
-		return nil, fmt.Errorf("fetch spot markets: %w", err)
+		return fmt.Errorf("fetch spot markets: %w", err)
 	}
 
-	var data []struct {
-		ID              string `json:"id"`
-		Base            string `json:"base"`
-		Quote           string `json:"quote"`
-		Fee             string `json:"fee"`
-		MinBaseAmount   string `json:"min_base_amount"`
-		MinQuoteAmount  string `json:"min_quote_amount"`
-		MaxQuoteAmount  string `json:"max_quote_amount"`
-		AmountPrecision int    `json:"amount_precision"`
-		Precision       int    `json:"precision"`
-		TradeStatus     string `json:"trade_status"`
-	}
-
+	var data gateSpotMarketsResponse
 	if err := json.Unmarshal(resp, &data); err != nil {
-		return nil, fmt.Errorf("unmarshal spot markets: %w", err)
+		return fmt.Errorf("unmarshal spot markets: %w", err)
 	}
 
 	markets := make([]*types.Market, 0)
@@ -171,14 +139,30 @@ func (m *gateSpotMarket) loadSpotMarkets(ctx context.Context) ([]*types.Market, 
 		market.Precision.Price = s.Precision
 
 		// 解析限制
-		market.Limits.Amount.Min, _ = strconv.ParseFloat(s.MinBaseAmount, 64)
-		market.Limits.Cost.Min, _ = strconv.ParseFloat(s.MinQuoteAmount, 64)
-		market.Limits.Cost.Max, _ = strconv.ParseFloat(s.MaxQuoteAmount, 64)
+		if !s.MinBaseAmount.IsZero() {
+			market.Limits.Amount.Min = s.MinBaseAmount.InexactFloat64()
+		}
+		if !s.MinQuoteAmount.IsZero() {
+			market.Limits.Cost.Min = s.MinQuoteAmount.InexactFloat64()
+		}
+		if !s.MaxQuoteAmount.IsZero() {
+			market.Limits.Cost.Max = s.MaxQuoteAmount.InexactFloat64()
+		}
 
 		markets = append(markets, market)
 	}
 
-	return markets, nil
+	// 存储市场信息
+	m.gate.mu.Lock()
+	if m.gate.spotMarkets == nil {
+		m.gate.spotMarkets = make(map[string]*types.Market)
+	}
+	for _, market := range markets {
+		m.gate.spotMarkets[market.Symbol] = market
+	}
+	m.gate.mu.Unlock()
+
+	return nil
 }
 
 func (m *gateSpotMarket) FetchMarkets(ctx context.Context) ([]*types.Market, error) {

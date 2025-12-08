@@ -105,65 +105,21 @@ func (m *bybitSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	}
 	m.bybit.mu.RUnlock()
 
-	// 加载现货市场
-	markets, err := m.loadSpotMarkets(ctx)
-	if err != nil {
-		return fmt.Errorf("load spot markets: %w", err)
-	}
-
-	// 存储市场信息
-	m.bybit.mu.Lock()
-	if m.bybit.spotMarkets == nil {
-		m.bybit.spotMarkets = make(map[string]*types.Market)
-	}
-	for _, market := range markets {
-		m.bybit.spotMarkets[market.Symbol] = market
-	}
-	m.bybit.mu.Unlock()
-
-	return nil
-}
-
-// loadSpotMarkets 加载现货市场
-func (m *bybitSpotMarket) loadSpotMarkets(ctx context.Context) ([]*types.Market, error) {
+	// 获取现货市场信息
 	resp, err := m.bybit.client.HTTPClient.Get(ctx, "/v5/market/instruments-info", map[string]interface{}{
 		"category": "spot",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("fetch spot markets: %w", err)
+		return fmt.Errorf("fetch spot markets: %w", err)
 	}
 
-	var result struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-		Result  struct {
-			Category string `json:"category"`
-			List     []struct {
-				Symbol        string `json:"symbol"`
-				BaseCoin      string `json:"baseCoin"`
-				QuoteCoin     string `json:"quoteCoin"`
-				Status        string `json:"status"`
-				LotSizeFilter struct {
-					BasePrecision  string `json:"basePrecision"`
-					QuotePrecision string `json:"quotePrecision"`
-					MinOrderQty    string `json:"minOrderQty"`
-					MaxOrderQty    string `json:"maxOrderQty"`
-					MinOrderAmt    string `json:"minOrderAmt"`
-					MaxOrderAmt    string `json:"maxOrderAmt"`
-				} `json:"lotSizeFilter"`
-				PriceFilter struct {
-					TickSize string `json:"tickSize"`
-				} `json:"priceFilter"`
-			} `json:"list"`
-		} `json:"result"`
-	}
-
+	var result bybitSpotMarketsResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
-		return nil, fmt.Errorf("unmarshal spot markets: %w", err)
+		return fmt.Errorf("unmarshal spot markets: %w", err)
 	}
 
 	if result.RetCode != 0 {
-		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
+		return fmt.Errorf("bybit api error: %s", result.RetMsg)
 	}
 
 	markets := make([]*types.Market, 0)
@@ -185,9 +141,9 @@ func (m *bybitSpotMarket) loadSpotMarkets(ctx context.Context) ([]*types.Market,
 		}
 
 		// 解析精度
-		basePrecision, _ := strconv.ParseFloat(s.LotSizeFilter.BasePrecision, 64)
-		tickSize, _ := strconv.ParseFloat(s.PriceFilter.TickSize, 64)
-		quotePrecision, _ := strconv.ParseFloat(s.LotSizeFilter.QuotePrecision, 64)
+		basePrecision := s.LotSizeFilter.BasePrecision.InexactFloat64()
+		tickSize := s.PriceFilter.TickSize.InexactFloat64()
+		quotePrecision := s.LotSizeFilter.QuotePrecision.InexactFloat64()
 
 		// 计算精度位数
 		market.Precision.Amount = getPrecisionDigits(basePrecision)
@@ -198,15 +154,25 @@ func (m *bybitSpotMarket) loadSpotMarkets(ctx context.Context) ([]*types.Market,
 		}
 
 		// 解析限制
-		market.Limits.Amount.Min, _ = strconv.ParseFloat(s.LotSizeFilter.MinOrderQty, 64)
-		market.Limits.Amount.Max, _ = strconv.ParseFloat(s.LotSizeFilter.MaxOrderQty, 64)
-		market.Limits.Cost.Min, _ = strconv.ParseFloat(s.LotSizeFilter.MinOrderAmt, 64)
-		market.Limits.Cost.Max, _ = strconv.ParseFloat(s.LotSizeFilter.MaxOrderAmt, 64)
+		market.Limits.Amount.Min = s.LotSizeFilter.MinOrderQty.InexactFloat64()
+		market.Limits.Amount.Max = s.LotSizeFilter.MaxOrderQty.InexactFloat64()
+		market.Limits.Cost.Min = s.LotSizeFilter.MinOrderAmt.InexactFloat64()
+		market.Limits.Cost.Max = s.LotSizeFilter.MaxOrderAmt.InexactFloat64()
 
 		markets = append(markets, market)
 	}
 
-	return markets, nil
+	// 存储市场信息
+	m.bybit.mu.Lock()
+	if m.bybit.spotMarkets == nil {
+		m.bybit.spotMarkets = make(map[string]*types.Market)
+	}
+	for _, market := range markets {
+		m.bybit.spotMarkets[market.Symbol] = market
+	}
+	m.bybit.mu.Unlock()
+
+	return nil
 }
 
 func (m *bybitSpotMarket) FetchMarkets(ctx context.Context) ([]*types.Market, error) {

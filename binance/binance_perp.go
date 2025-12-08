@@ -144,60 +144,17 @@ func (m *binancePerpMarket) LoadMarkets(ctx context.Context, reload bool) error 
 	}
 	m.binance.mu.RUnlock()
 
-	// 加载永续合约市场
-	markets, err := m.loadSwapMarkets(ctx)
-	if err != nil {
-		return fmt.Errorf("load swap markets: %w", err)
-	}
-
-	// 存储市场信息
-	m.binance.mu.Lock()
-	if m.binance.perpMarkets == nil {
-		m.binance.perpMarkets = make(map[string]*types.Market)
-	}
-	for _, market := range markets {
-		m.binance.perpMarkets[market.Symbol] = market
-	}
-	m.binance.mu.Unlock()
-
-	return nil
-}
-
-// loadSwapMarkets 加载永续合约市场（U本位）
-func (m *binancePerpMarket) loadSwapMarkets(ctx context.Context) ([]*types.Market, error) {
+	// 获取永续合约市场信息
 	resp, err := m.binance.client.PerpClient.Get(ctx, "/fapi/v1/exchangeInfo", map[string]interface{}{
 		"showPermissionSets": false,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("fetch fapi exchange info: %w", err)
+		return fmt.Errorf("fetch fapi exchange info: %w", err)
 	}
 
-	var info struct {
-		Symbols []struct {
-			Symbol            string `json:"symbol"`
-			Pair              string `json:"pair"`
-			ContractType      string `json:"contractType"`
-			BaseAsset         string `json:"baseAsset"`
-			QuoteAsset        string `json:"quoteAsset"`
-			MarginAsset       string `json:"marginAsset"`
-			Status            string `json:"status"`
-			PricePrecision    int    `json:"pricePrecision"`
-			QuantityPrecision int    `json:"quantityPrecision"`
-			Filters           []struct {
-				FilterType  string `json:"filterType"`
-				MinQty      string `json:"minQty,omitempty"`
-				MaxQty      string `json:"maxQty,omitempty"`
-				StepSize    string `json:"stepSize,omitempty"`
-				MinPrice    string `json:"minPrice,omitempty"`
-				MaxPrice    string `json:"maxPrice,omitempty"`
-				TickSize    string `json:"tickSize,omitempty"`
-				MinNotional string `json:"minNotional,omitempty"`
-			} `json:"filters"`
-		} `json:"symbols"`
-	}
-
+	var info binancePerpMarketsResponse
 	if err := json.Unmarshal(resp, &info); err != nil {
-		return nil, fmt.Errorf("unmarshal fapi exchange info: %w", err)
+		return fmt.Errorf("unmarshal fapi exchange info: %w", err)
 	}
 
 	markets := make([]*types.Market, 0)
@@ -239,28 +196,30 @@ func (m *binancePerpMarket) loadSwapMarkets(ctx context.Context) ([]*types.Marke
 		for _, filter := range s.Filters {
 			switch filter.FilterType {
 			case "LOT_SIZE":
-				if filter.MinQty != "" {
-					market.Limits.Amount.Min, _ = strconv.ParseFloat(filter.MinQty, 64)
+				if !filter.MinQty.IsZero() {
+					market.Limits.Amount.Min = filter.MinQty.InexactFloat64()
 				}
-				if filter.MaxQty != "" {
-					market.Limits.Amount.Max, _ = strconv.ParseFloat(filter.MaxQty, 64)
+				if !filter.MaxQty.IsZero() {
+					market.Limits.Amount.Max = filter.MaxQty.InexactFloat64()
 				}
 			case "PRICE_FILTER":
-				if filter.MinPrice != "" {
-					market.Limits.Price.Min, _ = strconv.ParseFloat(filter.MinPrice, 64)
+				if !filter.MinPrice.IsZero() {
+					market.Limits.Price.Min = filter.MinPrice.InexactFloat64()
 				}
-				if filter.MaxPrice != "" {
-					market.Limits.Price.Max, _ = strconv.ParseFloat(filter.MaxPrice, 64)
+				if !filter.MaxPrice.IsZero() {
+					market.Limits.Price.Max = filter.MaxPrice.InexactFloat64()
 				}
-				if filter.TickSize != "" {
-					parts := strings.Split(filter.TickSize, ".")
+				if !filter.TickSize.IsZero() {
+					// 从 TickSize 计算价格精度
+					tickSizeStr := filter.TickSize.String()
+					parts := strings.Split(tickSizeStr, ".")
 					if len(parts) > 1 {
 						market.Precision.Price = len(strings.TrimRight(parts[1], "0"))
 					}
 				}
 			case "MIN_NOTIONAL":
-				if filter.MinNotional != "" {
-					market.Limits.Cost.Min, _ = strconv.ParseFloat(filter.MinNotional, 64)
+				if !filter.MinNotional.IsZero() {
+					market.Limits.Cost.Min = filter.MinNotional.InexactFloat64()
 				}
 			}
 		}
@@ -268,7 +227,17 @@ func (m *binancePerpMarket) loadSwapMarkets(ctx context.Context) ([]*types.Marke
 		markets = append(markets, market)
 	}
 
-	return markets, nil
+	// 存储市场信息
+	m.binance.mu.Lock()
+	if m.binance.perpMarkets == nil {
+		m.binance.perpMarkets = make(map[string]*types.Market)
+	}
+	for _, market := range markets {
+		m.binance.perpMarkets[market.Symbol] = market
+	}
+	m.binance.mu.Unlock()
+
+	return nil
 }
 
 // FetchMarkets 获取市场列表
