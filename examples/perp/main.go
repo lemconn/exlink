@@ -51,7 +51,7 @@ func main() {
 	fmt.Printf("获取到 %d 条K线数据:\n", len(ohlcvs))
 	for _, ohlcv := range ohlcvs {
 		fmt.Printf("时间: %s, 开盘: %s, 最高: %s, 最低: %s, 收盘: %s, 成交量: %s\n",
-			ohlcv.Timestamp.Time.Format("2006-01-02 15:04:05"),
-			ohlcv.Open.Decimal.String(), ohlcv.High.Decimal.String(), ohlcv.Low.Decimal.String(), ohlcv.Close.Decimal.String(), ohlcv.Volume.Decimal.String())
+			ohlcv.Timestamp.Format("2006-01-02 15:04:05"),
+			ohlcv.Open.String(), ohlcv.High.String(), ohlcv.Low.String(), ohlcv.Close.String(), ohlcv.Volume.String())
 	}
 }

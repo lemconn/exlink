@@ -415,7 +415,9 @@ func (m *gatePerpMarket) FetchOHLCV(ctx context.Context, symbol string, timefram
 	for _, item := range data {
 		// 将 int64 Volume 转换为 types.ExDecimal
 		volumeDecimal := types.ExDecimal{}
-		volumeDecimal.UnmarshalJSON([]byte(fmt.Sprintf(`"%d"`, item.Volume)))
+		if err := volumeDecimal.UnmarshalJSON([]byte(fmt.Sprintf(`"%d"`, item.Volume))); err != nil {
+			return nil, fmt.Errorf("parse volume: %w", err)
+		}
 		ohlcv := &model.OHLCV{
 			Timestamp: item.Time,
 			Open:      item.Open,

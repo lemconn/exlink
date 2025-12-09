@@ -87,47 +87,47 @@ func TestGateSpot_FetchOHLCV(t *testing.T) {
 
 	// 验证数据结构
 	for i, ohlcv := range ohlcvs {
-		if ohlcv.Timestamp.Time.IsZero() {
+		if ohlcv.Timestamp.IsZero() {
 			t.Errorf("OHLCV[%d]: Timestamp is zero", i)
 		}
-		if ohlcv.Open.Decimal.LessThanOrEqual(decimal.Zero) {
-			t.Errorf("OHLCV[%d]: Open price should be positive, got %s", i, ohlcv.Open.Decimal.String())
+		if ohlcv.Open.LessThanOrEqual(decimal.Zero) {
+			t.Errorf("OHLCV[%d]: Open price should be positive, got %s", i, ohlcv.Open.String())
 		}
-		if ohlcv.High.Decimal.LessThanOrEqual(decimal.Zero) {
-			t.Errorf("OHLCV[%d]: High price should be positive, got %s", i, ohlcv.High.Decimal.String())
+		if ohlcv.High.LessThanOrEqual(decimal.Zero) {
+			t.Errorf("OHLCV[%d]: High price should be positive, got %s", i, ohlcv.High.String())
 		}
-		if ohlcv.Low.Decimal.LessThanOrEqual(decimal.Zero) {
-			t.Errorf("OHLCV[%d]: Low price should be positive, got %s", i, ohlcv.Low.Decimal.String())
+		if ohlcv.Low.LessThanOrEqual(decimal.Zero) {
+			t.Errorf("OHLCV[%d]: Low price should be positive, got %s", i, ohlcv.Low.String())
 		}
-		if ohlcv.Close.Decimal.LessThanOrEqual(decimal.Zero) {
-			t.Errorf("OHLCV[%d]: Close price should be positive, got %s", i, ohlcv.Close.Decimal.String())
+		if ohlcv.Close.LessThanOrEqual(decimal.Zero) {
+			t.Errorf("OHLCV[%d]: Close price should be positive, got %s", i, ohlcv.Close.String())
 		}
-		if ohlcv.Volume.Decimal.IsNegative() {
-			t.Errorf("OHLCV[%d]: Volume should be non-negative, got %s", i, ohlcv.Volume.Decimal.String())
+		if ohlcv.Volume.IsNegative() {
+			t.Errorf("OHLCV[%d]: Volume should be non-negative, got %s", i, ohlcv.Volume.String())
 		}
 
 		// 验证价格逻辑：High >= Low, High >= Open, High >= Close, Low <= Open, Low <= Close
-		if ohlcv.High.Decimal.LessThan(ohlcv.Low.Decimal) {
-			t.Errorf("OHLCV[%d]: High (%s) should be >= Low (%s)", i, ohlcv.High.Decimal.String(), ohlcv.Low.Decimal.String())
+		if ohlcv.High.LessThan(ohlcv.Low.Decimal) {
+			t.Errorf("OHLCV[%d]: High (%s) should be >= Low (%s)", i, ohlcv.High.String(), ohlcv.Low.String())
 		}
-		if ohlcv.High.Decimal.LessThan(ohlcv.Open.Decimal) {
-			t.Errorf("OHLCV[%d]: High (%s) should be >= Open (%s)", i, ohlcv.High.Decimal.String(), ohlcv.Open.Decimal.String())
+		if ohlcv.High.LessThan(ohlcv.Open.Decimal) {
+			t.Errorf("OHLCV[%d]: High (%s) should be >= Open (%s)", i, ohlcv.High.String(), ohlcv.Open.String())
 		}
-		if ohlcv.High.Decimal.LessThan(ohlcv.Close.Decimal) {
-			t.Errorf("OHLCV[%d]: High (%s) should be >= Close (%s)", i, ohlcv.High.Decimal.String(), ohlcv.Close.Decimal.String())
+		if ohlcv.High.LessThan(ohlcv.Close.Decimal) {
+			t.Errorf("OHLCV[%d]: High (%s) should be >= Close (%s)", i, ohlcv.High.String(), ohlcv.Close.String())
 		}
-		if ohlcv.Low.Decimal.GreaterThan(ohlcv.Open.Decimal) {
-			t.Errorf("OHLCV[%d]: Low (%s) should be <= Open (%s)", i, ohlcv.Low.Decimal.String(), ohlcv.Open.Decimal.String())
+		if ohlcv.Low.GreaterThan(ohlcv.Open.Decimal) {
+			t.Errorf("OHLCV[%d]: Low (%s) should be <= Open (%s)", i, ohlcv.Low.String(), ohlcv.Open.String())
 		}
-		if ohlcv.Low.Decimal.GreaterThan(ohlcv.Close.Decimal) {
-			t.Errorf("OHLCV[%d]: Low (%s) should be <= Close (%s)", i, ohlcv.Low.Decimal.String(), ohlcv.Close.Decimal.String())
+		if ohlcv.Low.GreaterThan(ohlcv.Close.Decimal) {
+			t.Errorf("OHLCV[%d]: Low (%s) should be <= Close (%s)", i, ohlcv.Low.String(), ohlcv.Close.String())
 		}
 	}
 
 	t.Logf("Successfully fetched %d OHLCV data points for %s", len(ohlcvs), symbol)
 	if len(ohlcvs) > 0 {
 		t.Logf("First OHLCV: Time=%s, Open=%s, High=%s, Low=%s, Close=%s, Volume=%s",
-			ohlcvs[0].Timestamp.Time.Format(time.RFC3339),
-			ohlcvs[0].Open.Decimal.String(), ohlcvs[0].High.Decimal.String(), ohlcvs[0].Low.Decimal.String(), ohlcvs[0].Close.Decimal.String(), ohlcvs[0].Volume.Decimal.String())
+			ohlcvs[0].Timestamp.Format(time.RFC3339),
+			ohlcvs[0].Open.String(), ohlcvs[0].High.String(), ohlcvs[0].Low.String(), ohlcvs[0].Close.String(), ohlcvs[0].Volume.String())
 	}
 }
