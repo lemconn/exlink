@@ -8,7 +8,7 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-func TestBybitPerp_FetchOHLCV(t *testing.T) {
+func TestBybitPerp_FetchOHLCVs(t *testing.T) {
 	// 创建 Bybit 实例（从环境变量获取配置）
 	ex, err := setupTestExchange()
 	if err != nil {
@@ -26,13 +26,13 @@ func TestBybitPerp_FetchOHLCV(t *testing.T) {
 		t.Fatalf("Failed to load markets: %v", err)
 	}
 
-	// 测试 FetchOHLCV
+	// 测试 FetchOHLCVs
 	symbol := "BTC/USDT:USDT"
 	timeframe := "1h"
 	since := time.Time{} // 不指定开始时间，获取最新数据
 	limit := 10
 
-	ohlcvs, err := perp.FetchOHLCV(ctx, symbol, timeframe, since, limit)
+	ohlcvs, err := perp.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 	if err != nil {
 		t.Fatalf("Failed to fetch OHLCV: %v", err)
 	}
@@ -86,5 +86,113 @@ func TestBybitPerp_FetchOHLCV(t *testing.T) {
 		t.Logf("First OHLCV: Time=%s, Open=%s, High=%s, Low=%s, Close=%s, Volume=%s",
 			ohlcvs[0].Timestamp.Format(time.RFC3339),
 			ohlcvs[0].Open.String(), ohlcvs[0].High.String(), ohlcvs[0].Low.String(), ohlcvs[0].Close.String(), ohlcvs[0].Volume.String())
+	}
+}
+
+func TestBybitPerp_FetchMarkets(t *testing.T) {
+	// 创建 Bybit 实例（从环境变量获取配置）
+	ex, err := setupTestExchange()
+	if err != nil {
+		t.Fatalf("Failed to create Bybit instance: %v", err)
+	}
+
+	perp := ex.Perp()
+
+	// 测试 FetchMarkets
+	ctx := context.Background()
+	markets, err := perp.FetchMarkets(ctx)
+	if err != nil {
+		if shouldSkipTestForHTTPError(t, err) {
+			return
+		}
+		t.Fatalf("Failed to fetch markets: %v", err)
+	}
+
+	// 验证结果
+	if len(markets) == 0 {
+		t.Error("Expected at least one market, got 0")
+	}
+
+	// 验证数据结构
+	for i, market := range markets {
+		if market.Symbol == "" {
+			t.Errorf("Market[%d]: Symbol is empty", i)
+		}
+		if market.Base == "" {
+			t.Errorf("Market[%d]: Base is empty", i)
+		}
+		if market.Quote == "" {
+			t.Errorf("Market[%d]: Quote is empty", i)
+		}
+	}
+
+	t.Logf("Successfully fetched %d markets", len(markets))
+	if len(markets) > 0 {
+		t.Logf("First market: %s", markets[0].Symbol)
+	}
+}
+
+func TestBybitPerp_FetchTickers(t *testing.T) {
+	// 创建 Bybit 实例（从环境变量获取配置）
+	ex, err := setupTestExchange()
+	if err != nil {
+		t.Fatalf("Failed to create Bybit instance: %v", err)
+	}
+
+	perp := ex.Perp()
+
+	// 加载市场信息
+	ctx := context.Background()
+	if err := perp.LoadMarkets(ctx, false); err != nil {
+		if shouldSkipTestForHTTPError(t, err) {
+			return
+		}
+		t.Fatalf("Failed to load markets: %v", err)
+	}
+
+	// 测试 FetchTickers
+	tickers, err := perp.FetchTickers(ctx)
+	if err != nil {
+		if shouldSkipTestForHTTPError(t, err) {
+			return
+		}
+		t.Fatalf("Failed to fetch tickers: %v", err)
+	}
+
+	// 验证结果
+	if len(tickers) == 0 {
+		t.Error("Expected at least one ticker, got 0")
+	}
+
+	// 验证数据结构
+	positivePriceCount := 0
+	for symbol, ticker := range tickers {
+		if symbol == "" {
+			t.Error("Ticker symbol is empty")
+		}
+		if ticker.Symbol == "" {
+			t.Errorf("Ticker[%s]: Symbol is empty", symbol)
+		}
+		// 允许 Last 价格为 0（已下架或暂停的交易对），但不允许为负数
+		if ticker.Last.IsNegative() {
+			t.Errorf("Ticker[%s]: Last price should not be negative, got %s", symbol, ticker.Last.String())
+		}
+		if ticker.Last.GreaterThan(decimal.Zero) {
+			positivePriceCount++
+		}
+	}
+
+	// 至少应该有一些 ticker 的价格是正数
+	if positivePriceCount == 0 {
+		t.Error("Expected at least one ticker with positive price, got 0")
+	}
+
+	t.Logf("Successfully fetched %d tickers", len(tickers))
+	if len(tickers) > 0 {
+		// 打印第一个 ticker
+		for symbol, ticker := range tickers {
+			t.Logf("First ticker: %s, Last=%s", symbol, ticker.Last.String())
+			break
+		}
 	}
 }

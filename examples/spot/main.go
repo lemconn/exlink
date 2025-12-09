@@ -41,7 +41,7 @@ func main() {
 	// 获取 OHLCV 数据
 	symbol := "BTC/USDT"
 	timeframe := "1h"
-	ohlcvs, err := spot.FetchOHLCV(ctx, symbol, timeframe, time.Time{}, 10)
+	ohlcvs, err := spot.FetchOHLCVs(ctx, symbol, timeframe, time.Time{}, 10)
 	if err != nil {
 		fmt.Printf("获取 OHLCV 数据失败: %v\n", err)
 		return

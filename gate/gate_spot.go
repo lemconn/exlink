@@ -56,8 +56,8 @@ func (s *GateSpot) FetchTickers(ctx context.Context, symbols ...string) (map[str
 	return s.market.FetchTickers(ctx, symbols...)
 }
 
-func (s *GateSpot) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
-	return s.market.FetchOHLCV(ctx, symbol, timeframe, since, limit)
+func (s *GateSpot) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+	return s.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 }
 
 func (s *GateSpot) FetchBalance(ctx context.Context) (types.Balances, error) {
@@ -349,7 +349,7 @@ func (m *gateSpotMarket) getMarketByID(id string) (*model.Market, error) {
 	return nil, fmt.Errorf("market not found: %s", id)
 }
 
-func (m *gateSpotMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+func (m *gateSpotMarket) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {

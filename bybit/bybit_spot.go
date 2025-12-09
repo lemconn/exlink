@@ -57,8 +57,8 @@ func (s *BybitSpot) FetchTickers(ctx context.Context, symbols ...string) (map[st
 	return s.market.FetchTickers(ctx, symbols...)
 }
 
-func (s *BybitSpot) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
-	return s.market.FetchOHLCV(ctx, symbol, timeframe, since, limit)
+func (s *BybitSpot) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+	return s.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 }
 
 func (s *BybitSpot) FetchBalance(ctx context.Context) (types.Balances, error) {
@@ -373,7 +373,7 @@ func (m *bybitSpotMarket) getMarketByID(id string) (*model.Market, error) {
 	return nil, fmt.Errorf("market not found: %s", id)
 }
 
-func (m *bybitSpotMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+func (m *bybitSpotMarket) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {
