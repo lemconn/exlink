@@ -10,6 +10,7 @@ import (
 
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/exchange"
+	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/types"
 )
 
@@ -35,19 +36,23 @@ func (s *GateSpot) LoadMarkets(ctx context.Context, reload bool) error {
 	return s.market.LoadMarkets(ctx, reload)
 }
 
-func (s *GateSpot) FetchMarkets(ctx context.Context) ([]*types.Market, error) {
+func (s *GateSpot) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	return s.market.FetchMarkets(ctx)
 }
 
-func (s *GateSpot) GetMarket(symbol string) (*types.Market, error) {
+func (s *GateSpot) GetMarket(symbol string) (*model.Market, error) {
 	return s.market.GetMarket(symbol)
 }
 
-func (s *GateSpot) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error) {
+func (s *GateSpot) GetMarkets() ([]*model.Market, error) {
+	return s.market.GetMarkets()
+}
+
+func (s *GateSpot) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	return s.market.FetchTicker(ctx, symbol)
 }
 
-func (s *GateSpot) FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error) {
+func (s *GateSpot) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
 	return s.market.FetchTickers(ctx, symbols...)
 }
 
@@ -115,7 +120,7 @@ func (m *gateSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 		return fmt.Errorf("unmarshal spot markets: %w", err)
 	}
 
-	markets := make([]*types.Market, 0)
+	markets := make([]*model.Market, 0)
 	for _, s := range data {
 		if s.TradeStatus != "tradable" {
 			continue
@@ -125,12 +130,12 @@ func (m *gateSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 		// 转换为标准化格式 BTC/USDT
 		normalizedSymbol := common.NormalizeSymbol(s.Base, s.Quote)
 
-		market := &types.Market{
+		market := &model.Market{
 			ID:     s.ID,             // Gate 原始格式 (BTC_USDT)
 			Symbol: normalizedSymbol, // 标准化格式 (BTC/USDT)
 			Base:   s.Base,
 			Quote:  s.Quote,
-			Type:   types.MarketTypeSpot,
+			Type:   model.MarketTypeSpot,
 			Active: s.TradeStatus == "tradable",
 		}
 
@@ -140,13 +145,13 @@ func (m *gateSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 
 		// 解析限制
 		if !s.MinBaseAmount.IsZero() {
-			market.Limits.Amount.Min = s.MinBaseAmount.InexactFloat64()
+			market.Limits.Amount.Min = s.MinBaseAmount
 		}
 		if !s.MinQuoteAmount.IsZero() {
-			market.Limits.Cost.Min = s.MinQuoteAmount.InexactFloat64()
+			market.Limits.Cost.Min = s.MinQuoteAmount
 		}
 		if !s.MaxQuoteAmount.IsZero() {
-			market.Limits.Cost.Max = s.MaxQuoteAmount.InexactFloat64()
+			market.Limits.Cost.Max = s.MaxQuoteAmount
 		}
 
 		markets = append(markets, market)
@@ -155,7 +160,7 @@ func (m *gateSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	// 存储市场信息
 	m.gate.mu.Lock()
 	if m.gate.spotMarkets == nil {
-		m.gate.spotMarkets = make(map[string]*types.Market)
+		m.gate.spotMarkets = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
 		m.gate.spotMarkets[market.Symbol] = market
@@ -165,7 +170,7 @@ func (m *gateSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	return nil
 }
 
-func (m *gateSpotMarket) FetchMarkets(ctx context.Context) ([]*types.Market, error) {
+func (m *gateSpotMarket) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	// 确保市场已加载
 	if err := m.LoadMarkets(ctx, false); err != nil {
 		return nil, err
@@ -174,7 +179,7 @@ func (m *gateSpotMarket) FetchMarkets(ctx context.Context) ([]*types.Market, err
 	m.gate.mu.RLock()
 	defer m.gate.mu.RUnlock()
 
-	markets := make([]*types.Market, 0, len(m.gate.spotMarkets))
+	markets := make([]*model.Market, 0, len(m.gate.spotMarkets))
 	for _, market := range m.gate.spotMarkets {
 		markets = append(markets, market)
 	}
@@ -182,7 +187,7 @@ func (m *gateSpotMarket) FetchMarkets(ctx context.Context) ([]*types.Market, err
 	return markets, nil
 }
 
-func (m *gateSpotMarket) GetMarket(symbol string) (*types.Market, error) {
+func (m *gateSpotMarket) GetMarket(symbol string) (*model.Market, error) {
 	m.gate.mu.RLock()
 	defer m.gate.mu.RUnlock()
 
@@ -194,7 +199,19 @@ func (m *gateSpotMarket) GetMarket(symbol string) (*types.Market, error) {
 	return market, nil
 }
 
-func (m *gateSpotMarket) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error) {
+func (m *gateSpotMarket) GetMarkets() ([]*model.Market, error) {
+	m.gate.mu.RLock()
+	defer m.gate.mu.RUnlock()
+
+	markets := make([]*model.Market, 0, len(m.gate.spotMarkets))
+	for _, market := range m.gate.spotMarkets {
+		markets = append(markets, market)
+	}
+
+	return markets, nil
+}
+
+func (m *gateSpotMarket) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {
@@ -218,17 +235,7 @@ func (m *gateSpotMarket) FetchTicker(ctx context.Context, symbol string) (*types
 		return nil, fmt.Errorf("fetch ticker: %w", err)
 	}
 
-	var data []struct {
-		CurrencyPair     string `json:"currency_pair"`
-		Last             string `json:"last"`
-		LowestAsk        string `json:"lowest_ask"`
-		HighestBid       string `json:"highest_bid"`
-		ChangePercentage string `json:"change_percentage"`
-		BaseVolume       string `json:"base_volume"`
-		QuoteVolume      string `json:"quote_volume"`
-		High24h          string `json:"high_24h"`
-		Low24h           string `json:"low_24h"`
-	}
+	var data gateSpotTickerResponse
 
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal ticker: %w", err)
@@ -239,9 +246,9 @@ func (m *gateSpotMarket) FetchTicker(ctx context.Context, symbol string) (*types
 	}
 
 	item := data[0]
-	ticker := &types.Ticker{
+	ticker := &model.Ticker{
 		Symbol:    symbol,
-		Timestamp: time.Now(),
+		Timestamp: types.ExTimestamp{Time: time.Now()}, // Gate 现货 API 没有返回时间戳
 	}
 
 	ticker.Bid = item.HighestBid
@@ -255,23 +262,13 @@ func (m *gateSpotMarket) FetchTicker(ctx context.Context, symbol string) (*types
 	return ticker, nil
 }
 
-func (m *gateSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error) {
+func (m *gateSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
 	resp, err := m.gate.client.HTTPClient.Get(ctx, "/api/v4/spot/tickers", nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch tickers: %w", err)
 	}
 
-	var data []struct {
-		CurrencyPair     string `json:"currency_pair"`
-		Last             string `json:"last"`
-		LowestAsk        string `json:"lowest_ask"`
-		HighestBid       string `json:"highest_bid"`
-		ChangePercentage string `json:"change_percentage"`
-		BaseVolume       string `json:"base_volume"`
-		QuoteVolume      string `json:"quote_volume"`
-		High24h          string `json:"high_24h"`
-		Low24h           string `json:"low_24h"`
-	}
+	var data gateSpotTickerResponse
 
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
@@ -295,7 +292,7 @@ func (m *gateSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (m
 		}
 	}
 
-	tickers := make(map[string]*types.Ticker)
+	tickers := make(map[string]*model.Ticker)
 	for _, item := range data {
 		// 如果指定了 symbols，进行过滤
 		if len(symbols) > 0 {
@@ -303,9 +300,9 @@ func (m *gateSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (m
 			if !ok {
 				continue
 			}
-			ticker := &types.Ticker{
+			ticker := &model.Ticker{
 				Symbol:    normalizedSymbol,
-				Timestamp: time.Now(),
+				Timestamp: types.ExTimestamp{Time: time.Now()}, // Gate 现货 API 没有返回时间戳
 			}
 			ticker.Bid = item.HighestBid
 			ticker.Ask = item.LowestAsk
@@ -321,9 +318,9 @@ func (m *gateSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (m
 			if err != nil {
 				continue
 			}
-			ticker := &types.Ticker{
+			ticker := &model.Ticker{
 				Symbol:    market.Symbol,
-				Timestamp: time.Now(),
+				Timestamp: types.ExTimestamp{Time: time.Now()}, // Gate 现货 API 没有返回时间戳
 			}
 			ticker.Bid = item.HighestBid
 			ticker.Ask = item.LowestAsk
@@ -340,7 +337,7 @@ func (m *gateSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (m
 }
 
 // getMarketByID 通过交易所ID获取市场信息
-func (m *gateSpotMarket) getMarketByID(id string) (*types.Market, error) {
+func (m *gateSpotMarket) getMarketByID(id string) (*model.Market, error) {
 	m.gate.mu.RLock()
 	defer m.gate.mu.RUnlock()
 
@@ -584,7 +581,7 @@ func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side typ
 				return nil, fmt.Errorf("fetch ticker for market buy: %w", err)
 			}
 
-			lastPrice, _ := strconv.ParseFloat(ticker.Last, 64)
+			lastPrice, _ := strconv.ParseFloat(ticker.Last.String(), 64)
 			if lastPrice == 0 {
 				return nil, fmt.Errorf("invalid ticker price")
 			}

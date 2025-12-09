@@ -4,7 +4,7 @@ import (
 	"sync"
 
 	"github.com/lemconn/exlink/exchange"
-	"github.com/lemconn/exlink/types"
+	"github.com/lemconn/exlink/model"
 )
 
 // OKX OKX 交易所实现
@@ -13,8 +13,8 @@ type OKX struct {
 	signer      *Signer
 	spot        *OKXSpot
 	perp        *OKXPerp
-	spotMarkets map[string]*types.Market // 现货市场信息
-	perpMarkets map[string]*types.Market // 合约市场信息
+	spotMarkets map[string]*model.Market // 现货市场信息
+	perpMarkets map[string]*model.Market // 合约市场信息
 	mu          sync.RWMutex             // 保护市场信息的读写锁
 }
 
@@ -35,8 +35,8 @@ func NewOKX(apiKey, secretKey string, options map[string]interface{}) (exchange.
 	okx := &OKX{
 		client:      client,
 		signer:      signer,
-		spotMarkets: make(map[string]*types.Market),
-		perpMarkets: make(map[string]*types.Market),
+		spotMarkets: make(map[string]*model.Market),
+		perpMarkets: make(map[string]*model.Market),
 	}
 
 	// 初始化现货和合约实现

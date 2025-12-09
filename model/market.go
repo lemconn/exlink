@@ -1,6 +1,6 @@
 package model
 
-import "github.com/shopspring/decimal"
+import "github.com/lemconn/exlink/types"
 
 // MarketType 市场类型
 type MarketType string
@@ -62,26 +62,29 @@ type Market struct {
 		// Amount 数量限制
 		Amount struct {
 			// Min 最小数量
-			Min decimal.Decimal `json:"min"`
+			Min types.ExDecimal `json:"min"`
 			// Max 最大数量
-			Max decimal.Decimal `json:"max"`
+			Max types.ExDecimal `json:"max"`
 		} `json:"amount"`
 		// Price 价格限制
 		Price struct {
 			// Min 最小价格
-			Min decimal.Decimal `json:"min"`
+			Min types.ExDecimal `json:"min"`
 			// Max 最大价格
-			Max decimal.Decimal `json:"max"`
+			Max types.ExDecimal `json:"max"`
 		} `json:"price"`
 		// Cost 成本限制
 		Cost struct {
 			// Min 最小成本
-			Min decimal.Decimal `json:"min"`
+			Min types.ExDecimal `json:"min"`
 			// Max 最大成本
-			Max decimal.Decimal `json:"max"`
+			Max types.ExDecimal `json:"max"`
 		} `json:"cost"`
 	} `json:"limits"`
 
 	// Info 交易所原始信息
 	Info map[string]interface{} `json:"info,omitempty"`
 }
+
+// Markets 市场列表
+type Markets []*Market

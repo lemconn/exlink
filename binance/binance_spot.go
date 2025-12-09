@@ -10,6 +10,7 @@ import (
 
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/exchange"
+	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/types"
 	"github.com/shopspring/decimal"
 )
@@ -38,22 +39,27 @@ func (s *BinanceSpot) LoadMarkets(ctx context.Context, reload bool) error {
 }
 
 // FetchMarkets 获取市场列表
-func (s *BinanceSpot) FetchMarkets(ctx context.Context) ([]*types.Market, error) {
+func (s *BinanceSpot) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	return s.market.FetchMarkets(ctx)
 }
 
 // GetMarket 获取单个市场信息
-func (s *BinanceSpot) GetMarket(symbol string) (*types.Market, error) {
+func (s *BinanceSpot) GetMarket(symbol string) (*model.Market, error) {
 	return s.market.GetMarket(symbol)
 }
 
+// GetMarkets 从内存中获取所有市场信息
+func (s *BinanceSpot) GetMarkets() ([]*model.Market, error) {
+	return s.market.GetMarkets()
+}
+
 // FetchTicker 获取行情（单个）
-func (s *BinanceSpot) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error) {
+func (s *BinanceSpot) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	return s.market.FetchTicker(ctx, symbol)
 }
 
 // FetchTickers 批量获取行情
-func (s *BinanceSpot) FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error) {
+func (s *BinanceSpot) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
 	return s.market.FetchTickers(ctx, symbols...)
 }
 
@@ -135,7 +141,7 @@ func (m *binanceSpotMarket) LoadMarkets(ctx context.Context, reload bool) error 
 		return fmt.Errorf("unmarshal exchange info: %w", err)
 	}
 
-	markets := make([]*types.Market, 0)
+	markets := make([]*model.Market, 0)
 	for _, s := range info.Symbols {
 		if s.Status != "TRADING" {
 			continue
@@ -144,12 +150,12 @@ func (m *binanceSpotMarket) LoadMarkets(ctx context.Context, reload bool) error 
 		// 转换为标准化格式 BTC/USDT
 		normalizedSymbol := common.NormalizeSymbol(s.BaseAsset, s.QuoteAsset)
 
-		market := &types.Market{
+		market := &model.Market{
 			ID:     s.Symbol,         // Binance 原始格式 (BTCUSDT)
 			Symbol: normalizedSymbol, // 标准化格式 (BTC/USDT)
 			Base:   s.BaseAsset,
 			Quote:  s.QuoteAsset,
-			Type:   types.MarketTypeSpot,
+			Type:   model.MarketTypeSpot,
 			Active: s.Status == "TRADING",
 		}
 
@@ -161,10 +167,10 @@ func (m *binanceSpotMarket) LoadMarkets(ctx context.Context, reload bool) error 
 			switch filter.FilterType {
 			case "LOT_SIZE":
 				if !filter.MinQty.IsZero() {
-					market.Limits.Amount.Min = filter.MinQty.InexactFloat64()
+					market.Limits.Amount.Min = filter.MinQty
 				}
 				if !filter.MaxQty.IsZero() {
-					market.Limits.Amount.Max = filter.MaxQty.InexactFloat64()
+					market.Limits.Amount.Max = filter.MaxQty
 				}
 				if !filter.StepSize.IsZero() {
 					// 从 StepSize 计算数量精度
@@ -176,10 +182,10 @@ func (m *binanceSpotMarket) LoadMarkets(ctx context.Context, reload bool) error 
 				}
 			case "PRICE_FILTER":
 				if !filter.MinPrice.IsZero() {
-					market.Limits.Price.Min = filter.MinPrice.InexactFloat64()
+					market.Limits.Price.Min = filter.MinPrice
 				}
 				if !filter.MaxPrice.IsZero() {
-					market.Limits.Price.Max = filter.MaxPrice.InexactFloat64()
+					market.Limits.Price.Max = filter.MaxPrice
 				}
 				if !filter.TickSize.IsZero() {
 					// 从 TickSize 计算价格精度
@@ -191,7 +197,7 @@ func (m *binanceSpotMarket) LoadMarkets(ctx context.Context, reload bool) error 
 				}
 			case "MIN_NOTIONAL":
 				if !filter.MinNotional.IsZero() {
-					market.Limits.Cost.Min = filter.MinNotional.InexactFloat64()
+					market.Limits.Cost.Min = filter.MinNotional
 				}
 			}
 		}
@@ -202,7 +208,7 @@ func (m *binanceSpotMarket) LoadMarkets(ctx context.Context, reload bool) error 
 	// 存储市场信息
 	m.binance.mu.Lock()
 	if m.binance.spotMarkets == nil {
-		m.binance.spotMarkets = make(map[string]*types.Market)
+		m.binance.spotMarkets = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
 		m.binance.spotMarkets[market.Symbol] = market
@@ -213,7 +219,7 @@ func (m *binanceSpotMarket) LoadMarkets(ctx context.Context, reload bool) error 
 }
 
 // FetchMarkets 获取市场列表
-func (m *binanceSpotMarket) FetchMarkets(ctx context.Context) ([]*types.Market, error) {
+func (m *binanceSpotMarket) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	// 确保市场已加载
 	if err := m.LoadMarkets(ctx, false); err != nil {
 		return nil, err
@@ -222,7 +228,7 @@ func (m *binanceSpotMarket) FetchMarkets(ctx context.Context) ([]*types.Market, 
 	m.binance.mu.RLock()
 	defer m.binance.mu.RUnlock()
 
-	markets := make([]*types.Market, 0, len(m.binance.spotMarkets))
+	markets := make([]*model.Market, 0, len(m.binance.spotMarkets))
 	for _, market := range m.binance.spotMarkets {
 		markets = append(markets, market)
 	}
@@ -231,7 +237,7 @@ func (m *binanceSpotMarket) FetchMarkets(ctx context.Context) ([]*types.Market, 
 }
 
 // GetMarket 获取单个市场信息
-func (m *binanceSpotMarket) GetMarket(symbol string) (*types.Market, error) {
+func (m *binanceSpotMarket) GetMarket(symbol string) (*model.Market, error) {
 	m.binance.mu.RLock()
 	defer m.binance.mu.RUnlock()
 
@@ -243,8 +249,21 @@ func (m *binanceSpotMarket) GetMarket(symbol string) (*types.Market, error) {
 	return market, nil
 }
 
+// GetMarkets 从内存中获取所有市场信息
+func (m *binanceSpotMarket) GetMarkets() ([]*model.Market, error) {
+	m.binance.mu.RLock()
+	defer m.binance.mu.RUnlock()
+
+	markets := make([]*model.Market, 0, len(m.binance.spotMarkets))
+	for _, market := range m.binance.spotMarkets {
+		markets = append(markets, market)
+	}
+
+	return markets, nil
+}
+
 // FetchTicker 获取行情（单个）
-func (m *binanceSpotMarket) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error) {
+func (m *binanceSpotMarket) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {
@@ -270,28 +289,16 @@ func (m *binanceSpotMarket) FetchTicker(ctx context.Context, symbol string) (*ty
 		return nil, fmt.Errorf("fetch ticker: %w", err)
 	}
 
-	var data struct {
-		Symbol             string `json:"symbol"`
-		BidPrice           string `json:"bidPrice"`
-		AskPrice           string `json:"askPrice"`
-		LastPrice          string `json:"lastPrice"`
-		OpenPrice          string `json:"openPrice"`
-		HighPrice          string `json:"highPrice"`
-		LowPrice           string `json:"lowPrice"`
-		Volume             string `json:"volume"`
-		QuoteVolume        string `json:"quoteVolume"`
-		PriceChange        string `json:"priceChange"`
-		PriceChangePercent string `json:"priceChangePercent"`
-	}
+	var data binanceSpotTickerResponse
 
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal ticker: %w", err)
 	}
 
 	// 转换回标准化格式 - 使用输入的symbol（已经是标准化格式）
-	ticker := &types.Ticker{
+	ticker := &model.Ticker{
 		Symbol:    symbol, // 使用输入的标准化格式
-		Timestamp: time.Now(),
+		Timestamp: data.CloseTime,
 	}
 
 	ticker.Bid = data.BidPrice
@@ -307,25 +314,13 @@ func (m *binanceSpotMarket) FetchTicker(ctx context.Context, symbol string) (*ty
 }
 
 // FetchTickers 批量获取行情
-func (m *binanceSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error) {
+func (m *binanceSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
 	resp, err := m.binance.client.SpotClient.Get(ctx, "/api/v3/ticker/24hr", nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch tickers: %w", err)
 	}
 
-	var data []struct {
-		Symbol             string `json:"symbol"`
-		BidPrice           string `json:"bidPrice"`
-		AskPrice           string `json:"askPrice"`
-		LastPrice          string `json:"lastPrice"`
-		OpenPrice          string `json:"openPrice"`
-		HighPrice          string `json:"highPrice"`
-		LowPrice           string `json:"lowPrice"`
-		Volume             string `json:"volume"`
-		QuoteVolume        string `json:"quoteVolume"`
-		PriceChange        string `json:"priceChange"`
-		PriceChangePercent string `json:"priceChangePercent"`
-	}
+	var data []binanceSpotTickerResponse
 
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
@@ -349,7 +344,7 @@ func (m *binanceSpotMarket) FetchTickers(ctx context.Context, symbols ...string)
 		}
 	}
 
-	tickers := make(map[string]*types.Ticker)
+	tickers := make(map[string]*model.Ticker)
 	for _, item := range data {
 		// 如果指定了 symbols，进行过滤
 		if len(symbols) > 0 {
@@ -357,9 +352,9 @@ func (m *binanceSpotMarket) FetchTickers(ctx context.Context, symbols ...string)
 			if !ok {
 				continue
 			}
-			ticker := &types.Ticker{
+			ticker := &model.Ticker{
 				Symbol:    normalizedSymbol,
-				Timestamp: time.Now(),
+				Timestamp: item.CloseTime,
 			}
 			ticker.Bid = item.BidPrice
 			ticker.Ask = item.AskPrice
@@ -372,9 +367,9 @@ func (m *binanceSpotMarket) FetchTickers(ctx context.Context, symbols ...string)
 			tickers[normalizedSymbol] = ticker
 		} else {
 			// 如果没有指定 symbols，返回所有（使用 Binance 原始格式）
-			ticker := &types.Ticker{
+			ticker := &model.Ticker{
 				Symbol:    item.Symbol,
-				Timestamp: time.Now(),
+				Timestamp: item.CloseTime,
 			}
 			ticker.Bid = item.BidPrice
 			ticker.Ask = item.AskPrice
