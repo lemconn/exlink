@@ -11,6 +11,7 @@ import (
 
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/exchange"
+	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/types"
 	"github.com/shopspring/decimal"
 )
@@ -39,19 +40,23 @@ func (p *GatePerp) LoadMarkets(ctx context.Context, reload bool) error {
 	return p.market.LoadMarkets(ctx, reload)
 }
 
-func (p *GatePerp) FetchMarkets(ctx context.Context) ([]*types.Market, error) {
+func (p *GatePerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	return p.market.FetchMarkets(ctx)
 }
 
-func (p *GatePerp) GetMarket(symbol string) (*types.Market, error) {
+func (p *GatePerp) GetMarket(symbol string) (*model.Market, error) {
 	return p.market.GetMarket(symbol)
 }
 
-func (p *GatePerp) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error) {
+func (p *GatePerp) GetMarkets() ([]*model.Market, error) {
+	return p.market.GetMarkets()
+}
+
+func (p *GatePerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	return p.market.FetchTicker(ctx, symbol)
 }
 
-func (p *GatePerp) FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error) {
+func (p *GatePerp) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
 	return p.market.FetchTickers(ctx, symbols...)
 }
 
@@ -137,7 +142,7 @@ func (m *gatePerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 		return fmt.Errorf("unmarshal swap markets: %w", err)
 	}
 
-	markets := make([]*types.Market, 0)
+	markets := make([]*model.Market, 0)
 	for _, s := range data {
 		if s.InDelisting {
 			continue
@@ -154,13 +159,13 @@ func (m *gatePerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 		// 转换为标准化格式 BTC/USDT:USDT
 		normalizedSymbol := common.NormalizeContractSymbol(base, quote, strings.ToUpper(settle))
 
-		market := &types.Market{
+		market := &model.Market{
 			ID:            s.Name,
 			Symbol:        normalizedSymbol,
 			Base:          base,
 			Quote:         quote,
 			Settle:        strings.ToUpper(settle),
-			Type:          types.MarketTypeSwap,
+			Type:          model.MarketTypeSwap,
 			Active:        !s.InDelisting,
 			Contract:      true,
 			ContractValue: s.QuantoMultiplier, // 合约面值（每张合约等于多少个币）
@@ -176,8 +181,8 @@ func (m *gatePerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 		market.Precision.Amount = 0 // Gate 合约使用整数数量
 
 		// 解析限制
-		market.Limits.Amount.Min = float64(s.OrderSizeMin)
-		market.Limits.Amount.Max = float64(s.OrderSizeMax)
+		market.Limits.Amount.Min = types.ExDecimal{Decimal: decimal.NewFromInt(int64(s.OrderSizeMin))}
+		market.Limits.Amount.Max = types.ExDecimal{Decimal: decimal.NewFromInt(int64(s.OrderSizeMax))}
 
 		markets = append(markets, market)
 	}
@@ -185,7 +190,7 @@ func (m *gatePerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	// 存储市场信息
 	m.gate.mu.Lock()
 	if m.gate.perpMarkets == nil {
-		m.gate.perpMarkets = make(map[string]*types.Market)
+		m.gate.perpMarkets = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
 		m.gate.perpMarkets[market.Symbol] = market
@@ -195,7 +200,7 @@ func (m *gatePerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	return nil
 }
 
-func (m *gatePerpMarket) FetchMarkets(ctx context.Context) ([]*types.Market, error) {
+func (m *gatePerpMarket) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	// 确保市场已加载
 	if err := m.LoadMarkets(ctx, false); err != nil {
 		return nil, err
@@ -204,7 +209,7 @@ func (m *gatePerpMarket) FetchMarkets(ctx context.Context) ([]*types.Market, err
 	m.gate.mu.RLock()
 	defer m.gate.mu.RUnlock()
 
-	markets := make([]*types.Market, 0, len(m.gate.perpMarkets))
+	markets := make([]*model.Market, 0, len(m.gate.perpMarkets))
 	for _, market := range m.gate.perpMarkets {
 		markets = append(markets, market)
 	}
@@ -212,7 +217,7 @@ func (m *gatePerpMarket) FetchMarkets(ctx context.Context) ([]*types.Market, err
 	return markets, nil
 }
 
-func (m *gatePerpMarket) GetMarket(symbol string) (*types.Market, error) {
+func (m *gatePerpMarket) GetMarket(symbol string) (*model.Market, error) {
 	m.gate.mu.RLock()
 	defer m.gate.mu.RUnlock()
 
@@ -224,7 +229,19 @@ func (m *gatePerpMarket) GetMarket(symbol string) (*types.Market, error) {
 	return market, nil
 }
 
-func (m *gatePerpMarket) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error) {
+func (m *gatePerpMarket) GetMarkets() ([]*model.Market, error) {
+	m.gate.mu.RLock()
+	defer m.gate.mu.RUnlock()
+
+	markets := make([]*model.Market, 0, len(m.gate.perpMarkets))
+	for _, market := range m.gate.perpMarkets {
+		markets = append(markets, market)
+	}
+
+	return markets, nil
+}
+
+func (m *gatePerpMarket) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {
@@ -249,21 +266,7 @@ func (m *gatePerpMarket) FetchTicker(ctx context.Context, symbol string) (*types
 		return nil, fmt.Errorf("fetch ticker: %w", err)
 	}
 
-	var data []struct {
-		Contract              string `json:"contract"`
-		Last                  string `json:"last"`
-		ChangePercentage      string `json:"change_percentage"`
-		TotalSize             string `json:"total_size"`
-		Volume24h             string `json:"volume_24h"`
-		Volume24hBase         string `json:"volume_24h_base"`
-		Volume24hQuote        string `json:"volume_24h_quote"`
-		Volume24hSettle       string `json:"volume_24h_settle"`
-		MarkPrice             string `json:"mark_price"`
-		FundingRate           string `json:"funding_rate"`
-		FundingRateIndicative string `json:"funding_rate_indicative"`
-		IndexPrice            string `json:"index_price"`
-		QuantoBaseRate        string `json:"quanto_base_rate"`
-	}
+	var data gatePerpTickerResponse
 
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal ticker: %w", err)
@@ -274,40 +277,30 @@ func (m *gatePerpMarket) FetchTicker(ctx context.Context, symbol string) (*types
 	}
 
 	item := data[0]
-	ticker := &types.Ticker{
+	ticker := &model.Ticker{
 		Symbol:    symbol,
-		Timestamp: time.Now(),
+		Timestamp: types.ExTimestamp{Time: time.Now()}, // Gate 永续合约 API 没有返回时间戳
 	}
 
+	ticker.Bid = item.HighestBid
+	ticker.Ask = item.LowestAsk
 	ticker.Last = item.Last
+	ticker.High = item.High24h
+	ticker.Low = item.Low24h
 	ticker.Volume = item.Volume24hBase
 	ticker.QuoteVolume = item.Volume24hQuote
 
 	return ticker, nil
 }
 
-func (m *gatePerpMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error) {
+func (m *gatePerpMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
 	settle := "usdt" // Gate 永续合约默认使用 USDT 结算
 	resp, err := m.gate.client.HTTPClient.Get(ctx, fmt.Sprintf("/api/v4/futures/%s/tickers", settle), nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch tickers: %w", err)
 	}
 
-	var data []struct {
-		Contract              string `json:"contract"`
-		Last                  string `json:"last"`
-		ChangePercentage      string `json:"change_percentage"`
-		TotalSize             string `json:"total_size"`
-		Volume24h             string `json:"volume_24h"`
-		Volume24hBase         string `json:"volume_24h_base"`
-		Volume24hQuote        string `json:"volume_24h_quote"`
-		Volume24hSettle       string `json:"volume_24h_settle"`
-		MarkPrice             string `json:"mark_price"`
-		FundingRate           string `json:"funding_rate"`
-		FundingRateIndicative string `json:"funding_rate_indicative"`
-		IndexPrice            string `json:"index_price"`
-		QuantoBaseRate        string `json:"quanto_base_rate"`
-	}
+	var data gatePerpTickerResponse
 
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
@@ -331,7 +324,7 @@ func (m *gatePerpMarket) FetchTickers(ctx context.Context, symbols ...string) (m
 		}
 	}
 
-	tickers := make(map[string]*types.Ticker)
+	tickers := make(map[string]*model.Ticker)
 	for _, item := range data {
 		// 如果指定了 symbols，进行过滤
 		if len(symbols) > 0 {
@@ -339,11 +332,15 @@ func (m *gatePerpMarket) FetchTickers(ctx context.Context, symbols ...string) (m
 			if !ok {
 				continue
 			}
-			ticker := &types.Ticker{
+			ticker := &model.Ticker{
 				Symbol:    normalizedSymbol,
-				Timestamp: time.Now(),
+				Timestamp: types.ExTimestamp{Time: time.Now()}, // Gate 永续合约 API 没有返回时间戳
 			}
+			ticker.Bid = item.HighestBid
+			ticker.Ask = item.LowestAsk
 			ticker.Last = item.Last
+			ticker.High = item.High24h
+			ticker.Low = item.Low24h
 			ticker.Volume = item.Volume24hBase
 			ticker.QuoteVolume = item.Volume24hQuote
 			tickers[normalizedSymbol] = ticker
@@ -353,11 +350,15 @@ func (m *gatePerpMarket) FetchTickers(ctx context.Context, symbols ...string) (m
 			if err != nil {
 				continue
 			}
-			ticker := &types.Ticker{
+			ticker := &model.Ticker{
 				Symbol:    market.Symbol,
-				Timestamp: time.Now(),
+				Timestamp: types.ExTimestamp{Time: time.Now()}, // Gate 永续合约 API 没有返回时间戳
 			}
+			ticker.Bid = item.HighestBid
+			ticker.Ask = item.LowestAsk
 			ticker.Last = item.Last
+			ticker.High = item.High24h
+			ticker.Low = item.Low24h
 			ticker.Volume = item.Volume24hBase
 			ticker.QuoteVolume = item.Volume24hQuote
 			tickers[market.Symbol] = ticker
@@ -368,7 +369,7 @@ func (m *gatePerpMarket) FetchTickers(ctx context.Context, symbols ...string) (m
 }
 
 // getMarketByID 通过交易所ID获取市场信息
-func (m *gatePerpMarket) getMarketByID(id string) (*types.Market, error) {
+func (m *gatePerpMarket) getMarketByID(id string) (*model.Market, error) {
 	m.gate.mu.RLock()
 	defer m.gate.mu.RUnlock()
 
@@ -560,7 +561,7 @@ func (o *gatePerpOrder) FetchPositions(ctx context.Context, symbols ...string) (
 }
 
 // getMarketByID 通过交易所ID获取市场信息
-func (o *gatePerpOrder) getMarketByID(id string) (*types.Market, error) {
+func (o *gatePerpOrder) getMarketByID(id string) (*model.Market, error) {
 	o.gate.mu.RLock()
 	defer o.gate.mu.RUnlock()
 

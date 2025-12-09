@@ -25,6 +25,33 @@ type okxSpotInstrument struct {
 	MinSzVal types.ExDecimal `json:"minSzVal"`
 }
 
+// okxSpotTickerResponse OKX 现货 Ticker 响应
+type okxSpotTickerResponse struct {
+	Code string           `json:"code"`
+	Msg  string           `json:"msg"`
+	Data []okxTickerItem `json:"data"`
+}
+
+// okxTickerItem OKX Ticker 数据项（现货和合约共用）
+type okxTickerItem struct {
+	InstType  string          `json:"instType"`
+	InstID    string          `json:"instId"`
+	Last      types.ExDecimal `json:"last"`
+	LastSz    types.ExDecimal `json:"lastSz"`
+	AskPx     types.ExDecimal `json:"askPx"`
+	AskSz     types.ExDecimal `json:"askSz"`
+	BidPx     types.ExDecimal `json:"bidPx"`
+	BidSz     types.ExDecimal `json:"bidSz"`
+	Open24h   types.ExDecimal `json:"open24h"`
+	High24h   types.ExDecimal `json:"high24h"`
+	Low24h    types.ExDecimal `json:"low24h"`
+	VolCcy24h types.ExDecimal `json:"volCcy24h"`
+	Vol24h    types.ExDecimal `json:"vol24h"`
+	Ts        types.ExTimestamp `json:"ts"`
+	SodUtc0   types.ExDecimal `json:"sodUtc0"`
+	SodUtc8   types.ExDecimal `json:"sodUtc8"`
+}
+
 // ========== 永续合约市场模型 ==========
 
 // okxPerpMarketsResponse OKX 永续合约市场信息响应
@@ -50,4 +77,11 @@ type okxPerpInstrument struct {
 	LotSz     types.ExDecimal `json:"lotSz"`
 	TickSz    types.ExDecimal `json:"tickSz"`
 	MinSzVal  types.ExDecimal `json:"minSzVal"`
+}
+
+// okxPerpTickerResponse OKX 永续合约 Ticker 响应
+type okxPerpTickerResponse struct {
+	Code string           `json:"code"`
+	Msg  string           `json:"msg"`
+	Data []okxTickerItem `json:"data"`
 }

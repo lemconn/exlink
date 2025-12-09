@@ -1,26 +1,24 @@
 package model
 
 import (
-	"time"
-
-	"github.com/shopspring/decimal"
+	"github.com/lemconn/exlink/types"
 )
 
 // OHLCV K线数据
 type OHLCV struct {
 	// Timestamp 时间戳
-	Timestamp time.Time `json:"timestamp"`
+	Timestamp types.ExTimestamp `json:"timestamp"`
 	// Open 开盘价
-	Open decimal.Decimal `json:"open"`
+	Open types.ExDecimal `json:"open"`
 	// High 最高价
-	High decimal.Decimal `json:"high"`
+	High types.ExDecimal `json:"high"`
 	// Low 最低价
-	Low decimal.Decimal `json:"low"`
+	Low types.ExDecimal `json:"low"`
 	// Close 收盘价
-	Close decimal.Decimal `json:"close"`
+	Close types.ExDecimal `json:"close"`
 	// Volume 成交量
-	Volume decimal.Decimal `json:"volume"`
+	Volume types.ExDecimal `json:"volume"`
 }
 
 // OHLCVs K线数据数组
-type OHLCVs []OHLCV
+type OHLCVs []*OHLCV

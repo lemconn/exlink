@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/types"
 )
 
@@ -15,16 +16,19 @@ type SpotExchange interface {
 	LoadMarkets(ctx context.Context, reload bool) error
 
 	// FetchMarkets 获取市场列表
-	FetchMarkets(ctx context.Context) ([]*types.Market, error)
+	FetchMarkets(ctx context.Context) ([]*model.Market, error)
 
 	// GetMarket 获取单个市场信息
-	GetMarket(symbol string) (*types.Market, error)
+	GetMarket(symbol string) (*model.Market, error)
+
+	// GetMarkets 从内存中获取所有市场信息
+	GetMarkets() ([]*model.Market, error)
 
 	// FetchTicker 获取行情（单个）
-	FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error)
+	FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error)
 
 	// FetchTickers 批量获取行情
-	FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error)
+	FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error)
 
 	// FetchOrderBook 获取订单簿
 	// FetchOrderBook(ctx context.Context, symbol string, limit ...int) (*types.OrderBook, error)

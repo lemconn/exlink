@@ -10,6 +10,7 @@ import (
 
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/exchange"
+	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/types"
 	"github.com/shopspring/decimal"
 )
@@ -36,19 +37,23 @@ func (s *BybitSpot) LoadMarkets(ctx context.Context, reload bool) error {
 	return s.market.LoadMarkets(ctx, reload)
 }
 
-func (s *BybitSpot) FetchMarkets(ctx context.Context) ([]*types.Market, error) {
+func (s *BybitSpot) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	return s.market.FetchMarkets(ctx)
 }
 
-func (s *BybitSpot) GetMarket(symbol string) (*types.Market, error) {
+func (s *BybitSpot) GetMarket(symbol string) (*model.Market, error) {
 	return s.market.GetMarket(symbol)
 }
 
-func (s *BybitSpot) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error) {
+func (s *BybitSpot) GetMarkets() ([]*model.Market, error) {
+	return s.market.GetMarkets()
+}
+
+func (s *BybitSpot) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	return s.market.FetchTicker(ctx, symbol)
 }
 
-func (s *BybitSpot) FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error) {
+func (s *BybitSpot) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
 	return s.market.FetchTickers(ctx, symbols...)
 }
 
@@ -122,7 +127,7 @@ func (m *bybitSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 		return fmt.Errorf("bybit api error: %s", result.RetMsg)
 	}
 
-	markets := make([]*types.Market, 0)
+	markets := make([]*model.Market, 0)
 	for _, s := range result.Result.List {
 		if s.Status != "Trading" {
 			continue
@@ -131,12 +136,12 @@ func (m *bybitSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 		// 转换为标准化格式 BTC/USDT
 		normalizedSymbol := common.NormalizeSymbol(s.BaseCoin, s.QuoteCoin)
 
-		market := &types.Market{
+		market := &model.Market{
 			ID:     s.Symbol,         // Bybit 原始格式 (BTCUSDT)
 			Symbol: normalizedSymbol, // 标准化格式 (BTC/USDT)
 			Base:   s.BaseCoin,
 			Quote:  s.QuoteCoin,
-			Type:   types.MarketTypeSpot,
+			Type:   model.MarketTypeSpot,
 			Active: s.Status == "Trading",
 		}
 
@@ -154,10 +159,10 @@ func (m *bybitSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 		}
 
 		// 解析限制
-		market.Limits.Amount.Min = s.LotSizeFilter.MinOrderQty.InexactFloat64()
-		market.Limits.Amount.Max = s.LotSizeFilter.MaxOrderQty.InexactFloat64()
-		market.Limits.Cost.Min = s.LotSizeFilter.MinOrderAmt.InexactFloat64()
-		market.Limits.Cost.Max = s.LotSizeFilter.MaxOrderAmt.InexactFloat64()
+		market.Limits.Amount.Min = s.LotSizeFilter.MinOrderQty
+		market.Limits.Amount.Max = s.LotSizeFilter.MaxOrderQty
+		market.Limits.Cost.Min = s.LotSizeFilter.MinOrderAmt
+		market.Limits.Cost.Max = s.LotSizeFilter.MaxOrderAmt
 
 		markets = append(markets, market)
 	}
@@ -165,7 +170,7 @@ func (m *bybitSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	// 存储市场信息
 	m.bybit.mu.Lock()
 	if m.bybit.spotMarkets == nil {
-		m.bybit.spotMarkets = make(map[string]*types.Market)
+		m.bybit.spotMarkets = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
 		m.bybit.spotMarkets[market.Symbol] = market
@@ -175,7 +180,7 @@ func (m *bybitSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	return nil
 }
 
-func (m *bybitSpotMarket) FetchMarkets(ctx context.Context) ([]*types.Market, error) {
+func (m *bybitSpotMarket) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	// 确保市场已加载
 	if err := m.LoadMarkets(ctx, false); err != nil {
 		return nil, err
@@ -184,7 +189,7 @@ func (m *bybitSpotMarket) FetchMarkets(ctx context.Context) ([]*types.Market, er
 	m.bybit.mu.RLock()
 	defer m.bybit.mu.RUnlock()
 
-	markets := make([]*types.Market, 0, len(m.bybit.spotMarkets))
+	markets := make([]*model.Market, 0, len(m.bybit.spotMarkets))
 	for _, market := range m.bybit.spotMarkets {
 		markets = append(markets, market)
 	}
@@ -192,7 +197,7 @@ func (m *bybitSpotMarket) FetchMarkets(ctx context.Context) ([]*types.Market, er
 	return markets, nil
 }
 
-func (m *bybitSpotMarket) GetMarket(symbol string) (*types.Market, error) {
+func (m *bybitSpotMarket) GetMarket(symbol string) (*model.Market, error) {
 	m.bybit.mu.RLock()
 	defer m.bybit.mu.RUnlock()
 
@@ -204,7 +209,19 @@ func (m *bybitSpotMarket) GetMarket(symbol string) (*types.Market, error) {
 	return market, nil
 }
 
-func (m *bybitSpotMarket) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error) {
+func (m *bybitSpotMarket) GetMarkets() ([]*model.Market, error) {
+	m.bybit.mu.RLock()
+	defer m.bybit.mu.RUnlock()
+
+	markets := make([]*model.Market, 0, len(m.bybit.spotMarkets))
+	for _, market := range m.bybit.spotMarkets {
+		markets = append(markets, market)
+	}
+
+	return markets, nil
+}
+
+func (m *bybitSpotMarket) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {
@@ -229,25 +246,7 @@ func (m *bybitSpotMarket) FetchTicker(ctx context.Context, symbol string) (*type
 		return nil, fmt.Errorf("fetch ticker: %w", err)
 	}
 
-	var result struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-		Result  struct {
-			Category string `json:"category"`
-			List     []struct {
-				Symbol       string `json:"symbol"`
-				Bid1Price    string `json:"bid1Price"`
-				Ask1Price    string `json:"ask1Price"`
-				LastPrice    string `json:"lastPrice"`
-				PrevPrice24h string `json:"prevPrice24h"`
-				HighPrice24h string `json:"highPrice24h"`
-				LowPrice24h  string `json:"lowPrice24h"`
-				Volume24h    string `json:"volume24h"`
-				Turnover24h  string `json:"turnover24h"`
-				Price24hPcnt string `json:"price24hPcnt"`
-			} `json:"list"`
-		} `json:"result"`
-	}
+	var result bybitSpotTickerResponse
 
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal ticker: %w", err)
@@ -262,9 +261,9 @@ func (m *bybitSpotMarket) FetchTicker(ctx context.Context, symbol string) (*type
 	}
 
 	item := result.Result.List[0]
-	ticker := &types.Ticker{
+	ticker := &model.Ticker{
 		Symbol:    symbol,
-		Timestamp: time.Now(),
+		Timestamp: result.Time,
 	}
 
 	ticker.Bid = item.Bid1Price
@@ -279,7 +278,7 @@ func (m *bybitSpotMarket) FetchTicker(ctx context.Context, symbol string) (*type
 	return ticker, nil
 }
 
-func (m *bybitSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error) {
+func (m *bybitSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
 	resp, err := m.bybit.client.HTTPClient.Get(ctx, "/v5/market/tickers", map[string]interface{}{
 		"category": "spot",
 	})
@@ -287,24 +286,7 @@ func (m *bybitSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (
 		return nil, fmt.Errorf("fetch tickers: %w", err)
 	}
 
-	var result struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-		Result  struct {
-			List []struct {
-				Symbol       string `json:"symbol"`
-				Bid1Price    string `json:"bid1Price"`
-				Ask1Price    string `json:"ask1Price"`
-				LastPrice    string `json:"lastPrice"`
-				PrevPrice24h string `json:"prevPrice24h"`
-				HighPrice24h string `json:"highPrice24h"`
-				LowPrice24h  string `json:"lowPrice24h"`
-				Volume24h    string `json:"volume24h"`
-				Turnover24h  string `json:"turnover24h"`
-				Price24hPcnt string `json:"price24hPcnt"`
-			} `json:"list"`
-		} `json:"result"`
-	}
+	var result bybitSpotTickerResponse
 
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
@@ -332,7 +314,7 @@ func (m *bybitSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (
 		}
 	}
 
-	tickers := make(map[string]*types.Ticker)
+	tickers := make(map[string]*model.Ticker)
 	for _, item := range result.Result.List {
 		// 如果指定了 symbols，进行过滤
 		if len(symbols) > 0 {
@@ -340,9 +322,9 @@ func (m *bybitSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (
 			if !ok {
 				continue
 			}
-			ticker := &types.Ticker{
+			ticker := &model.Ticker{
 				Symbol:    normalizedSymbol,
-				Timestamp: time.Now(),
+				Timestamp: result.Time,
 			}
 			ticker.Bid = item.Bid1Price
 			ticker.Ask = item.Ask1Price
@@ -359,9 +341,9 @@ func (m *bybitSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (
 			if err != nil {
 				continue
 			}
-			ticker := &types.Ticker{
+			ticker := &model.Ticker{
 				Symbol:    market.Symbol,
-				Timestamp: time.Now(),
+				Timestamp: result.Time,
 			}
 			ticker.Bid = item.Bid1Price
 			ticker.Ask = item.Ask1Price
@@ -379,7 +361,7 @@ func (m *bybitSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (
 }
 
 // getMarketByID 通过交易所ID获取市场信息
-func (m *bybitSpotMarket) getMarketByID(id string) (*types.Market, error) {
+func (m *bybitSpotMarket) getMarketByID(id string) (*model.Market, error) {
 	m.bybit.mu.RLock()
 	defer m.bybit.mu.RUnlock()
 
@@ -593,13 +575,8 @@ func (o *bybitSpotOrder) CreateOrder(ctx context.Context, symbol string, side ty
 		} else {
 			// Fetch current price to calculate cost
 			ticker, err := o.bybit.spot.market.FetchTicker(ctx, symbol)
-			if err == nil && ticker.Ask != "" {
-				askPriceDecimal, err := decimal.NewFromString(ticker.Ask)
-				if err == nil {
-					costDecimal = amountDecimal.Mul(askPriceDecimal)
-				} else {
-					costDecimal = amountDecimal
-				}
+			if err == nil && !ticker.Ask.IsZero() {
+				costDecimal = amountDecimal.Mul(ticker.Ask.Decimal)
 			} else {
 				costDecimal = amountDecimal
 			}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/exchange"
+	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/types"
 	"github.com/shopspring/decimal"
 )
@@ -38,19 +39,23 @@ func (p *OKXPerp) LoadMarkets(ctx context.Context, reload bool) error {
 	return p.market.LoadMarkets(ctx, reload)
 }
 
-func (p *OKXPerp) FetchMarkets(ctx context.Context) ([]*types.Market, error) {
+func (p *OKXPerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	return p.market.FetchMarkets(ctx)
 }
 
-func (p *OKXPerp) GetMarket(symbol string) (*types.Market, error) {
+func (p *OKXPerp) GetMarket(symbol string) (*model.Market, error) {
 	return p.market.GetMarket(symbol)
 }
 
-func (p *OKXPerp) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error) {
+func (p *OKXPerp) GetMarkets() ([]*model.Market, error) {
+	return p.market.GetMarkets()
+}
+
+func (p *OKXPerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	return p.market.FetchTicker(ctx, symbol)
 }
 
-func (p *OKXPerp) FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error) {
+func (p *OKXPerp) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
 	return p.market.FetchTickers(ctx, symbols...)
 }
 
@@ -140,7 +145,7 @@ func (m *okxPerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 		return fmt.Errorf("okx api error: %s", result.Msg)
 	}
 
-	markets := make([]*types.Market, 0)
+	markets := make([]*model.Market, 0)
 	for _, item := range result.Data {
 		if item.State != "live" {
 			continue
@@ -190,13 +195,13 @@ func (m *okxPerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 		// 转换为标准化格式 BTC/USDT:USDT
 		normalizedSymbol := common.NormalizeContractSymbol(baseCcy, quoteCcy, settle)
 
-		market := &types.Market{
+		market := &model.Market{
 			ID:            item.InstID,
 			Symbol:        normalizedSymbol,
 			Base:          baseCcy,
 			Quote:         quoteCcy,
 			Settle:        settle,
-			Type:          types.MarketTypeSwap,
+			Type:          model.MarketTypeSwap,
 			Active:        item.State == "live",
 			Contract:      true,
 			ContractValue: item.CtVal,               // 合约面值（每张合约等于多少个币）
@@ -206,13 +211,13 @@ func (m *okxPerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 
 		// 解析精度和限制
 		if !item.MinSz.IsZero() {
-			market.Limits.Amount.Min = item.MinSz.InexactFloat64()
+			market.Limits.Amount.Min = item.MinSz
 		}
 		if !item.MaxSz.IsZero() {
-			market.Limits.Amount.Max = item.MaxSz.InexactFloat64()
+			market.Limits.Amount.Max = item.MaxSz
 		}
 		if !item.MinSzVal.IsZero() {
-			market.Limits.Cost.Min = item.MinSzVal.InexactFloat64()
+			market.Limits.Cost.Min = item.MinSzVal
 		}
 
 		// 计算精度
@@ -237,7 +242,7 @@ func (m *okxPerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	// 存储市场信息
 	m.okx.mu.Lock()
 	if m.okx.perpMarkets == nil {
-		m.okx.perpMarkets = make(map[string]*types.Market)
+		m.okx.perpMarkets = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
 		m.okx.perpMarkets[market.Symbol] = market
@@ -247,7 +252,7 @@ func (m *okxPerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	return nil
 }
 
-func (m *okxPerpMarket) FetchMarkets(ctx context.Context) ([]*types.Market, error) {
+func (m *okxPerpMarket) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	// 确保市场已加载
 	if err := m.LoadMarkets(ctx, false); err != nil {
 		return nil, err
@@ -256,7 +261,7 @@ func (m *okxPerpMarket) FetchMarkets(ctx context.Context) ([]*types.Market, erro
 	m.okx.mu.RLock()
 	defer m.okx.mu.RUnlock()
 
-	markets := make([]*types.Market, 0, len(m.okx.perpMarkets))
+	markets := make([]*model.Market, 0, len(m.okx.perpMarkets))
 	for _, market := range m.okx.perpMarkets {
 		markets = append(markets, market)
 	}
@@ -264,7 +269,7 @@ func (m *okxPerpMarket) FetchMarkets(ctx context.Context) ([]*types.Market, erro
 	return markets, nil
 }
 
-func (m *okxPerpMarket) GetMarket(symbol string) (*types.Market, error) {
+func (m *okxPerpMarket) GetMarket(symbol string) (*model.Market, error) {
 	m.okx.mu.RLock()
 	defer m.okx.mu.RUnlock()
 
@@ -276,7 +281,19 @@ func (m *okxPerpMarket) GetMarket(symbol string) (*types.Market, error) {
 	return market, nil
 }
 
-func (m *okxPerpMarket) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error) {
+func (m *okxPerpMarket) GetMarkets() ([]*model.Market, error) {
+	m.okx.mu.RLock()
+	defer m.okx.mu.RUnlock()
+
+	markets := make([]*model.Market, 0, len(m.okx.perpMarkets))
+	for _, market := range m.okx.perpMarkets {
+		markets = append(markets, market)
+	}
+
+	return markets, nil
+}
+
+func (m *okxPerpMarket) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {
@@ -300,25 +317,7 @@ func (m *okxPerpMarket) FetchTicker(ctx context.Context, symbol string) (*types.
 		return nil, fmt.Errorf("fetch ticker: %w", err)
 	}
 
-	var result struct {
-		Code string `json:"code"`
-		Msg  string `json:"msg"`
-		Data []struct {
-			InstID    string `json:"instId"`
-			Last      string `json:"last"`
-			LastSz    string `json:"lastSz"`
-			AskPx     string `json:"askPx"`
-			AskSz     string `json:"askSz"`
-			BidPx     string `json:"bidPx"`
-			BidSz     string `json:"bidSz"`
-			Open24h   string `json:"open24h"`
-			High24h   string `json:"high24h"`
-			Low24h    string `json:"low24h"`
-			Vol24h    string `json:"vol24h"`
-			VolCcy24h string `json:"volCcy24h"`
-			Ts        string `json:"ts"`
-		} `json:"data"`
-	}
+	var result okxPerpTickerResponse
 
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal ticker: %w", err)
@@ -329,9 +328,9 @@ func (m *okxPerpMarket) FetchTicker(ctx context.Context, symbol string) (*types.
 	}
 
 	data := result.Data[0]
-	ticker := &types.Ticker{
+	ticker := &model.Ticker{
 		Symbol:    symbol,
-		Timestamp: time.Now(),
+		Timestamp: data.Ts,
 	}
 
 	ticker.Bid = data.BidPx
@@ -346,7 +345,7 @@ func (m *okxPerpMarket) FetchTicker(ctx context.Context, symbol string) (*types.
 	return ticker, nil
 }
 
-func (m *okxPerpMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error) {
+func (m *okxPerpMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
 	resp, err := m.okx.client.HTTPClient.Get(ctx, "/api/v5/market/tickers", map[string]interface{}{
 		"instType": "SWAP",
 	})
@@ -354,21 +353,7 @@ func (m *okxPerpMarket) FetchTickers(ctx context.Context, symbols ...string) (ma
 		return nil, fmt.Errorf("fetch tickers: %w", err)
 	}
 
-	var result struct {
-		Code string `json:"code"`
-		Msg  string `json:"msg"`
-		Data []struct {
-			InstID    string `json:"instId"`
-			Last      string `json:"last"`
-			AskPx     string `json:"askPx"`
-			BidPx     string `json:"bidPx"`
-			Open24h   string `json:"open24h"`
-			High24h   string `json:"high24h"`
-			Low24h    string `json:"low24h"`
-			Vol24h    string `json:"vol24h"`
-			VolCcy24h string `json:"volCcy24h"`
-		} `json:"data"`
-	}
+	var result okxPerpTickerResponse
 
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
@@ -396,7 +381,7 @@ func (m *okxPerpMarket) FetchTickers(ctx context.Context, symbols ...string) (ma
 		}
 	}
 
-	tickers := make(map[string]*types.Ticker)
+	tickers := make(map[string]*model.Ticker)
 	for _, item := range result.Data {
 		// 如果指定了 symbols，进行过滤
 		if len(symbols) > 0 {
@@ -404,9 +389,9 @@ func (m *okxPerpMarket) FetchTickers(ctx context.Context, symbols ...string) (ma
 			if !ok {
 				continue
 			}
-			ticker := &types.Ticker{
+			ticker := &model.Ticker{
 				Symbol:    normalizedSymbol,
-				Timestamp: time.Now(),
+				Timestamp: item.Ts,
 			}
 			ticker.Bid = item.BidPx
 			ticker.Ask = item.AskPx
@@ -423,9 +408,9 @@ func (m *okxPerpMarket) FetchTickers(ctx context.Context, symbols ...string) (ma
 			if err != nil {
 				continue
 			}
-			ticker := &types.Ticker{
+			ticker := &model.Ticker{
 				Symbol:    market.Symbol,
-				Timestamp: time.Now(),
+				Timestamp: item.Ts,
 			}
 			ticker.Bid = item.BidPx
 			ticker.Ask = item.AskPx
@@ -443,7 +428,7 @@ func (m *okxPerpMarket) FetchTickers(ctx context.Context, symbols ...string) (ma
 }
 
 // getMarketByID 通过交易所ID获取市场信息
-func (m *okxPerpMarket) getMarketByID(id string) (*types.Market, error) {
+func (m *okxPerpMarket) getMarketByID(id string) (*model.Market, error) {
 	m.okx.mu.RLock()
 	defer m.okx.mu.RUnlock()
 
@@ -712,7 +697,7 @@ func (o *okxPerpOrder) FetchPositions(ctx context.Context, symbols ...string) ([
 }
 
 // getMarketByID 通过交易所ID获取市场信息
-func (o *okxPerpOrder) getMarketByID(id string) (*types.Market, error) {
+func (o *okxPerpOrder) getMarketByID(id string) (*model.Market, error) {
 	o.okx.mu.RLock()
 	defer o.okx.mu.RUnlock()
 

@@ -10,6 +10,7 @@ import (
 
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/exchange"
+	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/types"
 	"github.com/shopspring/decimal"
 )
@@ -40,22 +41,27 @@ func (p *BinancePerp) LoadMarkets(ctx context.Context, reload bool) error {
 }
 
 // FetchMarkets 获取市场列表
-func (p *BinancePerp) FetchMarkets(ctx context.Context) ([]*types.Market, error) {
+func (p *BinancePerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	return p.market.FetchMarkets(ctx)
 }
 
 // GetMarket 获取单个市场信息
-func (p *BinancePerp) GetMarket(symbol string) (*types.Market, error) {
+func (p *BinancePerp) GetMarket(symbol string) (*model.Market, error) {
 	return p.market.GetMarket(symbol)
 }
 
+// GetMarkets 从内存中获取所有市场信息
+func (p *BinancePerp) GetMarkets() ([]*model.Market, error) {
+	return p.market.GetMarkets()
+}
+
 // FetchTicker 获取行情（单个）
-func (p *BinancePerp) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error) {
+func (p *BinancePerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	return p.market.FetchTicker(ctx, symbol)
 }
 
 // FetchTickers 批量获取行情
-func (p *BinancePerp) FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error) {
+func (p *BinancePerp) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
 	return p.market.FetchTickers(ctx, symbols...)
 }
 
@@ -157,7 +163,7 @@ func (m *binancePerpMarket) LoadMarkets(ctx context.Context, reload bool) error 
 		return fmt.Errorf("unmarshal fapi exchange info: %w", err)
 	}
 
-	markets := make([]*types.Market, 0)
+	markets := make([]*model.Market, 0)
 	for _, s := range info.Symbols {
 		// 只处理永续合约
 		if s.ContractType != "PERPETUAL" {
@@ -175,13 +181,13 @@ func (m *binancePerpMarket) LoadMarkets(ctx context.Context, reload bool) error 
 		// 转换为标准化格式 BTC/USDT:USDT
 		normalizedSymbol := common.NormalizeContractSymbol(s.BaseAsset, s.QuoteAsset, settle)
 
-		market := &types.Market{
+		market := &model.Market{
 			ID:       s.Symbol,
 			Symbol:   normalizedSymbol,
 			Base:     s.BaseAsset,
 			Quote:    s.QuoteAsset,
 			Settle:   settle,
-			Type:     types.MarketTypeSwap,
+			Type:     model.MarketTypeSwap,
 			Active:   s.Status == "TRADING",
 			Contract: true,
 			Linear:   true, // U本位永续合约
@@ -197,17 +203,17 @@ func (m *binancePerpMarket) LoadMarkets(ctx context.Context, reload bool) error 
 			switch filter.FilterType {
 			case "LOT_SIZE":
 				if !filter.MinQty.IsZero() {
-					market.Limits.Amount.Min = filter.MinQty.InexactFloat64()
+					market.Limits.Amount.Min = filter.MinQty
 				}
 				if !filter.MaxQty.IsZero() {
-					market.Limits.Amount.Max = filter.MaxQty.InexactFloat64()
+					market.Limits.Amount.Max = filter.MaxQty
 				}
 			case "PRICE_FILTER":
 				if !filter.MinPrice.IsZero() {
-					market.Limits.Price.Min = filter.MinPrice.InexactFloat64()
+					market.Limits.Price.Min = filter.MinPrice
 				}
 				if !filter.MaxPrice.IsZero() {
-					market.Limits.Price.Max = filter.MaxPrice.InexactFloat64()
+					market.Limits.Price.Max = filter.MaxPrice
 				}
 				if !filter.TickSize.IsZero() {
 					// 从 TickSize 计算价格精度
@@ -219,7 +225,7 @@ func (m *binancePerpMarket) LoadMarkets(ctx context.Context, reload bool) error 
 				}
 			case "MIN_NOTIONAL":
 				if !filter.MinNotional.IsZero() {
-					market.Limits.Cost.Min = filter.MinNotional.InexactFloat64()
+					market.Limits.Cost.Min = filter.MinNotional
 				}
 			}
 		}
@@ -230,7 +236,7 @@ func (m *binancePerpMarket) LoadMarkets(ctx context.Context, reload bool) error 
 	// 存储市场信息
 	m.binance.mu.Lock()
 	if m.binance.perpMarkets == nil {
-		m.binance.perpMarkets = make(map[string]*types.Market)
+		m.binance.perpMarkets = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
 		m.binance.perpMarkets[market.Symbol] = market
@@ -241,7 +247,7 @@ func (m *binancePerpMarket) LoadMarkets(ctx context.Context, reload bool) error 
 }
 
 // FetchMarkets 获取市场列表
-func (m *binancePerpMarket) FetchMarkets(ctx context.Context) ([]*types.Market, error) {
+func (m *binancePerpMarket) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	// 确保市场已加载
 	if err := m.LoadMarkets(ctx, false); err != nil {
 		return nil, err
@@ -250,7 +256,7 @@ func (m *binancePerpMarket) FetchMarkets(ctx context.Context) ([]*types.Market, 
 	m.binance.mu.RLock()
 	defer m.binance.mu.RUnlock()
 
-	markets := make([]*types.Market, 0, len(m.binance.perpMarkets))
+	markets := make([]*model.Market, 0, len(m.binance.perpMarkets))
 	for _, market := range m.binance.perpMarkets {
 		markets = append(markets, market)
 	}
@@ -259,7 +265,7 @@ func (m *binancePerpMarket) FetchMarkets(ctx context.Context) ([]*types.Market, 
 }
 
 // GetMarket 获取单个市场信息
-func (m *binancePerpMarket) GetMarket(symbol string) (*types.Market, error) {
+func (m *binancePerpMarket) GetMarket(symbol string) (*model.Market, error) {
 	m.binance.mu.RLock()
 	defer m.binance.mu.RUnlock()
 
@@ -271,8 +277,21 @@ func (m *binancePerpMarket) GetMarket(symbol string) (*types.Market, error) {
 	return market, nil
 }
 
+// GetMarkets 从内存中获取所有市场信息
+func (m *binancePerpMarket) GetMarkets() ([]*model.Market, error) {
+	m.binance.mu.RLock()
+	defer m.binance.mu.RUnlock()
+
+	markets := make([]*model.Market, 0, len(m.binance.perpMarkets))
+	for _, market := range m.binance.perpMarkets {
+		markets = append(markets, market)
+	}
+
+	return markets, nil
+}
+
 // FetchTicker 获取行情（单个）
-func (m *binancePerpMarket) FetchTicker(ctx context.Context, symbol string) (*types.Ticker, error) {
+func (m *binancePerpMarket) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {
@@ -298,32 +317,22 @@ func (m *binancePerpMarket) FetchTicker(ctx context.Context, symbol string) (*ty
 		return nil, fmt.Errorf("fetch ticker: %w", err)
 	}
 
-	var data struct {
-		Symbol             string `json:"symbol"`
-		BidPrice           string `json:"bidPrice"`
-		AskPrice           string `json:"askPrice"`
-		LastPrice          string `json:"lastPrice"`
-		OpenPrice          string `json:"openPrice"`
-		HighPrice          string `json:"highPrice"`
-		LowPrice           string `json:"lowPrice"`
-		Volume             string `json:"volume"`
-		QuoteVolume        string `json:"quoteVolume"`
-		PriceChange        string `json:"priceChange"`
-		PriceChangePercent string `json:"priceChangePercent"`
-	}
+	var data binancePerpTickerResponse
 
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal ticker: %w", err)
 	}
 
 	// 转换回标准化格式 - 使用输入的symbol（已经是标准化格式）
-	ticker := &types.Ticker{
+	ticker := &model.Ticker{
 		Symbol:    symbol, // 使用输入的标准化格式
-		Timestamp: time.Now(),
+		Timestamp: data.CloseTime,
 	}
 
-	ticker.Bid = data.BidPrice
-	ticker.Ask = data.AskPrice
+	// 注意：永续合约 API 可能不返回 bidPrice 和 askPrice，需要从其他接口获取
+	// 这里先使用 lastPrice 作为默认值，或者留空
+	ticker.Bid = data.LastPrice // 如果没有 bidPrice，使用 lastPrice 作为近似值
+	ticker.Ask = data.LastPrice // 如果没有 askPrice，使用 lastPrice 作为近似值
 	ticker.Last = data.LastPrice
 	ticker.Open = data.OpenPrice
 	ticker.High = data.HighPrice
@@ -335,25 +344,13 @@ func (m *binancePerpMarket) FetchTicker(ctx context.Context, symbol string) (*ty
 }
 
 // FetchTickers 批量获取行情
-func (m *binancePerpMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*types.Ticker, error) {
+func (m *binancePerpMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
 	resp, err := m.binance.client.PerpClient.Get(ctx, "/fapi/v1/ticker/24hr", nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch tickers: %w", err)
 	}
 
-	var data []struct {
-		Symbol             string `json:"symbol"`
-		BidPrice           string `json:"bidPrice"`
-		AskPrice           string `json:"askPrice"`
-		LastPrice          string `json:"lastPrice"`
-		OpenPrice          string `json:"openPrice"`
-		HighPrice          string `json:"highPrice"`
-		LowPrice           string `json:"lowPrice"`
-		Volume             string `json:"volume"`
-		QuoteVolume        string `json:"quoteVolume"`
-		PriceChange        string `json:"priceChange"`
-		PriceChangePercent string `json:"priceChangePercent"`
-	}
+	var data []binancePerpTickerResponse
 
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
@@ -377,7 +374,7 @@ func (m *binancePerpMarket) FetchTickers(ctx context.Context, symbols ...string)
 		}
 	}
 
-	tickers := make(map[string]*types.Ticker)
+	tickers := make(map[string]*model.Ticker)
 	for _, item := range data {
 		// 如果指定了 symbols，进行过滤
 		if len(symbols) > 0 {
@@ -385,12 +382,13 @@ func (m *binancePerpMarket) FetchTickers(ctx context.Context, symbols ...string)
 			if !ok {
 				continue
 			}
-			ticker := &types.Ticker{
+			ticker := &model.Ticker{
 				Symbol:    normalizedSymbol,
-				Timestamp: time.Now(),
+				Timestamp: item.CloseTime,
 			}
-			ticker.Bid = item.BidPrice
-			ticker.Ask = item.AskPrice
+			// 注意：永续合约 API 可能不返回 bidPrice 和 askPrice，使用 lastPrice 作为近似值
+			ticker.Bid = item.LastPrice
+			ticker.Ask = item.LastPrice
 			ticker.Last = item.LastPrice
 			ticker.Open = item.OpenPrice
 			ticker.High = item.HighPrice
@@ -400,12 +398,13 @@ func (m *binancePerpMarket) FetchTickers(ctx context.Context, symbols ...string)
 			tickers[normalizedSymbol] = ticker
 		} else {
 			// 如果没有指定 symbols，返回所有（使用 Binance 原始格式）
-			ticker := &types.Ticker{
+			ticker := &model.Ticker{
 				Symbol:    item.Symbol,
-				Timestamp: time.Now(),
+				Timestamp: item.CloseTime,
 			}
-			ticker.Bid = item.BidPrice
-			ticker.Ask = item.AskPrice
+			// 注意：永续合约 API 可能不返回 bidPrice 和 askPrice，使用 lastPrice 作为近似值
+			ticker.Bid = item.LastPrice
+			ticker.Ask = item.LastPrice
 			ticker.Last = item.LastPrice
 			ticker.Open = item.OpenPrice
 			ticker.High = item.HighPrice
@@ -600,7 +599,7 @@ func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string
 }
 
 // getMarketByID 通过交易所ID获取市场信息
-func (o *binancePerpOrder) getMarketByID(id string) (*types.Market, error) {
+func (o *binancePerpOrder) getMarketByID(id string) (*model.Market, error) {
 	o.binance.mu.RLock()
 	defer o.binance.mu.RUnlock()
 
