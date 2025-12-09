@@ -50,8 +50,8 @@ func main() {
 	// 打印结果
 	fmt.Printf("获取到 %d 条K线数据:\n", len(ohlcvs))
 	for _, ohlcv := range ohlcvs {
-		fmt.Printf("时间: %s, 开盘: %.2f, 最高: %.2f, 最低: %.2f, 收盘: %.2f, 成交量: %.2f\n",
+		fmt.Printf("时间: %s, 开盘: %s, 最高: %s, 最低: %s, 收盘: %s, 成交量: %s\n",
 			ohlcv.Timestamp.Format("2006-01-02 15:04:05"),
-			ohlcv.Open, ohlcv.High, ohlcv.Low, ohlcv.Close, ohlcv.Volume)
+			ohlcv.Open.String(), ohlcv.High.String(), ohlcv.Low.String(), ohlcv.Close.String(), ohlcv.Volume.String())
 	}
 }

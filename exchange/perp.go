@@ -35,7 +35,7 @@ type PerpExchange interface {
 	// TODO: 添加 OrderBook 类型到 types 包后启用
 
 	// FetchOHLCV 获取K线数据
-	FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error)
+	FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error)
 
 	// ========== 账户信息 ==========
 
@@ -81,4 +81,3 @@ type PerpExchange interface {
 	// IsHedgeMode 是否为双向持仓模式
 	IsHedgeMode() bool
 }
-

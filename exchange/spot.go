@@ -35,7 +35,7 @@ type SpotExchange interface {
 	// TODO: 添加 OrderBook 类型到 types 包后启用
 
 	// FetchOHLCV 获取K线数据
-	FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error)
+	FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error)
 
 	// ========== 账户信息 ==========
 
@@ -67,4 +67,3 @@ type SpotExchange interface {
 	// FetchMyTrades 获取我的交易记录
 	FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error)
 }
-

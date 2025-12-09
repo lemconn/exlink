@@ -60,7 +60,7 @@ func (p *GatePerp) FetchTickers(ctx context.Context, symbols ...string) (map[str
 	return p.market.FetchTickers(ctx, symbols...)
 }
 
-func (p *GatePerp) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error) {
+func (p *GatePerp) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	return p.market.FetchOHLCV(ctx, symbol, timeframe, since, limit)
 }
 
@@ -381,7 +381,7 @@ func (m *gatePerpMarket) getMarketByID(id string) (*model.Market, error) {
 	return nil, fmt.Errorf("market not found: %s", id)
 }
 
-func (m *gatePerpMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error) {
+func (m *gatePerpMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {
@@ -406,42 +406,26 @@ func (m *gatePerpMarket) FetchOHLCV(ctx context.Context, symbol string, timefram
 		return nil, fmt.Errorf("fetch ohlcv: %w", err)
 	}
 
-	// 合约市场返回对象格式
-	var data []map[string]interface{}
+	var data gatePerpKlineResponse
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal ohlcv: %w", err)
 	}
 
-	parseFloat := func(v interface{}) float64 {
-		if str, ok := v.(string); ok {
-			f, _ := strconv.ParseFloat(str, 64)
-			return f
-		}
-		if f, ok := v.(float64); ok {
-			return f
-		}
-		f, _ := strconv.ParseFloat(fmt.Sprintf("%v", v), 64)
-		return f
-	}
-
-	ohlcvs := make(types.OHLCVs, 0, len(data))
+	ohlcvs := make(model.OHLCVs, 0, len(data))
 	for _, item := range data {
-		ohlcv := types.OHLCV{}
-		// 解析时间戳
-		if t, ok := item["t"].(float64); ok {
-			ohlcv.Timestamp = time.Unix(int64(t), 0)
-		} else if t, ok := item["t"].(int64); ok {
-			ohlcv.Timestamp = time.Unix(t, 0)
-		} else if tStr, ok := item["t"].(string); ok {
-			if t, err := strconv.ParseInt(tStr, 10, 64); err == nil {
-				ohlcv.Timestamp = time.Unix(t, 0)
-			}
+		// 将 int64 Volume 转换为 types.ExDecimal
+		volumeDecimal := types.ExDecimal{}
+		if err := volumeDecimal.UnmarshalJSON([]byte(fmt.Sprintf(`"%d"`, item.Volume))); err != nil {
+			return nil, fmt.Errorf("parse volume: %w", err)
 		}
-		ohlcv.Open = parseFloat(item["o"])
-		ohlcv.High = parseFloat(item["h"])
-		ohlcv.Low = parseFloat(item["l"])
-		ohlcv.Close = parseFloat(item["c"])
-		ohlcv.Volume = parseFloat(item["v"])
+		ohlcv := &model.OHLCV{
+			Timestamp: item.Time,
+			Open:      item.Open,
+			High:      item.High,
+			Low:       item.Low,
+			Close:     item.Close,
+			Volume:    volumeDecimal,
+		}
 		ohlcvs = append(ohlcvs, ohlcv)
 	}
 

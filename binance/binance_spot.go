@@ -64,7 +64,7 @@ func (s *BinanceSpot) FetchTickers(ctx context.Context, symbols ...string) (map[
 }
 
 // FetchOHLCV 获取K线数据
-func (s *BinanceSpot) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error) {
+func (s *BinanceSpot) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	return s.market.FetchOHLCV(ctx, symbol, timeframe, since, limit)
 }
 
@@ -387,7 +387,7 @@ func (m *binanceSpotMarket) FetchTickers(ctx context.Context, symbols ...string)
 }
 
 // FetchOHLCV 获取K线数据
-func (m *binanceSpotMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error) {
+func (m *binanceSpotMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {
@@ -423,37 +423,21 @@ func (m *binanceSpotMarket) FetchOHLCV(ctx context.Context, symbol string, timef
 		return nil, fmt.Errorf("fetch ohlcv: %w", err)
 	}
 
-	var data [][]interface{}
+	var data binanceSpotKlineResponse
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal ohlcv: %w", err)
 	}
 
-	ohlcvs := make(types.OHLCVs, 0, len(data))
+	ohlcvs := make(model.OHLCVs, 0, len(data))
 	for _, item := range data {
-		if len(item) < 6 {
-			continue
+		ohlcv := &model.OHLCV{
+			Timestamp: item.OpenTime,
+			Open:      item.Open,
+			High:      item.High,
+			Low:       item.Low,
+			Close:     item.Close,
+			Volume:    item.Volume,
 		}
-
-		ohlcv := types.OHLCV{}
-		if ts, ok := item[0].(float64); ok {
-			ohlcv.Timestamp = time.UnixMilli(int64(ts))
-		}
-		if open, ok := item[1].(string); ok {
-			ohlcv.Open, _ = strconv.ParseFloat(open, 64)
-		}
-		if high, ok := item[2].(string); ok {
-			ohlcv.High, _ = strconv.ParseFloat(high, 64)
-		}
-		if low, ok := item[3].(string); ok {
-			ohlcv.Low, _ = strconv.ParseFloat(low, 64)
-		}
-		if close, ok := item[4].(string); ok {
-			ohlcv.Close, _ = strconv.ParseFloat(close, 64)
-		}
-		if volume, ok := item[5].(string); ok {
-			ohlcv.Volume, _ = strconv.ParseFloat(volume, 64)
-		}
-
 		ohlcvs = append(ohlcvs, ohlcv)
 	}
 
