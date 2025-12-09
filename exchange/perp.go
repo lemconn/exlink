@@ -34,8 +34,8 @@ type PerpExchange interface {
 	// FetchOrderBook(ctx context.Context, symbol string, limit ...int) (*types.OrderBook, error)
 	// TODO: 添加 OrderBook 类型到 types 包后启用
 
-	// FetchOHLCV 获取K线数据
-	FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error)
+	// FetchOHLCVs 获取K线数据
+	FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error)
 
 	// ========== 账户信息 ==========
 

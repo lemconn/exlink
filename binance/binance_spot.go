@@ -63,9 +63,9 @@ func (s *BinanceSpot) FetchTickers(ctx context.Context, symbols ...string) (map[
 	return s.market.FetchTickers(ctx, symbols...)
 }
 
-// FetchOHLCV 获取K线数据
-func (s *BinanceSpot) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
-	return s.market.FetchOHLCV(ctx, symbol, timeframe, since, limit)
+// FetchOHLCVs 获取K线数据
+func (s *BinanceSpot) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+	return s.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 }
 
 // FetchBalance 获取余额
@@ -386,8 +386,8 @@ func (m *binanceSpotMarket) FetchTickers(ctx context.Context, symbols ...string)
 	return tickers, nil
 }
 
-// FetchOHLCV 获取K线数据
-func (m *binanceSpotMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+// FetchOHLCVs 获取K线数据
+func (m *binanceSpotMarket) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {

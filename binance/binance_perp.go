@@ -65,9 +65,9 @@ func (p *BinancePerp) FetchTickers(ctx context.Context, symbols ...string) (map[
 	return p.market.FetchTickers(ctx, symbols...)
 }
 
-// FetchOHLCV 获取K线数据
-func (p *BinancePerp) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
-	return p.market.FetchOHLCV(ctx, symbol, timeframe, since, limit)
+// FetchOHLCVs 获取K线数据
+func (p *BinancePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+	return p.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 }
 
 // FetchPositions 获取持仓
@@ -418,8 +418,8 @@ func (m *binancePerpMarket) FetchTickers(ctx context.Context, symbols ...string)
 	return tickers, nil
 }
 
-// FetchOHLCV 获取K线数据
-func (m *binancePerpMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+// FetchOHLCVs 获取K线数据
+func (m *binancePerpMarket) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {
