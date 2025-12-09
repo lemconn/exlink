@@ -58,7 +58,7 @@ func (p *BybitPerp) FetchTickers(ctx context.Context, symbols ...string) (map[st
 	return p.market.FetchTickers(ctx, symbols...)
 }
 
-func (p *BybitPerp) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error) {
+func (p *BybitPerp) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	return p.market.FetchOHLCV(ctx, symbol, timeframe, since, limit)
 }
 
@@ -337,7 +337,7 @@ func (m *bybitPerpMarket) FetchTickers(ctx context.Context, symbols ...string) (
 		}
 	}
 
-		tickers := make(map[string]*model.Ticker)
+	tickers := make(map[string]*model.Ticker)
 	for _, item := range result.Result.List {
 		// 如果指定了 symbols，进行过滤
 		if len(symbols) > 0 {
@@ -396,7 +396,7 @@ func (m *bybitPerpMarket) getMarketByID(id string) (*model.Market, error) {
 	return nil, fmt.Errorf("market not found: %s", id)
 }
 
-func (m *bybitPerpMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error) {
+func (m *bybitPerpMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {
@@ -421,15 +421,7 @@ func (m *bybitPerpMarket) FetchOHLCV(ctx context.Context, symbol string, timefra
 		return nil, fmt.Errorf("fetch ohlcv: %w", err)
 	}
 
-	var result struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-		Result  struct {
-			Category string     `json:"category"`
-			List     [][]string `json:"list"`
-		} `json:"result"`
-	}
-
+	var result bybitPerpKlineResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal ohlcv: %w", err)
 	}
@@ -438,21 +430,16 @@ func (m *bybitPerpMarket) FetchOHLCV(ctx context.Context, symbol string, timefra
 		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
 	}
 
-	ohlcvs := make(types.OHLCVs, 0, len(result.Result.List))
+	ohlcvs := make(model.OHLCVs, 0, len(result.Result.List))
 	for _, item := range result.Result.List {
-		if len(item) < 6 {
-			continue
+		ohlcv := &model.OHLCV{
+			Timestamp: item.StartTime,
+			Open:      item.Open,
+			High:      item.High,
+			Low:       item.Low,
+			Close:     item.Close,
+			Volume:    item.Volume,
 		}
-
-		ohlcv := types.OHLCV{}
-		ts, _ := strconv.ParseInt(item[0], 10, 64)
-		ohlcv.Timestamp = time.UnixMilli(ts)
-		ohlcv.Open, _ = strconv.ParseFloat(item[1], 64)
-		ohlcv.High, _ = strconv.ParseFloat(item[2], 64)
-		ohlcv.Low, _ = strconv.ParseFloat(item[3], 64)
-		ohlcv.Close, _ = strconv.ParseFloat(item[4], 64)
-		ohlcv.Volume, _ = strconv.ParseFloat(item[5], 64)
-
 		ohlcvs = append(ohlcvs, ohlcv)
 	}
 

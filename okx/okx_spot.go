@@ -56,7 +56,7 @@ func (s *OKXSpot) FetchTickers(ctx context.Context, symbols ...string) (map[stri
 	return s.market.FetchTickers(ctx, symbols...)
 }
 
-func (s *OKXSpot) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error) {
+func (s *OKXSpot) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	return s.market.FetchOHLCV(ctx, symbol, timeframe, since, limit)
 }
 
@@ -375,7 +375,7 @@ func (m *okxSpotMarket) getMarketByID(id string) (*model.Market, error) {
 	return nil, fmt.Errorf("market not found: %s", id)
 }
 
-func (m *okxSpotMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error) {
+func (m *okxSpotMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	// 获取市场信息
 	market, err := m.GetMarket(symbol)
 	if err != nil {
@@ -399,12 +399,7 @@ func (m *okxSpotMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe
 		return nil, fmt.Errorf("fetch ohlcv: %w", err)
 	}
 
-	var result struct {
-		Code string     `json:"code"`
-		Msg  string     `json:"msg"`
-		Data [][]string `json:"data"`
-	}
-
+	var result okxSpotKlineResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal ohlcv: %w", err)
 	}
@@ -413,21 +408,16 @@ func (m *okxSpotMarket) FetchOHLCV(ctx context.Context, symbol string, timeframe
 		return nil, fmt.Errorf("okx api error: %s", result.Msg)
 	}
 
-	ohlcvs := make(types.OHLCVs, 0, len(result.Data))
+	ohlcvs := make(model.OHLCVs, 0, len(result.Data))
 	for _, item := range result.Data {
-		if len(item) < 6 {
-			continue
+		ohlcv := &model.OHLCV{
+			Timestamp: item.Ts,
+			Open:      item.Open,
+			High:      item.High,
+			Low:       item.Low,
+			Close:     item.Close,
+			Volume:    item.Volume,
 		}
-
-		ohlcv := types.OHLCV{}
-		ts, _ := strconv.ParseInt(item[0], 10, 64)
-		ohlcv.Timestamp = time.UnixMilli(ts)
-		ohlcv.Open, _ = strconv.ParseFloat(item[1], 64)
-		ohlcv.High, _ = strconv.ParseFloat(item[2], 64)
-		ohlcv.Low, _ = strconv.ParseFloat(item[3], 64)
-		ohlcv.Close, _ = strconv.ParseFloat(item[4], 64)
-		ohlcv.Volume, _ = strconv.ParseFloat(item[5], 64)
-
 		ohlcvs = append(ohlcvs, ohlcv)
 	}
 
