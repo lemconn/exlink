@@ -482,7 +482,80 @@
 			}
 		},
 		{
-			"name": "Swap - Open Long (Buy to Open Long)",
+			"name": "Spot - Get KLine",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/market/kline?category=spot&symbol=BTCUSDT&interval=1",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"market",
+						"kline"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "spot",
+							"description": "Product type: spot, linear, inverse. When category is not passed, use linear by default",
+							"disabled": false
+						},
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Symbol name, like BTCUSDT, uppercase only",
+							"disabled": false
+						},
+						{
+							"key": "interval",
+							"value": "1",
+							"description": "Kline interval. 1,3,5,15,30,60,120,240,360,720,D,W,M",
+							"disabled": false
+						},
+						{
+							"key": "start",
+							"value": "",
+							"description": "The start timestamp (ms)",
+							"disabled": true
+						},
+						{
+							"key": "end",
+							"value": "",
+							"description": "The end timestamp (ms)",
+							"disabled": true
+						},
+						{
+							"key": "limit",
+							"value": "200",
+							"description": "Limit for data size per page. [1, 1000]. Default: 200",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Get kline/candlestick data for spot market. Returns kline data including open time, open price, high price, low price, close price, volume, and turnover. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Perp - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -540,7 +613,7 @@
 			}
 		},
 		{
-			"name": "Swap - Close Long (Sell to Close Long)",
+			"name": "Perp - Close Long (Sell to Close Long)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -598,7 +671,7 @@
 			}
 		},
 		{
-			"name": "Swap - Open Short (Sell to Open Short)",
+			"name": "Perp - Open Short (Sell to Open Short)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -656,7 +729,7 @@
 			}
 		},
 		{
-			"name": "Swap - Close Short (Buy to Close Short)",
+			"name": "Perp - Close Short (Buy to Close Short)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -714,7 +787,7 @@
 			}
 		},
 		{
-			"name": "Swap - Set Account Position Mode",
+			"name": "Perp - Set Account Position Mode",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -772,7 +845,7 @@
 		}
 	},
 	{
-		"name": "Swap - Get Account Info",
+		"name": "Perp - Get Account Info",
 		"request": {
 			"method": "GET",
 			"header": [
@@ -821,7 +894,7 @@
 		}
 	},
 	{
-		"name": "Swap - Get Account Positions",
+		"name": "Perp - Get Account Positions",
 		"request": {
 			"method": "GET",
 			"header": [
@@ -884,7 +957,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Account Orders",
+			"name": "Perp - Get Account Orders",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -959,7 +1032,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Ticker",
+			"name": "Perp - Get Ticker",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1008,7 +1081,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Markets",
+			"name": "Perp - Get Markets",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1051,7 +1124,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Market",
+			"name": "Perp - Get Market",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1097,6 +1170,79 @@
 					]
 				},
 				"description": "Get single trading pair information for perpetual swap (linear futures) market. Returns symbol, contract type, status, lot size filter, price filter, leverage, and other trading parameters for the specific linear trading pair. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Perp - Get KLine",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/market/kline?category=linear&symbol=BTCUSDT&interval=1",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"market",
+						"kline"
+					],
+					"query": [
+						{
+							"key": "category",
+							"value": "linear",
+							"description": "Product type: spot, linear, inverse. When category is not passed, use linear by default",
+							"disabled": false
+						},
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Symbol name, like BTCUSDT, uppercase only",
+							"disabled": false
+						},
+						{
+							"key": "interval",
+							"value": "1",
+							"description": "Kline interval. 1,3,5,15,30,60,120,240,360,720,D,W,M",
+							"disabled": false
+						},
+						{
+							"key": "start",
+							"value": "",
+							"description": "The start timestamp (ms)",
+							"disabled": true
+						},
+						{
+							"key": "end",
+							"value": "",
+							"description": "The end timestamp (ms)",
+							"disabled": true
+						},
+						{
+							"key": "limit",
+							"value": "200",
+							"description": "Limit for data size per page. [1, 1000]. Default: 200",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Get kline/candlestick data for perpetual swap (linear futures) market. Returns kline data including open time, open price, high price, low price, close price, volume, and turnover. This is a public endpoint and does not require authentication."
 			}
 		}
 	]
