@@ -399,7 +399,73 @@
 			}
 		},
 		{
-			"name": "Swap - Open Long (Buy to Open Long)",
+			"name": "Spot - Get KLine",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/spot/candlesticks?currency_pair=BTC_USDT&interval=1m",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"spot",
+						"candlesticks"
+					],
+					"query": [
+						{
+							"key": "currency_pair",
+							"value": "BTC_USDT",
+							"description": "Currency pair, e.g., BTC_USDT",
+							"disabled": false
+						},
+						{
+							"key": "interval",
+							"value": "1m",
+							"description": "Time interval between data points. Note that 30d represents a calendar month, not aligned to 30 days",
+							"disabled": false
+						},
+						{
+							"key": "from",
+							"value": "",
+							"description": "Start time of candlesticks, formatted in Unix timestamp in seconds. Default to to - 100 * interval if not specified",
+							"disabled": true
+						},
+						{
+							"key": "to",
+							"value": "",
+							"description": "Specify the end time of the K-line chart, defaults to current time if not specified, note that the time format is Unix timestamp with second precision",
+							"disabled": true
+						},
+						{
+							"key": "limit",
+							"value": "",
+							"description": "Maximum number of recent data points to return. limit conflicts with from and to. If either from or to is specified, request will be rejected.",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Get kline/candlestick data for spot market. Returns kline data including timestamp, open price, high price, low price, close price, and volume. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Perp - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -453,7 +519,7 @@
 			}
 		},
 		{
-			"name": "Swap - Close Long (Sell to Close Long)",
+			"name": "Perp - Close Long (Sell to Close Long)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -507,7 +573,7 @@
 			}
 		},
 		{
-			"name": "Swap - Open Short (Sell to Open Short)",
+			"name": "Perp - Open Short (Sell to Open Short)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -561,7 +627,7 @@
 			}
 		},
 		{
-			"name": "Swap - Close Short (Buy to Close Short)",
+			"name": "Perp - Close Short (Buy to Close Short)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -615,7 +681,7 @@
 			}
 		},
 		{
-			"name": "Swap - Set Account Position Mode",
+			"name": "Perp - Set Account Position Mode",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -669,7 +735,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Account Info",
+			"name": "Perp - Get Account Info",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -714,7 +780,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Account Positions",
+			"name": "Perp - Get Account Positions",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -759,7 +825,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Account Orders",
+			"name": "Perp - Get Account Orders",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -817,7 +883,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Ticker",
+			"name": "Perp - Get Ticker",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -862,7 +928,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Markets",
+			"name": "Perp - Get Markets",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -899,7 +965,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Market",
+			"name": "Perp - Get Market",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -934,6 +1000,81 @@
 					]
 				},
 				"description": "Get single trading pair information for perpetual swap (USDT futures) market. Returns contract name, type, quanto multiplier, leverage, order size limits, funding rate parameters, and other trading parameters for the specific USDT perpetual contract. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Perp - Get KLine",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/futures/usdt/candlesticks?contract=BTC_USDT&interval=1m",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"futures",
+						"usdt",
+						"candlesticks"
+					],
+					"query": [
+						{
+							"key": "contract",
+							"value": "BTC_USDT",
+							"description": "Futures contract, e.g., BTC_USDT",
+							"disabled": false
+						},
+						{
+							"key": "interval",
+							"value": "1m",
+							"description": "Interval time between data points. Note that 1w means natural week(Mon-Sun), while 7d means every 7d since unix 0. 30d represents a natural month, not 30 days",
+							"disabled": false
+						},
+						{
+							"key": "from",
+							"value": "",
+							"description": "Start time of candlesticks, formatted in Unix timestamp in seconds. Default to to - 100 * interval if not specified",
+							"disabled": true
+						},
+						{
+							"key": "to",
+							"value": "",
+							"description": "Specify the end time of the K-line chart, defaults to current time if not specified, note that the time format is Unix timestamp with second precision",
+							"disabled": true
+						},
+						{
+							"key": "limit",
+							"value": "",
+							"description": "Maximum number of recent data points to return. limit conflicts with from and to. If either from or to is specified, request will be rejected.",
+							"disabled": true
+						},
+						{
+							"key": "timezone",
+							"value": "utc0",
+							"description": "Time zone: all/utc0/utc8, default utc0",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Get kline/candlestick data for perpetual swap (USDT futures) market. Returns kline data including timestamp, open price, high price, low price, close price, and volume. This is a public endpoint and does not require authentication."
 			}
 		}
 	]

@@ -495,7 +495,75 @@
 			}
 		},
 		{
-			"name": "Swap - Open Long (Buy to Open Long)",
+			"name": "Spot - Get KLine",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/market/candles?instId=BTC-USDT&bar=1m",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"market",
+						"candles"
+					],
+					"query": [
+						{
+							"key": "instId",
+							"value": "BTC-USDT",
+							"description": "Instrument ID, e.g., BTC-USDT for spot",
+							"disabled": false
+						},
+						{
+							"key": "bar",
+							"value": "1m",
+							"description": "Bar size, the default is 1m. e.g. [1m/3m/5m/15m/30m/1H/2H/4H]. UTC+8 opening price k-line: [6H/12H/1D/2D/3D/1W/1M/3M]. UTC+0 opening price k-line: [6Hutc/12Hutc/1Dutc/2Dutc/3Dutc/1Wutc/1Mutc/3Mutc]",
+							"disabled": false
+						},
+						{
+							"key": "after",
+							"value": "",
+							"description": "Pagination of data to return records earlier than the requested ts",
+							"disabled": true
+						},
+						{
+							"key": "before",
+							"value": "",
+							"description": "Pagination of data to return records newer than the requested ts. The latest data will be returned when using before individually",
+							"disabled": true
+						},
+						{
+							"key": "limit",
+							"value": "100",
+							"description": "Number of results per request. The maximum is 300. The default is 100.",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Get kline/candlestick data for spot market. Returns kline data including timestamp, open price, high price, low price, close price, volume, and volume in currency. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Perp - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -560,7 +628,7 @@
 			}
 		},
 		{
-			"name": "Swap - Close Long (Sell to Close Long)",
+			"name": "Perp - Close Long (Sell to Close Long)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -625,7 +693,7 @@
 			}
 		},
 		{
-			"name": "Swap - Open Short (Sell to Open Short)",
+			"name": "Perp - Open Short (Sell to Open Short)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -690,7 +758,7 @@
 			}
 		},
 		{
-			"name": "Swap - Close Short (Buy to Close Short)",
+			"name": "Perp - Close Short (Buy to Close Short)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -755,7 +823,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Account Orders",
+			"name": "Perp - Get Account Orders",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -831,7 +899,7 @@
 			}
 		},
 		{
-			"name": "Swap - Set Account Position Mode",
+			"name": "Perp - Set Account Position Mode",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -896,7 +964,7 @@
 		}
 	},
 	{
-		"name": "Swap - Get Account Info",
+		"name": "Perp - Get Account Info",
 		"request": {
 			"method": "GET",
 			"header": [
@@ -952,7 +1020,7 @@
 		}
 	},
 	{
-		"name": "Swap - Get Account Positions",
+		"name": "Perp - Get Account Positions",
 		"request": {
 			"method": "GET",
 			"header": [
@@ -1022,7 +1090,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Ticker",
+			"name": "Perp - Get Ticker",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1066,7 +1134,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Markets",
+			"name": "Perp - Get Markets",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1110,7 +1178,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Market",
+			"name": "Perp - Get Market",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1157,6 +1225,74 @@
 					]
 				},
 				"description": "Get single trading pair information for perpetual swap (futures) market. Returns instrument ID, contract value, tick size, lot size, and trading status for the specific swap trading pair. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Perp - Get KLine",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{okx_base_url}}/api/v5/market/candles?instId=BTC-USDT-SWAP&bar=1m",
+					"host": [
+						"{{okx_base_url}}"
+					],
+					"path": [
+						"api",
+						"v5",
+						"market",
+						"candles"
+					],
+					"query": [
+						{
+							"key": "instId",
+							"value": "BTC-USDT-SWAP",
+							"description": "Instrument ID, e.g., BTC-USDT-SWAP for perpetual swap",
+							"disabled": false
+						},
+						{
+							"key": "bar",
+							"value": "1m",
+							"description": "Bar size, the default is 1m. e.g. [1m/3m/5m/15m/30m/1H/2H/4H]. UTC+8 opening price k-line: [6H/12H/1D/2D/3D/1W/1M/3M]. UTC+0 opening price k-line: [6Hutc/12Hutc/1Dutc/2Dutc/3Dutc/1Wutc/1Mutc/3Mutc]",
+							"disabled": false
+						},
+						{
+							"key": "after",
+							"value": "",
+							"description": "Pagination of data to return records earlier than the requested ts",
+							"disabled": true
+						},
+						{
+							"key": "before",
+							"value": "",
+							"description": "Pagination of data to return records newer than the requested ts. The latest data will be returned when using before individually",
+							"disabled": true
+						},
+						{
+							"key": "limit",
+							"value": "100",
+							"description": "Number of results per request. The maximum is 300. The default is 100.",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Get kline/candlestick data for perpetual swap (futures) market. Returns kline data including timestamp, open price, high price, low price, close price, volume, and volume in currency. This is a public endpoint and does not require authentication."
 			}
 		}
 	]

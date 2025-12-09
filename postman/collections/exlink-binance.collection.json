@@ -673,7 +673,80 @@
 			}
 		},
 		{
-			"name": "Swap - Open Long (Buy to Open Long)",
+			"name": "Spot - Get KLine",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_base_url}}/api/v3/klines?symbol=BTCUSDT&interval=1m",
+					"host": [
+						"{{binance_base_url}}"
+					],
+					"path": [
+						"api",
+						"v3",
+						"klines"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Trading pair symbol, e.g., BTCUSDT",
+							"disabled": false
+						},
+						{
+							"key": "interval",
+							"value": "1m",
+							"description": "Kline interval, e.g., 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M",
+							"disabled": false
+						},
+						{
+							"key": "startTime",
+							"value": "",
+							"description": "Start time in milliseconds (Unix timestamp)",
+							"disabled": true
+						},
+						{
+							"key": "endTime",
+							"value": "",
+							"description": "End time in milliseconds (Unix timestamp)",
+							"disabled": true
+						},
+						{
+							"key": "timeZone",
+							"value": "0",
+							"description": "Time zone offset in hours. Default: 0 (UTC)",
+							"disabled": true
+						},
+						{
+							"key": "limit",
+							"value": "500",
+							"description": "Number of klines to return. Default: 500; Maximum: 1000",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Get kline/candlestick data for spot market. Returns open time, open price, high price, low price, close price, volume, close time, quote asset volume, number of trades, taker buy base asset volume, taker buy quote asset volume, and ignore. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Perp - Open Long (Buy to Open Long)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -830,7 +903,7 @@
 			}
 		},
 		{
-			"name": "Swap - Close Long (Sell to Close Long)",
+			"name": "Perp - Close Long (Sell to Close Long)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -987,7 +1060,7 @@
 			}
 		},
 		{
-			"name": "Swap - Open Short (Sell to Open Short)",
+			"name": "Perp - Open Short (Sell to Open Short)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -1144,7 +1217,7 @@
 			}
 		},
 		{
-			"name": "Swap - Close Short (Buy to Close Short)",
+			"name": "Perp - Close Short (Buy to Close Short)",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -1301,7 +1374,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Account Info",
+			"name": "Perp - Get Account Info",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1362,7 +1435,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Account Positions V2",
+			"name": "Perp - Get Account Positions V2",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1429,7 +1502,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Account Positions V3",
+			"name": "Perp - Get Account Positions V3",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1496,7 +1569,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Account Orders",
+			"name": "Perp - Get Account Orders",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1575,7 +1648,7 @@
 			}
 		},
 		{
-			"name": "Swap - Set Account Position Mode",
+			"name": "Perp - Set Account Position Mode",
 			"request": {
 				"method": "POST",
 				"header": [
@@ -1643,7 +1716,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Account Position Mode",
+			"name": "Perp - Get Account Position Mode",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1705,7 +1778,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Ticker",
+			"name": "Perp - Get Ticker",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1749,7 +1822,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Markets",
+			"name": "Perp - Get Markets",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1792,7 +1865,7 @@
 			}
 		},
 		{
-			"name": "Swap - Get Market",
+			"name": "Perp - Get Market",
 			"request": {
 				"method": "GET",
 				"header": [
@@ -1838,6 +1911,73 @@
 					]
 				},
 				"description": "Get single trading pair information for perpetual swap (futures) market. Returns symbol, status, base asset, quote asset, filters, and permissions for the specific trading pair. This is a public endpoint and does not require authentication."
+			}
+		},
+		{
+			"name": "Perp - Get KLine",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "Accept",
+						"value": "application/json",
+						"description": "",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{binance_fapi_base_url}}/fapi/v1/klines?symbol=BTCUSDT&interval=1m",
+					"host": [
+						"{{binance_fapi_base_url}}"
+					],
+					"path": [
+						"fapi",
+						"v1",
+						"klines"
+					],
+					"query": [
+						{
+							"key": "symbol",
+							"value": "BTCUSDT",
+							"description": "Trading pair symbol, e.g., BTCUSDT",
+							"disabled": false
+						},
+						{
+							"key": "interval",
+							"value": "1m",
+							"description": "Kline interval, e.g., 1m, 3m, 5m, 15m, 30m, 1h, 2h, 4h, 6h, 8h, 12h, 1d, 3d, 1w, 1M",
+							"disabled": false
+						},
+						{
+							"key": "startTime",
+							"value": "",
+							"description": "Start time in milliseconds (Unix timestamp)",
+							"disabled": true
+						},
+						{
+							"key": "endTime",
+							"value": "",
+							"description": "End time in milliseconds (Unix timestamp)",
+							"disabled": true
+						},
+						{
+							"key": "limit",
+							"value": "500",
+							"description": "Number of klines to return. Default: 500; Maximum: 1500",
+							"disabled": true
+						}
+					]
+				},
+				"description": "Get kline/candlestick data for perpetual swap (futures) market. Returns open time, open price, high price, low price, close price, volume, close time, quote asset volume, number of trades, taker buy base asset volume, taker buy quote asset volume, and ignore. This is a public endpoint and does not require authentication."
 			}
 		}
 	]
