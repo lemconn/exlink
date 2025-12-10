@@ -410,7 +410,7 @@ func (o *bybitSpotOrder) signAndRequest(ctx context.Context, method, path string
 func (o *bybitSpotOrder) FetchBalance(ctx context.Context) (model.Balances, error) {
 	// Bybit v5 统一账户余额
 	resp, err := o.signAndRequest(ctx, "GET", "/v5/account/wallet-balance", map[string]interface{}{
-		"accountType": "SPOT",
+		"accountType": "UNIFIED",
 	}, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch balance: %w", err)
