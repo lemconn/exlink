@@ -78,14 +78,6 @@ func (p *BybitPerp) FetchOrder(ctx context.Context, orderID, symbol string) (*ty
 	return p.order.FetchOrder(ctx, orderID, symbol)
 }
 
-func (p *BybitPerp) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	return p.order.FetchOrders(ctx, symbol, since, limit)
-}
-
-func (p *BybitPerp) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	return p.order.FetchOpenOrders(ctx, symbol)
-}
-
 func (p *BybitPerp) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
 	return p.order.FetchTrades(ctx, symbol, since, limit)
 }
@@ -526,7 +518,6 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 	return positions, nil
 }
 
-
 func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
 	// 解析选项
 	options := types.ApplyOrderOptions(opts...)
@@ -863,85 +854,6 @@ func (o *bybitPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string)
 	}
 
 	return nil, fmt.Errorf("order not found")
-}
-
-func (o *bybitPerpOrder) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	// Bybit 合约 API 不支持直接查询历史订单列表
-	// 可以通过 FetchOpenOrders 获取未成交订单
-	// 历史订单需要通过其他方式获取（如通过订单ID逐个查询）
-	return nil, fmt.Errorf("not implemented: Bybit perp API does not support fetching order history directly")
-}
-
-func (o *bybitPerpOrder) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	params := map[string]interface{}{
-		"category": "linear",
-	}
-	if symbol != "" {
-		// 获取市场信息
-		market, err := o.bybit.perp.market.GetMarket(symbol)
-		if err != nil {
-			return nil, err
-		}
-
-		// 获取交易所格式的 symbol ID
-		bybitSymbol := market.ID
-		if bybitSymbol == "" {
-			var err error
-			bybitSymbol, err = ToBybitSymbol(symbol, true)
-			if err != nil {
-				return nil, fmt.Errorf("get market ID: %w", err)
-			}
-		}
-		params["symbol"] = bybitSymbol
-	}
-
-	resp, err := o.signAndRequest(ctx, "GET", "/v5/order/realtime", params, nil)
-	if err != nil {
-		return nil, fmt.Errorf("fetch open orders: %w", err)
-	}
-
-	var result struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-		Result  struct {
-			List []struct {
-				OrderID     string `json:"orderId"`
-				OrderLinkID string `json:"orderLinkId"`
-				OrderStatus string `json:"orderStatus"`
-				Side        string `json:"side"`
-				OrderType   string `json:"orderType"`
-				Price       string `json:"price"`
-				Qty         string `json:"qty"`
-				CumExecQty  string `json:"cumExecQty"`
-				CreatedTime string `json:"createdTime"`
-			} `json:"list"`
-		} `json:"result"`
-	}
-
-	if err := json.Unmarshal(resp, &result); err != nil {
-		return nil, fmt.Errorf("unmarshal orders: %w", err)
-	}
-
-	if result.RetCode != 0 {
-		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
-	}
-
-	orders := make([]*types.Order, 0, len(result.Result.List))
-	for _, item := range result.Result.List {
-		normalizedSymbol := symbol
-		if symbol == "" {
-			// 如果没有提供symbol，尝试从市场信息中查找
-			market, err := o.bybit.perp.market.GetMarket(item.OrderID)
-			if err == nil {
-				normalizedSymbol = market.Symbol
-			} else {
-				normalizedSymbol = item.OrderID // 临时使用原格式
-			}
-		}
-		orders = append(orders, o.parseOrder(item, normalizedSymbol))
-	}
-
-	return orders, nil
 }
 
 func (o *bybitPerpOrder) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {

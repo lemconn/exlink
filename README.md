@@ -35,7 +35,7 @@ ExLink is a Go library similar to Python's ccxt, providing a standardized interf
 - ❌ Not supported by exchange API
 
 **Notes:**
-- **Orders**: Includes `CreateOrder`, `CancelOrder`, `FetchOrder`, and `FetchOpenOrders`. `FetchOrders` (all orders) is not directly supported by Gate and Bybit APIs.
+- **Orders**: Includes `CreateOrder`, `CancelOrder`, and `FetchOrder`.
 - **Trades**: Includes `FetchTrades` (public trades) and `FetchMyTrades` (user trades).
 - **Gate Margin Mode**: Gate does not support setting margin mode via API. It must be configured on the web interface.
 
@@ -194,11 +194,6 @@ if err != nil {
     log.Fatal(err)
 }
 
-// Fetch open orders
-openOrders, err := spot.FetchOpenOrders(ctx, "BTC/USDT")
-if err != nil {
-    log.Fatal(err)
-}
 ```
 
 ### Trading History

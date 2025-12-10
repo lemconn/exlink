@@ -90,16 +90,6 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, orderID, symbol string) (*
 	return p.order.FetchOrder(ctx, orderID, symbol)
 }
 
-// FetchOrders 查询订单列表
-func (p *BinancePerp) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	return p.order.FetchOrders(ctx, symbol, since, limit)
-}
-
-// FetchOpenOrders 查询未成交订单
-func (p *BinancePerp) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	return p.order.FetchOpenOrders(ctx, symbol)
-}
-
 // FetchTrades 获取交易记录（公共）
 func (p *BinancePerp) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
 	return p.order.FetchTrades(ctx, symbol, since, limit)
@@ -567,7 +557,6 @@ func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string
 	return positions, nil
 }
 
-
 // CreateOrder 创建订单
 func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
 	if o.binance.client.SecretKey == "" {
@@ -932,115 +921,6 @@ func (o *binancePerpOrder) FetchOrder(ctx context.Context, orderID, symbol strin
 	}
 
 	return order, nil
-}
-
-// FetchOrders 查询订单列表
-func (o *binancePerpOrder) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	// Binance 合约 API 不支持直接查询历史订单列表
-	// 可以通过 FetchOpenOrders 获取未成交订单
-	// 历史订单需要通过其他方式获取（如通过订单ID逐个查询）
-	return nil, fmt.Errorf("not implemented: Binance perp API does not support fetching order history directly")
-}
-
-// FetchOpenOrders 查询未成交订单
-func (o *binancePerpOrder) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	if o.binance.client.SecretKey == "" {
-		return nil, fmt.Errorf("authentication required")
-	}
-
-	timestamp := common.GetTimestamp()
-	params := map[string]interface{}{
-		"timestamp": timestamp,
-	}
-	if symbol != "" {
-		// 获取市场信息
-		market, err := o.binance.perp.market.GetMarket(symbol)
-		if err != nil {
-			return nil, err
-		}
-
-		// 获取交易所格式的 symbol ID
-		binanceSymbol := market.ID
-		if binanceSymbol == "" {
-			var err error
-			binanceSymbol, err = ToBinanceSymbol(symbol, true)
-			if err != nil {
-				return nil, fmt.Errorf("get market ID: %w", err)
-			}
-		}
-		params["symbol"] = binanceSymbol
-	}
-
-	queryString := BuildQueryString(params)
-	signature := o.binance.signer.Sign(queryString)
-	params["signature"] = signature
-
-	resp, err := o.binance.client.PerpClient.Get(ctx, "/fapi/v1/openOrders", params)
-	if err != nil {
-		return nil, fmt.Errorf("fetch open orders: %w", err)
-	}
-
-	var data []struct {
-		OrderID       int64  `json:"orderId"`
-		ClientOrderID string `json:"clientOrderId"`
-		Symbol        string `json:"symbol"`
-		Status        string `json:"status"`
-		Type          string `json:"type"`
-		Side          string `json:"side"`
-		Price         string `json:"price"`
-		Quantity      string `json:"origQty"`
-		ExecutedQty   string `json:"executedQty"`
-		UpdateTime    int64  `json:"updateTime"`
-	}
-
-	if err := json.Unmarshal(resp, &data); err != nil {
-		return nil, fmt.Errorf("unmarshal orders: %w", err)
-	}
-
-	orders := make([]*types.Order, 0, len(data))
-	for _, item := range data {
-		// 转换回标准化格式
-		normalizedSymbol := symbol
-		if symbol == "" {
-			// 如果没有提供symbol，尝试从市场信息中查找
-			normalizedSymbol = item.Symbol // 临时使用原格式
-		}
-
-		order := &types.Order{
-			ID:            strconv.FormatInt(item.OrderID, 10),
-			ClientOrderID: item.ClientOrderID,
-			Symbol:        normalizedSymbol,
-			Timestamp:     time.UnixMilli(item.UpdateTime),
-		}
-
-		order.Price, _ = strconv.ParseFloat(item.Price, 64)
-		order.Amount, _ = strconv.ParseFloat(item.Quantity, 64)
-		order.Filled, _ = strconv.ParseFloat(item.ExecutedQty, 64)
-		order.Remaining = order.Amount - order.Filled
-
-		if strings.ToUpper(item.Side) == "BUY" {
-			order.Side = types.OrderSideBuy
-		} else {
-			order.Side = types.OrderSideSell
-		}
-
-		if strings.ToUpper(item.Type) == "MARKET" {
-			order.Type = types.OrderTypeMarket
-		} else {
-			order.Type = types.OrderTypeLimit
-		}
-
-		switch item.Status {
-		case "NEW":
-			order.Status = types.OrderStatusNew
-		case "PARTIALLY_FILLED":
-			order.Status = types.OrderStatusPartiallyFilled
-		}
-
-		orders = append(orders, order)
-	}
-
-	return orders, nil
 }
 
 // FetchTrades 获取交易记录（公共）
