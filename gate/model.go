@@ -184,6 +184,16 @@ type gatePerpTickerItem struct {
 	QuantoMultiplier      types.ExDecimal `json:"quanto_multiplier"`
 }
 
+// gateSpotBalanceResponse Gate 现货余额响应
+type gateSpotBalanceResponse []gateSpotBalanceItem
+
+// gateSpotBalanceItem Gate 现货余额项
+type gateSpotBalanceItem struct {
+	Currency  string          `json:"currency"`
+	Available types.ExDecimal `json:"available"`
+	Locked    types.ExDecimal `json:"locked"`
+}
+
 // gatePerpKlineResponse Gate 永续合约 Kline 响应（数组格式）
 type gatePerpKlineResponse []gatePerpKline
 

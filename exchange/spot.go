@@ -28,7 +28,7 @@ type SpotExchange interface {
 	FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error)
 
 	// FetchTickers 批量获取行情
-	FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error)
+	FetchTickers(ctx context.Context) (map[string]*model.Ticker, error)
 
 	// FetchOrderBook 获取订单簿
 	// FetchOrderBook(ctx context.Context, symbol string, limit ...int) (*types.OrderBook, error)
@@ -40,7 +40,7 @@ type SpotExchange interface {
 	// ========== 账户信息 ==========
 
 	// FetchBalance 获取余额
-	FetchBalance(ctx context.Context) (types.Balances, error)
+	FetchBalance(ctx context.Context) (model.Balances, error)
 
 	// ========== 订单操作 ==========
 

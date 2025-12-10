@@ -61,8 +61,8 @@ func (p *BinancePerp) FetchTicker(ctx context.Context, symbol string) (*model.Ti
 }
 
 // FetchTickers 批量获取行情
-func (p *BinancePerp) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
-	return p.market.FetchTickers(ctx, symbols...)
+func (p *BinancePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
+	return p.market.FetchTickers(ctx)
 }
 
 // FetchOHLCVs 获取K线数据
@@ -144,7 +144,7 @@ type binancePerpMarket struct {
 func (m *binancePerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	// 如果已加载且不需要重新加载，直接返回
 	m.binance.mu.RLock()
-	if !reload && len(m.binance.perpMarkets) > 0 {
+	if !reload && len(m.binance.perpMarketsBySymbol) > 0 {
 		m.binance.mu.RUnlock()
 		return nil
 	}
@@ -235,11 +235,13 @@ func (m *binancePerpMarket) LoadMarkets(ctx context.Context, reload bool) error 
 
 	// 存储市场信息
 	m.binance.mu.Lock()
-	if m.binance.perpMarkets == nil {
-		m.binance.perpMarkets = make(map[string]*model.Market)
+	if m.binance.perpMarketsBySymbol == nil {
+		m.binance.perpMarketsBySymbol = make(map[string]*model.Market)
+		m.binance.perpMarketsByID = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
-		m.binance.perpMarkets[market.Symbol] = market
+		m.binance.perpMarketsBySymbol[market.Symbol] = market
+		m.binance.perpMarketsByID[market.ID] = market
 	}
 	m.binance.mu.Unlock()
 
@@ -256,8 +258,8 @@ func (m *binancePerpMarket) FetchMarkets(ctx context.Context) ([]*model.Market, 
 	m.binance.mu.RLock()
 	defer m.binance.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.binance.perpMarkets))
-	for _, market := range m.binance.perpMarkets {
+	markets := make([]*model.Market, 0, len(m.binance.perpMarketsBySymbol))
+	for _, market := range m.binance.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
@@ -265,16 +267,20 @@ func (m *binancePerpMarket) FetchMarkets(ctx context.Context) ([]*model.Market, 
 }
 
 // GetMarket 获取单个市场信息
-func (m *binancePerpMarket) GetMarket(symbol string) (*model.Market, error) {
+func (m *binancePerpMarket) GetMarket(key string) (*model.Market, error) {
 	m.binance.mu.RLock()
 	defer m.binance.mu.RUnlock()
 
-	market, ok := m.binance.perpMarkets[symbol]
-	if !ok {
-		return nil, fmt.Errorf("market not found: %s", symbol)
+	// 先尝试标准化格式
+	if market, ok := m.binance.perpMarketsBySymbol[key]; ok {
+		return market, nil
+	}
+	// 再尝试原始格式
+	if market, ok := m.binance.perpMarketsByID[key]; ok {
+		return market, nil
 	}
 
-	return market, nil
+	return nil, fmt.Errorf("market not found: %s", key)
 }
 
 // GetMarkets 从内存中获取所有市场信息
@@ -282,8 +288,8 @@ func (m *binancePerpMarket) GetMarkets() ([]*model.Market, error) {
 	m.binance.mu.RLock()
 	defer m.binance.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.binance.perpMarkets))
-	for _, market := range m.binance.perpMarkets {
+	markets := make([]*model.Market, 0, len(m.binance.perpMarketsBySymbol))
+	for _, market := range m.binance.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
@@ -344,7 +350,7 @@ func (m *binancePerpMarket) FetchTicker(ctx context.Context, symbol string) (*mo
 }
 
 // FetchTickers 批量获取行情
-func (m *binancePerpMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
+func (m *binancePerpMarket) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
 	resp, err := m.binance.client.PerpClient.Get(ctx, "/fapi/v1/ticker/24hr", nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch tickers: %w", err)
@@ -356,48 +362,12 @@ func (m *binancePerpMarket) FetchTickers(ctx context.Context, symbols ...string)
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
 	}
 
-	// 如果需要过滤特定 symbols，先转换为 Binance 格式
-	var binanceSymbols map[string]string
-	if len(symbols) > 0 {
-		binanceSymbols = make(map[string]string)
-		for _, s := range symbols {
-			market, err := m.GetMarket(s)
-			if err == nil {
-				binanceSymbols[market.ID] = s
-			} else {
-				// 如果市场未加载，尝试转换
-				binanceSymbol, err := ToBinanceSymbol(s, true)
-				if err == nil {
-					binanceSymbols[binanceSymbol] = s
-				}
-			}
-		}
-	}
-
 	tickers := make(map[string]*model.Ticker)
 	for _, item := range data {
-		// 如果指定了 symbols，进行过滤
-		if len(symbols) > 0 {
-			normalizedSymbol, ok := binanceSymbols[item.Symbol]
-			if !ok {
-				continue
-			}
-			ticker := &model.Ticker{
-				Symbol:    normalizedSymbol,
-				Timestamp: item.CloseTime,
-			}
-			// 注意：永续合约 API 可能不返回 bidPrice 和 askPrice，使用 lastPrice 作为近似值
-			ticker.Bid = item.LastPrice
-			ticker.Ask = item.LastPrice
-			ticker.Last = item.LastPrice
-			ticker.Open = item.OpenPrice
-			ticker.High = item.HighPrice
-			ticker.Low = item.LowPrice
-			ticker.Volume = item.Volume
-			ticker.QuoteVolume = item.QuoteVolume
-			tickers[normalizedSymbol] = ticker
-		} else {
-			// 如果没有指定 symbols，返回所有（使用 Binance 原始格式）
+		// 尝试从市场信息中查找标准化格式
+		market, err := m.GetMarket(item.Symbol)
+		if err != nil {
+			// 如果找不到市场信息，使用 Binance 原始格式
 			ticker := &model.Ticker{
 				Symbol:    item.Symbol,
 				Timestamp: item.CloseTime,
@@ -412,6 +382,21 @@ func (m *binancePerpMarket) FetchTickers(ctx context.Context, symbols ...string)
 			ticker.Volume = item.Volume
 			ticker.QuoteVolume = item.QuoteVolume
 			tickers[item.Symbol] = ticker
+		} else {
+			ticker := &model.Ticker{
+				Symbol:    market.Symbol,
+				Timestamp: item.CloseTime,
+			}
+			// 注意：永续合约 API 可能不返回 bidPrice 和 askPrice，使用 lastPrice 作为近似值
+			ticker.Bid = item.LastPrice
+			ticker.Ask = item.LastPrice
+			ticker.Last = item.LastPrice
+			ticker.Open = item.OpenPrice
+			ticker.High = item.HighPrice
+			ticker.Low = item.LowPrice
+			ticker.Volume = item.Volume
+			ticker.QuoteVolume = item.QuoteVolume
+			tickers[market.Symbol] = ticker
 		}
 	}
 
@@ -529,7 +514,7 @@ func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string
 		}
 
 		// 获取市场信息（通过 ID 查找）
-		market, err := o.getMarketByID(item.Symbol)
+		market, err := o.binance.perp.market.GetMarket(item.Symbol)
 		if err != nil {
 			continue
 		}
@@ -582,18 +567,6 @@ func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string
 	return positions, nil
 }
 
-// getMarketByID 通过交易所ID获取市场信息
-func (o *binancePerpOrder) getMarketByID(id string) (*model.Market, error) {
-	o.binance.mu.RLock()
-	defer o.binance.mu.RUnlock()
-
-	for _, market := range o.binance.perpMarkets {
-		if market.ID == id {
-			return market, nil
-		}
-	}
-	return nil, fmt.Errorf("market not found: %s", id)
-}
 
 // CreateOrder 创建订单
 func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {

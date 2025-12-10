@@ -117,20 +117,30 @@ type bybitSpotKlineResponse struct {
 	Time       types.ExTimestamp      `json:"time"`
 }
 
-// bybitPerpKline Bybit 永续合约 Kline 数据（类型别名）
-type bybitPerpKline = bybitKline
-
-// bybitPerpKlineResponse Bybit 永续合约 Kline 响应
-type bybitPerpKlineResponse struct {
+// bybitSpotBalanceResponse Bybit 现货余额响应
+type bybitSpotBalanceResponse struct {
 	RetCode int    `json:"retCode"`
 	RetMsg  string `json:"retMsg"`
 	Result  struct {
-		Category string           `json:"category"`
-		Symbol   string           `json:"symbol"`
-		List     []bybitPerpKline `json:"list"`
+		List []bybitSpotBalanceAccount `json:"list"`
 	} `json:"result"`
-	RetExtInfo map[string]interface{} `json:"retExtInfo"`
-	Time       types.ExTimestamp      `json:"time"`
+	Time types.ExTimestamp `json:"time"`
+}
+
+// bybitSpotBalanceAccount Bybit 现货余额账户
+type bybitSpotBalanceAccount struct {
+	AccountType string                    `json:"accountType"`
+	Coin        []bybitSpotBalanceCoin    `json:"coin"`
+}
+
+// bybitSpotBalanceCoin Bybit 现货余额币种
+type bybitSpotBalanceCoin struct {
+	Equity          types.ExDecimal `json:"equity"`
+	TotalOrderIM    types.ExDecimal `json:"totalOrderIM"`
+	TotalPositionMM types.ExDecimal `json:"totalPositionMM"`
+	TotalPositionIM types.ExDecimal `json:"totalPositionIM"`
+	Locked          types.ExDecimal `json:"locked"`
+	Coin            string          `json:"coin"`
 }
 
 // UnmarshalJSON 自定义 JSON 反序列化，解析数组格式
@@ -222,6 +232,22 @@ type bybitPerpTickerResponse struct {
 	Result  struct {
 		Category string            `json:"category"`
 		List     []bybitTickerItem `json:"list"`
+	} `json:"result"`
+	RetExtInfo map[string]interface{} `json:"retExtInfo"`
+	Time       types.ExTimestamp      `json:"time"`
+}
+
+// bybitPerpKline Bybit 永续合约 Kline 数据（类型别名）
+type bybitPerpKline = bybitKline
+
+// bybitPerpKlineResponse Bybit 永续合约 Kline 响应
+type bybitPerpKlineResponse struct {
+	RetCode int    `json:"retCode"`
+	RetMsg  string `json:"retMsg"`
+	Result  struct {
+		Category string           `json:"category"`
+		Symbol   string           `json:"symbol"`
+		List     []bybitPerpKline `json:"list"`
 	} `json:"result"`
 	RetExtInfo map[string]interface{} `json:"retExtInfo"`
 	Time       types.ExTimestamp      `json:"time"`

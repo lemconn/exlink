@@ -80,6 +80,27 @@ type okxSpotKlineResponse struct {
 	Data []okxSpotKline `json:"data"`
 }
 
+// okxSpotBalanceResponse OKX 现货余额响应
+type okxSpotBalanceResponse struct {
+	Code string                    `json:"code"`
+	Msg  string                    `json:"msg"`
+	Data []okxSpotBalanceAccount    `json:"data"`
+}
+
+// okxSpotBalanceAccount OKX 现货余额账户
+type okxSpotBalanceAccount struct {
+	Details []okxSpotBalanceDetail `json:"details"`
+}
+
+// okxSpotBalanceDetail OKX 现货余额详情
+type okxSpotBalanceDetail struct {
+	AvailBal  types.ExDecimal   `json:"availBal"`
+	Ccy       string            `json:"ccy"`
+	Eq        types.ExDecimal   `json:"eq"`
+	FrozenBal types.ExDecimal   `json:"frozenBal"`
+	UTime     types.ExTimestamp `json:"uTime"`
+}
+
 // okxPerpKline OKX 永续合约 Kline 数据（类型别名）
 type okxPerpKline = okxKline
 

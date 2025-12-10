@@ -52,15 +52,15 @@ func (s *OKXSpot) FetchTicker(ctx context.Context, symbol string) (*model.Ticker
 	return s.market.FetchTicker(ctx, symbol)
 }
 
-func (s *OKXSpot) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
-	return s.market.FetchTickers(ctx, symbols...)
+func (s *OKXSpot) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
+	return s.market.FetchTickers(ctx)
 }
 
 func (s *OKXSpot) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	return s.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 }
 
-func (s *OKXSpot) FetchBalance(ctx context.Context) (types.Balances, error) {
+func (s *OKXSpot) FetchBalance(ctx context.Context) (model.Balances, error) {
 	return s.order.FetchBalance(ctx)
 }
 
@@ -103,7 +103,7 @@ type okxSpotMarket struct {
 func (m *okxSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	// 如果已加载且不需要重新加载，直接返回
 	m.okx.mu.RLock()
-	if !reload && len(m.okx.spotMarkets) > 0 {
+	if !reload && len(m.okx.spotMarketsBySymbol) > 0 {
 		m.okx.mu.RUnlock()
 		return nil
 	}
@@ -176,11 +176,13 @@ func (m *okxSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 
 	// 存储市场信息
 	m.okx.mu.Lock()
-	if m.okx.spotMarkets == nil {
-		m.okx.spotMarkets = make(map[string]*model.Market)
+	if m.okx.spotMarketsBySymbol == nil {
+		m.okx.spotMarketsBySymbol = make(map[string]*model.Market)
+		m.okx.spotMarketsByID = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
-		m.okx.spotMarkets[market.Symbol] = market
+		m.okx.spotMarketsBySymbol[market.Symbol] = market
+		m.okx.spotMarketsByID[market.ID] = market
 	}
 	m.okx.mu.Unlock()
 
@@ -196,32 +198,36 @@ func (m *okxSpotMarket) FetchMarkets(ctx context.Context) ([]*model.Market, erro
 	m.okx.mu.RLock()
 	defer m.okx.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.okx.spotMarkets))
-	for _, market := range m.okx.spotMarkets {
+	markets := make([]*model.Market, 0, len(m.okx.spotMarketsBySymbol))
+	for _, market := range m.okx.spotMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
 	return markets, nil
 }
 
-func (m *okxSpotMarket) GetMarket(symbol string) (*model.Market, error) {
+func (m *okxSpotMarket) GetMarket(key string) (*model.Market, error) {
 	m.okx.mu.RLock()
 	defer m.okx.mu.RUnlock()
 
-	market, ok := m.okx.spotMarkets[symbol]
-	if !ok {
-		return nil, fmt.Errorf("market not found: %s", symbol)
+	// 先尝试标准化格式
+	if market, ok := m.okx.spotMarketsBySymbol[key]; ok {
+		return market, nil
+	}
+	// 再尝试原始格式
+	if market, ok := m.okx.spotMarketsByID[key]; ok {
+		return market, nil
 	}
 
-	return market, nil
+	return nil, fmt.Errorf("market not found: %s", key)
 }
 
 func (m *okxSpotMarket) GetMarkets() ([]*model.Market, error) {
 	m.okx.mu.RLock()
 	defer m.okx.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.okx.spotMarkets))
-	for _, market := range m.okx.spotMarkets {
+	markets := make([]*model.Market, 0, len(m.okx.spotMarketsBySymbol))
+	for _, market := range m.okx.spotMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
@@ -280,7 +286,7 @@ func (m *okxSpotMarket) FetchTicker(ctx context.Context, symbol string) (*model.
 	return ticker, nil
 }
 
-func (m *okxSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
+func (m *okxSpotMarket) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
 	resp, err := m.okx.client.HTTPClient.Get(ctx, "/api/v5/market/tickers", map[string]interface{}{
 		"instType": "SPOT",
 	})
@@ -298,81 +304,29 @@ func (m *okxSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (ma
 		return nil, fmt.Errorf("okx api error: %s", result.Msg)
 	}
 
-	// 如果需要过滤特定 symbols，先转换为 OKX 格式
-	var okxSymbols map[string]string
-	if len(symbols) > 0 {
-		okxSymbols = make(map[string]string)
-		for _, s := range symbols {
-			market, err := m.GetMarket(s)
-			if err == nil {
-				okxSymbols[market.ID] = s
-			} else {
-				// 如果市场未加载，尝试转换
-				okxSymbol, err := ToOKXSymbol(s, false)
-				if err == nil {
-					okxSymbols[okxSymbol] = s
-				}
-			}
-		}
-	}
-
 	tickers := make(map[string]*model.Ticker)
 	for _, item := range result.Data {
-		// 如果指定了 symbols，进行过滤
-		if len(symbols) > 0 {
-			normalizedSymbol, ok := okxSymbols[item.InstID]
-			if !ok {
-				continue
-			}
-			ticker := &model.Ticker{
-				Symbol:    normalizedSymbol,
-				Timestamp: item.Ts,
-			}
-			ticker.Bid = item.BidPx
-			ticker.Ask = item.AskPx
-			ticker.Last = item.Last
-			ticker.Open = item.Open24h
-			ticker.High = item.High24h
-			ticker.Low = item.Low24h
-			ticker.Volume = item.Vol24h
-			ticker.QuoteVolume = item.VolCcy24h
-			tickers[normalizedSymbol] = ticker
-		} else {
-			// 如果没有指定 symbols，尝试从市场信息中查找
-			market, err := m.getMarketByID(item.InstID)
-			if err != nil {
-				continue
-			}
-			ticker := &model.Ticker{
-				Symbol:    market.Symbol,
-				Timestamp: item.Ts,
-			}
-			ticker.Bid = item.BidPx
-			ticker.Ask = item.AskPx
-			ticker.Last = item.Last
-			ticker.Open = item.Open24h
-			ticker.High = item.High24h
-			ticker.Low = item.Low24h
-			ticker.Volume = item.Vol24h
-			ticker.QuoteVolume = item.VolCcy24h
-			tickers[market.Symbol] = ticker
+		// 尝试从市场信息中查找标准化格式
+		market, err := m.GetMarket(item.InstID)
+		if err != nil {
+			continue
 		}
+		ticker := &model.Ticker{
+			Symbol:    market.Symbol,
+			Timestamp: item.Ts,
+		}
+		ticker.Bid = item.BidPx
+		ticker.Ask = item.AskPx
+		ticker.Last = item.Last
+		ticker.Open = item.Open24h
+		ticker.High = item.High24h
+		ticker.Low = item.Low24h
+		ticker.Volume = item.Vol24h
+		ticker.QuoteVolume = item.VolCcy24h
+		tickers[market.Symbol] = ticker
 	}
 
 	return tickers, nil
-}
-
-// getMarketByID 通过交易所ID获取市场信息
-func (m *okxSpotMarket) getMarketByID(id string) (*model.Market, error) {
-	m.okx.mu.RLock()
-	defer m.okx.mu.RUnlock()
-
-	for _, market := range m.okx.spotMarkets {
-		if market.ID == id {
-			return market, nil
-		}
-	}
-	return nil, fmt.Errorf("market not found: %s", id)
 }
 
 func (m *okxSpotMarket) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
@@ -466,25 +420,13 @@ func (o *okxSpotOrder) signAndRequest(ctx context.Context, method, path string, 
 	}
 }
 
-func (o *okxSpotOrder) FetchBalance(ctx context.Context) (types.Balances, error) {
+func (o *okxSpotOrder) FetchBalance(ctx context.Context) (model.Balances, error) {
 	resp, err := o.signAndRequest(ctx, "GET", "/api/v5/account/balance", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch balance: %w", err)
 	}
 
-	var result struct {
-		Code string `json:"code"`
-		Msg  string `json:"msg"`
-		Data []struct {
-			Details []struct {
-				Ccy       string `json:"ccy"`
-				AvailBal  string `json:"availBal"`
-				FrozenBal string `json:"frozenBal"`
-				Eq        string `json:"eq"`
-			} `json:"details"`
-		} `json:"data"`
-	}
-
+	var result okxSpotBalanceResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal balance: %w", err)
 	}
@@ -493,19 +435,16 @@ func (o *okxSpotOrder) FetchBalance(ctx context.Context) (types.Balances, error)
 		return nil, fmt.Errorf("okx api error: %s", result.Msg)
 	}
 
-	balances := make(types.Balances)
+	balances := make(model.Balances, 0)
 	for _, detail := range result.Data[0].Details {
-		free, _ := strconv.ParseFloat(detail.AvailBal, 64)
-		used, _ := strconv.ParseFloat(detail.FrozenBal, 64)
-		total, _ := strconv.ParseFloat(detail.Eq, 64)
-
-		balances[detail.Ccy] = &types.Balance{
+		balance := &model.Balance{
 			Currency:  detail.Ccy,
-			Free:      free,
-			Used:      used,
-			Total:     total,
-			Available: free,
+			Available: detail.AvailBal,
+			Locked:    detail.FrozenBal,
+			Total:     detail.Eq,
+			UpdatedAt: detail.UTime,
 		}
+		balances = append(balances, balance)
 	}
 
 	return balances, nil
@@ -833,7 +772,7 @@ func (o *okxSpotOrder) FetchOpenOrders(ctx context.Context, symbol string) ([]*t
 		normalizedSymbol := symbol
 		if symbol == "" {
 			// 如果没有提供symbol，尝试从市场信息中查找
-			market, err := o.okx.spot.market.getMarketByID(item.InstID)
+			market, err := o.okx.spot.market.GetMarket(item.InstID)
 			if err == nil {
 				normalizedSymbol = market.Symbol
 			} else {
