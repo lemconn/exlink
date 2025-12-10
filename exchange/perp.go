@@ -28,7 +28,7 @@ type PerpExchange interface {
 	FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error)
 
 	// FetchTickers 批量获取行情
-	FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error)
+	FetchTickers(ctx context.Context) (map[string]*model.Ticker, error)
 
 	// FetchOrderBook 获取订单簿
 	// FetchOrderBook(ctx context.Context, symbol string, limit ...int) (*types.OrderBook, error)

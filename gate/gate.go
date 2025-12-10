@@ -9,13 +9,15 @@ import (
 
 // Gate Gate 交易所实现
 type Gate struct {
-	client      *Client
-	signer      *Signer
-	spot        *GateSpot
-	perp        *GatePerp
-	spotMarkets map[string]*model.Market // 现货市场信息
-	perpMarkets map[string]*model.Market // 合约市场信息
-	mu          sync.RWMutex             // 保护市场信息的读写锁
+	client              *Client
+	signer              *Signer
+	spot                *GateSpot
+	perp                *GatePerp
+	spotMarketsBySymbol map[string]*model.Market // 现货市场信息（标准化格式索引）
+	spotMarketsByID     map[string]*model.Market // 现货市场信息（原始格式索引）
+	perpMarketsBySymbol map[string]*model.Market // 合约市场信息（标准化格式索引）
+	perpMarketsByID     map[string]*model.Market // 合约市场信息（原始格式索引）
+	mu                  sync.RWMutex             // 保护市场信息的读写锁
 }
 
 // NewGate 创建 Gate 交易所实例
@@ -28,10 +30,12 @@ func NewGate(apiKey, secretKey string, options map[string]interface{}) (exchange
 	signer := NewSigner(secretKey)
 
 	gate := &Gate{
-		client:      client,
-		signer:      signer,
-		spotMarkets: make(map[string]*model.Market),
-		perpMarkets: make(map[string]*model.Market),
+		client:              client,
+		signer:              signer,
+		spotMarketsBySymbol: make(map[string]*model.Market),
+		spotMarketsByID:     make(map[string]*model.Market),
+		perpMarketsBySymbol: make(map[string]*model.Market),
+		perpMarketsByID:     make(map[string]*model.Market),
 	}
 
 	// 初始化现货和合约实现

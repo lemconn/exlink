@@ -52,15 +52,15 @@ func (s *GateSpot) FetchTicker(ctx context.Context, symbol string) (*model.Ticke
 	return s.market.FetchTicker(ctx, symbol)
 }
 
-func (s *GateSpot) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
-	return s.market.FetchTickers(ctx, symbols...)
+func (s *GateSpot) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
+	return s.market.FetchTickers(ctx)
 }
 
 func (s *GateSpot) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
 	return s.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 }
 
-func (s *GateSpot) FetchBalance(ctx context.Context) (types.Balances, error) {
+func (s *GateSpot) FetchBalance(ctx context.Context) (model.Balances, error) {
 	return s.order.FetchBalance(ctx)
 }
 
@@ -103,7 +103,7 @@ type gateSpotMarket struct {
 func (m *gateSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	// 如果已加载且不需要重新加载，直接返回
 	m.gate.mu.RLock()
-	if !reload && len(m.gate.spotMarkets) > 0 {
+	if !reload && len(m.gate.spotMarketsBySymbol) > 0 {
 		m.gate.mu.RUnlock()
 		return nil
 	}
@@ -159,11 +159,13 @@ func (m *gateSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 
 	// 存储市场信息
 	m.gate.mu.Lock()
-	if m.gate.spotMarkets == nil {
-		m.gate.spotMarkets = make(map[string]*model.Market)
+	if m.gate.spotMarketsBySymbol == nil {
+		m.gate.spotMarketsBySymbol = make(map[string]*model.Market)
+		m.gate.spotMarketsByID = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
-		m.gate.spotMarkets[market.Symbol] = market
+		m.gate.spotMarketsBySymbol[market.Symbol] = market
+		m.gate.spotMarketsByID[market.ID] = market
 	}
 	m.gate.mu.Unlock()
 
@@ -179,32 +181,36 @@ func (m *gateSpotMarket) FetchMarkets(ctx context.Context) ([]*model.Market, err
 	m.gate.mu.RLock()
 	defer m.gate.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.gate.spotMarkets))
-	for _, market := range m.gate.spotMarkets {
+	markets := make([]*model.Market, 0, len(m.gate.spotMarketsBySymbol))
+	for _, market := range m.gate.spotMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
 	return markets, nil
 }
 
-func (m *gateSpotMarket) GetMarket(symbol string) (*model.Market, error) {
+func (m *gateSpotMarket) GetMarket(key string) (*model.Market, error) {
 	m.gate.mu.RLock()
 	defer m.gate.mu.RUnlock()
 
-	market, ok := m.gate.spotMarkets[symbol]
-	if !ok {
-		return nil, fmt.Errorf("market not found: %s", symbol)
+	// 先尝试标准化格式
+	if market, ok := m.gate.spotMarketsBySymbol[key]; ok {
+		return market, nil
+	}
+	// 再尝试原始格式
+	if market, ok := m.gate.spotMarketsByID[key]; ok {
+		return market, nil
 	}
 
-	return market, nil
+	return nil, fmt.Errorf("market not found: %s", key)
 }
 
 func (m *gateSpotMarket) GetMarkets() ([]*model.Market, error) {
 	m.gate.mu.RLock()
 	defer m.gate.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.gate.spotMarkets))
-	for _, market := range m.gate.spotMarkets {
+	markets := make([]*model.Market, 0, len(m.gate.spotMarketsBySymbol))
+	for _, market := range m.gate.spotMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
@@ -262,7 +268,7 @@ func (m *gateSpotMarket) FetchTicker(ctx context.Context, symbol string) (*model
 	return ticker, nil
 }
 
-func (m *gateSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
+func (m *gateSpotMarket) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
 	resp, err := m.gate.client.HTTPClient.Get(ctx, "/api/v4/spot/tickers", nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch tickers: %w", err)
@@ -274,79 +280,28 @@ func (m *gateSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (m
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
 	}
 
-	// 如果需要过滤特定 symbols，先转换为 Gate 格式
-	var gateSymbols map[string]string
-	if len(symbols) > 0 {
-		gateSymbols = make(map[string]string)
-		for _, s := range symbols {
-			market, err := m.GetMarket(s)
-			if err == nil {
-				gateSymbols[market.ID] = s
-			} else {
-				// 如果市场未加载，尝试转换
-				gateSymbol, err := ToGateSymbol(s, false)
-				if err == nil {
-					gateSymbols[gateSymbol] = s
-				}
-			}
-		}
-	}
-
 	tickers := make(map[string]*model.Ticker)
 	for _, item := range data {
-		// 如果指定了 symbols，进行过滤
-		if len(symbols) > 0 {
-			normalizedSymbol, ok := gateSymbols[item.CurrencyPair]
-			if !ok {
-				continue
-			}
-			ticker := &model.Ticker{
-				Symbol:    normalizedSymbol,
-				Timestamp: types.ExTimestamp{Time: time.Now()}, // Gate 现货 API 没有返回时间戳
-			}
-			ticker.Bid = item.HighestBid
-			ticker.Ask = item.LowestAsk
-			ticker.Last = item.Last
-			ticker.High = item.High24h
-			ticker.Low = item.Low24h
-			ticker.Volume = item.BaseVolume
-			ticker.QuoteVolume = item.QuoteVolume
-			tickers[normalizedSymbol] = ticker
-		} else {
-			// 如果没有指定 symbols，尝试从市场信息中查找
-			market, err := m.getMarketByID(item.CurrencyPair)
-			if err != nil {
-				continue
-			}
-			ticker := &model.Ticker{
-				Symbol:    market.Symbol,
-				Timestamp: types.ExTimestamp{Time: time.Now()}, // Gate 现货 API 没有返回时间戳
-			}
-			ticker.Bid = item.HighestBid
-			ticker.Ask = item.LowestAsk
-			ticker.Last = item.Last
-			ticker.High = item.High24h
-			ticker.Low = item.Low24h
-			ticker.Volume = item.BaseVolume
-			ticker.QuoteVolume = item.QuoteVolume
-			tickers[market.Symbol] = ticker
+		// 尝试从市场信息中查找标准化格式
+		market, err := m.GetMarket(item.CurrencyPair)
+		if err != nil {
+			continue
 		}
+		ticker := &model.Ticker{
+			Symbol:    market.Symbol,
+			Timestamp: types.ExTimestamp{Time: time.Now()}, // Gate 现货 API 没有返回时间戳
+		}
+		ticker.Bid = item.HighestBid
+		ticker.Ask = item.LowestAsk
+		ticker.Last = item.Last
+		ticker.High = item.High24h
+		ticker.Low = item.Low24h
+		ticker.Volume = item.BaseVolume
+		ticker.QuoteVolume = item.QuoteVolume
+		tickers[market.Symbol] = ticker
 	}
 
 	return tickers, nil
-}
-
-// getMarketByID 通过交易所ID获取市场信息
-func (m *gateSpotMarket) getMarketByID(id string) (*model.Market, error) {
-	m.gate.mu.RLock()
-	defer m.gate.mu.RUnlock()
-
-	for _, market := range m.gate.spotMarkets {
-		if market.ID == id {
-			return market, nil
-		}
-	}
-	return nil, fmt.Errorf("market not found: %s", id)
 }
 
 func (m *gateSpotMarket) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
@@ -439,36 +394,29 @@ func (o *gateSpotOrder) signAndRequest(ctx context.Context, method, path string,
 	}
 }
 
-func (o *gateSpotOrder) FetchBalance(ctx context.Context) (types.Balances, error) {
+func (o *gateSpotOrder) FetchBalance(ctx context.Context) (model.Balances, error) {
 	// Gate 现货余额
 	resp, err := o.signAndRequest(ctx, "GET", "/api/v4/spot/accounts", nil, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch balance: %w", err)
 	}
 
-	var data []struct {
-		Currency  string `json:"currency"`
-		Available string `json:"available"`
-		Locked    string `json:"locked"`
-	}
-
+	var data gateSpotBalanceResponse
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal balance: %w", err)
 	}
 
-	balances := make(types.Balances)
+	balances := make(model.Balances, 0)
 	for _, bal := range data {
-		free, _ := strconv.ParseFloat(bal.Available, 64)
-		locked, _ := strconv.ParseFloat(bal.Locked, 64)
-		total := free + locked
-
-		balances[bal.Currency] = &types.Balance{
+		total := bal.Available.Add(bal.Locked.Decimal)
+		balance := &model.Balance{
 			Currency:  bal.Currency,
-			Free:      free,
-			Used:      locked,
-			Total:     total,
-			Available: free,
+			Available: bal.Available,
+			Locked:    bal.Locked,
+			Total:     types.ExDecimal{Decimal: total},
+			UpdatedAt: types.ExTimestamp{Time: time.Now()},
 		}
+		balances = append(balances, balance)
 	}
 
 	return balances, nil
@@ -746,7 +694,7 @@ func (o *gateSpotOrder) FetchOpenOrders(ctx context.Context, symbol string) ([]*
 		if symbol == "" {
 			// 如果没有提供symbol，尝试从市场信息中查找
 			currencyPair := getString(item, "currency_pair")
-			market, err := o.gate.spot.market.getMarketByID(currencyPair)
+			market, err := o.gate.spot.market.GetMarket(currencyPair)
 			if err == nil {
 				normalizedSymbol = market.Symbol
 			} else {

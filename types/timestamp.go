@@ -20,7 +20,7 @@ type ExTimestamp struct {
 // UnmarshalJSON 自定义 JSON 反序列化，支持多种时间戳格式
 func (t *ExTimestamp) UnmarshalJSON(b []byte) error {
 	s := strings.TrimSpace(strings.Trim(string(b), `"`))
-	if s == "" || s == "null" {
+	if s == "" || s == "null" || s == "0" {
 		// 明确设置为零值
 		t.Time = time.Time{}
 		t.sourceFormat = ""

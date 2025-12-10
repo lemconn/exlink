@@ -59,8 +59,8 @@ func (s *BinanceSpot) FetchTicker(ctx context.Context, symbol string) (*model.Ti
 }
 
 // FetchTickers 批量获取行情
-func (s *BinanceSpot) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
-	return s.market.FetchTickers(ctx, symbols...)
+func (s *BinanceSpot) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
+	return s.market.FetchTickers(ctx)
 }
 
 // FetchOHLCVs 获取K线数据
@@ -69,7 +69,7 @@ func (s *BinanceSpot) FetchOHLCVs(ctx context.Context, symbol string, timeframe 
 }
 
 // FetchBalance 获取余额
-func (s *BinanceSpot) FetchBalance(ctx context.Context) (types.Balances, error) {
+func (s *BinanceSpot) FetchBalance(ctx context.Context) (model.Balances, error) {
 	return s.order.FetchBalance(ctx)
 }
 
@@ -122,7 +122,7 @@ type binanceSpotMarket struct {
 func (m *binanceSpotMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	// 如果已加载且不需要重新加载，直接返回
 	m.binance.mu.RLock()
-	if !reload && len(m.binance.spotMarkets) > 0 {
+	if !reload && len(m.binance.spotMarketsBySymbol) > 0 {
 		m.binance.mu.RUnlock()
 		return nil
 	}
@@ -207,11 +207,13 @@ func (m *binanceSpotMarket) LoadMarkets(ctx context.Context, reload bool) error 
 
 	// 存储市场信息
 	m.binance.mu.Lock()
-	if m.binance.spotMarkets == nil {
-		m.binance.spotMarkets = make(map[string]*model.Market)
+	if m.binance.spotMarketsBySymbol == nil {
+		m.binance.spotMarketsBySymbol = make(map[string]*model.Market)
+		m.binance.spotMarketsByID = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
-		m.binance.spotMarkets[market.Symbol] = market
+		m.binance.spotMarketsBySymbol[market.Symbol] = market
+		m.binance.spotMarketsByID[market.ID] = market
 	}
 	m.binance.mu.Unlock()
 
@@ -228,8 +230,8 @@ func (m *binanceSpotMarket) FetchMarkets(ctx context.Context) ([]*model.Market, 
 	m.binance.mu.RLock()
 	defer m.binance.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.binance.spotMarkets))
-	for _, market := range m.binance.spotMarkets {
+	markets := make([]*model.Market, 0, len(m.binance.spotMarketsBySymbol))
+	for _, market := range m.binance.spotMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
@@ -237,16 +239,20 @@ func (m *binanceSpotMarket) FetchMarkets(ctx context.Context) ([]*model.Market, 
 }
 
 // GetMarket 获取单个市场信息
-func (m *binanceSpotMarket) GetMarket(symbol string) (*model.Market, error) {
+func (m *binanceSpotMarket) GetMarket(key string) (*model.Market, error) {
 	m.binance.mu.RLock()
 	defer m.binance.mu.RUnlock()
 
-	market, ok := m.binance.spotMarkets[symbol]
-	if !ok {
-		return nil, fmt.Errorf("market not found: %s", symbol)
+	// 先尝试标准化格式
+	if market, ok := m.binance.spotMarketsBySymbol[key]; ok {
+		return market, nil
+	}
+	// 再尝试原始格式
+	if market, ok := m.binance.spotMarketsByID[key]; ok {
+		return market, nil
 	}
 
-	return market, nil
+	return nil, fmt.Errorf("market not found: %s", key)
 }
 
 // GetMarkets 从内存中获取所有市场信息
@@ -254,8 +260,8 @@ func (m *binanceSpotMarket) GetMarkets() ([]*model.Market, error) {
 	m.binance.mu.RLock()
 	defer m.binance.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.binance.spotMarkets))
-	for _, market := range m.binance.spotMarkets {
+	markets := make([]*model.Market, 0, len(m.binance.spotMarketsBySymbol))
+	for _, market := range m.binance.spotMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
@@ -314,7 +320,7 @@ func (m *binanceSpotMarket) FetchTicker(ctx context.Context, symbol string) (*mo
 }
 
 // FetchTickers 批量获取行情
-func (m *binanceSpotMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
+func (m *binanceSpotMarket) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
 	resp, err := m.binance.client.SpotClient.Get(ctx, "/api/v3/ticker/24hr", nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch tickers: %w", err)
@@ -326,47 +332,12 @@ func (m *binanceSpotMarket) FetchTickers(ctx context.Context, symbols ...string)
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
 	}
 
-	// 如果需要过滤特定 symbols，先转换为 Binance 格式
-	var binanceSymbols map[string]string
-	if len(symbols) > 0 {
-		binanceSymbols = make(map[string]string)
-		for _, s := range symbols {
-			market, err := m.GetMarket(s)
-			if err == nil {
-				binanceSymbols[market.ID] = s
-			} else {
-				// 如果市场未加载，尝试转换
-				binanceSymbol, err := ToBinanceSymbol(s, false)
-				if err == nil {
-					binanceSymbols[binanceSymbol] = s
-				}
-			}
-		}
-	}
-
 	tickers := make(map[string]*model.Ticker)
 	for _, item := range data {
-		// 如果指定了 symbols，进行过滤
-		if len(symbols) > 0 {
-			normalizedSymbol, ok := binanceSymbols[item.Symbol]
-			if !ok {
-				continue
-			}
-			ticker := &model.Ticker{
-				Symbol:    normalizedSymbol,
-				Timestamp: item.CloseTime,
-			}
-			ticker.Bid = item.BidPrice
-			ticker.Ask = item.AskPrice
-			ticker.Last = item.LastPrice
-			ticker.Open = item.OpenPrice
-			ticker.High = item.HighPrice
-			ticker.Low = item.LowPrice
-			ticker.Volume = item.Volume
-			ticker.QuoteVolume = item.QuoteVolume
-			tickers[normalizedSymbol] = ticker
-		} else {
-			// 如果没有指定 symbols，返回所有（使用 Binance 原始格式）
+		// 尝试从市场信息中查找标准化格式
+		market, err := m.GetMarket(item.Symbol)
+		if err != nil {
+			// 如果找不到市场信息，使用 Binance 原始格式
 			ticker := &model.Ticker{
 				Symbol:    item.Symbol,
 				Timestamp: item.CloseTime,
@@ -380,6 +351,20 @@ func (m *binanceSpotMarket) FetchTickers(ctx context.Context, symbols ...string)
 			ticker.Volume = item.Volume
 			ticker.QuoteVolume = item.QuoteVolume
 			tickers[item.Symbol] = ticker
+		} else {
+			ticker := &model.Ticker{
+				Symbol:    market.Symbol,
+				Timestamp: item.CloseTime,
+			}
+			ticker.Bid = item.BidPrice
+			ticker.Ask = item.AskPrice
+			ticker.Last = item.LastPrice
+			ticker.Open = item.OpenPrice
+			ticker.High = item.HighPrice
+			ticker.Low = item.LowPrice
+			ticker.Volume = item.Volume
+			ticker.QuoteVolume = item.QuoteVolume
+			tickers[market.Symbol] = ticker
 		}
 	}
 
@@ -450,7 +435,7 @@ type binanceSpotOrder struct {
 }
 
 // FetchBalance 获取余额
-func (o *binanceSpotOrder) FetchBalance(ctx context.Context) (types.Balances, error) {
+func (o *binanceSpotOrder) FetchBalance(ctx context.Context) (model.Balances, error) {
 	if o.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
@@ -469,31 +454,22 @@ func (o *binanceSpotOrder) FetchBalance(ctx context.Context) (types.Balances, er
 		return nil, fmt.Errorf("fetch balance: %w", err)
 	}
 
-	var data struct {
-		Balances []struct {
-			Asset  string `json:"asset"`
-			Free   string `json:"free"`
-			Locked string `json:"locked"`
-		} `json:"balances"`
-	}
-
+	var data binanceSpotBalanceResponse
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal balance: %w", err)
 	}
 
-	balances := make(types.Balances)
+	balances := make(model.Balances, 0)
 	for _, bal := range data.Balances {
-		free, _ := strconv.ParseFloat(bal.Free, 64)
-		locked, _ := strconv.ParseFloat(bal.Locked, 64)
-		total := free + locked
-
-		balances[bal.Asset] = &types.Balance{
+		total := bal.Free.Add(bal.Locked.Decimal)
+		balance := &model.Balance{
 			Currency:  bal.Asset,
-			Free:      free,
-			Used:      locked,
-			Total:     total,
-			Available: free,
+			Available: bal.Free,
+			Locked:    bal.Locked,
+			Total:     types.ExDecimal{Decimal: total},
+			UpdatedAt: data.UpdateTime,
 		}
+		balances = append(balances, balance)
 	}
 
 	return balances, nil

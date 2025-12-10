@@ -84,6 +84,20 @@ type binanceSpotKline = binanceKline
 // binanceSpotKlineResponse Binance 现货 Kline 响应（数组格式）
 type binanceSpotKlineResponse []binanceSpotKline
 
+// binanceSpotBalanceResponse Binance 现货余额响应
+type binanceSpotBalanceResponse struct {
+	UpdateTime  types.ExTimestamp        `json:"updateTime"`
+	AccountType string                    `json:"accountType"`
+	Balances    []binanceSpotBalanceItem  `json:"balances"`
+}
+
+// binanceSpotBalanceItem Binance 现货余额项
+type binanceSpotBalanceItem struct {
+	Asset  string          `json:"asset"`
+	Free   types.ExDecimal `json:"free"`
+	Locked types.ExDecimal `json:"locked"`
+}
+
 // UnmarshalJSON 自定义 JSON 反序列化，解析数组格式
 func (k *binanceKline) UnmarshalJSON(data []byte) error {
 	var arr []interface{}

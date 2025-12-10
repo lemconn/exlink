@@ -56,8 +56,8 @@ func (p *GatePerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticke
 	return p.market.FetchTicker(ctx, symbol)
 }
 
-func (p *GatePerp) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
-	return p.market.FetchTickers(ctx, symbols...)
+func (p *GatePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
+	return p.market.FetchTickers(ctx)
 }
 
 func (p *GatePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
@@ -123,7 +123,7 @@ type gatePerpMarket struct {
 func (m *gatePerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	// 如果已加载且不需要重新加载，直接返回
 	m.gate.mu.RLock()
-	if !reload && len(m.gate.perpMarkets) > 0 {
+	if !reload && len(m.gate.perpMarketsBySymbol) > 0 {
 		m.gate.mu.RUnlock()
 		return nil
 	}
@@ -189,11 +189,13 @@ func (m *gatePerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 
 	// 存储市场信息
 	m.gate.mu.Lock()
-	if m.gate.perpMarkets == nil {
-		m.gate.perpMarkets = make(map[string]*model.Market)
+	if m.gate.perpMarketsBySymbol == nil {
+		m.gate.perpMarketsBySymbol = make(map[string]*model.Market)
+		m.gate.perpMarketsByID = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
-		m.gate.perpMarkets[market.Symbol] = market
+		m.gate.perpMarketsBySymbol[market.Symbol] = market
+		m.gate.perpMarketsByID[market.ID] = market
 	}
 	m.gate.mu.Unlock()
 
@@ -209,32 +211,36 @@ func (m *gatePerpMarket) FetchMarkets(ctx context.Context) ([]*model.Market, err
 	m.gate.mu.RLock()
 	defer m.gate.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.gate.perpMarkets))
-	for _, market := range m.gate.perpMarkets {
+	markets := make([]*model.Market, 0, len(m.gate.perpMarketsBySymbol))
+	for _, market := range m.gate.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
 	return markets, nil
 }
 
-func (m *gatePerpMarket) GetMarket(symbol string) (*model.Market, error) {
+func (m *gatePerpMarket) GetMarket(key string) (*model.Market, error) {
 	m.gate.mu.RLock()
 	defer m.gate.mu.RUnlock()
 
-	market, ok := m.gate.perpMarkets[symbol]
-	if !ok {
-		return nil, fmt.Errorf("market not found: %s", symbol)
+	// 先尝试标准化格式
+	if market, ok := m.gate.perpMarketsBySymbol[key]; ok {
+		return market, nil
+	}
+	// 再尝试原始格式
+	if market, ok := m.gate.perpMarketsByID[key]; ok {
+		return market, nil
 	}
 
-	return market, nil
+	return nil, fmt.Errorf("market not found: %s", key)
 }
 
 func (m *gatePerpMarket) GetMarkets() ([]*model.Market, error) {
 	m.gate.mu.RLock()
 	defer m.gate.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.gate.perpMarkets))
-	for _, market := range m.gate.perpMarkets {
+	markets := make([]*model.Market, 0, len(m.gate.perpMarketsBySymbol))
+	for _, market := range m.gate.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
@@ -293,7 +299,7 @@ func (m *gatePerpMarket) FetchTicker(ctx context.Context, symbol string) (*model
 	return ticker, nil
 }
 
-func (m *gatePerpMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
+func (m *gatePerpMarket) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
 	settle := "usdt" // Gate 永续合约默认使用 USDT 结算
 	resp, err := m.gate.client.HTTPClient.Get(ctx, fmt.Sprintf("/api/v4/futures/%s/tickers", settle), nil)
 	if err != nil {
@@ -306,79 +312,28 @@ func (m *gatePerpMarket) FetchTickers(ctx context.Context, symbols ...string) (m
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
 	}
 
-	// 如果需要过滤特定 symbols，先转换为 Gate 格式
-	var gateSymbols map[string]string
-	if len(symbols) > 0 {
-		gateSymbols = make(map[string]string)
-		for _, s := range symbols {
-			market, err := m.GetMarket(s)
-			if err == nil {
-				gateSymbols[market.ID] = s
-			} else {
-				// 如果市场未加载，尝试转换
-				gateSymbol, err := ToGateSymbol(s, true)
-				if err == nil {
-					gateSymbols[gateSymbol] = s
-				}
-			}
-		}
-	}
-
 	tickers := make(map[string]*model.Ticker)
 	for _, item := range data {
-		// 如果指定了 symbols，进行过滤
-		if len(symbols) > 0 {
-			normalizedSymbol, ok := gateSymbols[item.Contract]
-			if !ok {
-				continue
-			}
-			ticker := &model.Ticker{
-				Symbol:    normalizedSymbol,
-				Timestamp: types.ExTimestamp{Time: time.Now()}, // Gate 永续合约 API 没有返回时间戳
-			}
-			ticker.Bid = item.HighestBid
-			ticker.Ask = item.LowestAsk
-			ticker.Last = item.Last
-			ticker.High = item.High24h
-			ticker.Low = item.Low24h
-			ticker.Volume = item.Volume24hBase
-			ticker.QuoteVolume = item.Volume24hQuote
-			tickers[normalizedSymbol] = ticker
-		} else {
-			// 如果没有指定 symbols，尝试从市场信息中查找
-			market, err := m.getMarketByID(item.Contract)
-			if err != nil {
-				continue
-			}
-			ticker := &model.Ticker{
-				Symbol:    market.Symbol,
-				Timestamp: types.ExTimestamp{Time: time.Now()}, // Gate 永续合约 API 没有返回时间戳
-			}
-			ticker.Bid = item.HighestBid
-			ticker.Ask = item.LowestAsk
-			ticker.Last = item.Last
-			ticker.High = item.High24h
-			ticker.Low = item.Low24h
-			ticker.Volume = item.Volume24hBase
-			ticker.QuoteVolume = item.Volume24hQuote
-			tickers[market.Symbol] = ticker
+		// 尝试从市场信息中查找标准化格式
+		market, err := m.GetMarket(item.Contract)
+		if err != nil {
+			continue
 		}
+		ticker := &model.Ticker{
+			Symbol:    market.Symbol,
+			Timestamp: types.ExTimestamp{Time: time.Now()}, // Gate 永续合约 API 没有返回时间戳
+		}
+		ticker.Bid = item.HighestBid
+		ticker.Ask = item.LowestAsk
+		ticker.Last = item.Last
+		ticker.High = item.High24h
+		ticker.Low = item.Low24h
+		ticker.Volume = item.Volume24hBase
+		ticker.QuoteVolume = item.Volume24hQuote
+		tickers[market.Symbol] = ticker
 	}
 
 	return tickers, nil
-}
-
-// getMarketByID 通过交易所ID获取市场信息
-func (m *gatePerpMarket) getMarketByID(id string) (*model.Market, error) {
-	m.gate.mu.RLock()
-	defer m.gate.mu.RUnlock()
-
-	for _, market := range m.gate.perpMarkets {
-		if market.ID == id {
-			return market, nil
-		}
-	}
-	return nil, fmt.Errorf("market not found: %s", id)
 }
 
 func (m *gatePerpMarket) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
@@ -503,7 +458,7 @@ func (o *gatePerpOrder) FetchPositions(ctx context.Context, symbols ...string) (
 			continue
 		}
 
-		market, err := o.getMarketByID(item.Contract)
+		market, err := o.gate.perp.market.GetMarket(item.Contract)
 		if err != nil {
 			continue
 		}
@@ -544,18 +499,6 @@ func (o *gatePerpOrder) FetchPositions(ctx context.Context, symbols ...string) (
 	return positions, nil
 }
 
-// getMarketByID 通过交易所ID获取市场信息
-func (o *gatePerpOrder) getMarketByID(id string) (*model.Market, error) {
-	o.gate.mu.RLock()
-	defer o.gate.mu.RUnlock()
-
-	for _, market := range o.gate.perpMarkets {
-		if market.ID == id {
-			return market, nil
-		}
-	}
-	return nil, fmt.Errorf("market not found: %s", id)
-}
 
 func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
 	// 解析选项

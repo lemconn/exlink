@@ -54,8 +54,8 @@ func (p *BybitPerp) FetchTicker(ctx context.Context, symbol string) (*model.Tick
 	return p.market.FetchTicker(ctx, symbol)
 }
 
-func (p *BybitPerp) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
-	return p.market.FetchTickers(ctx, symbols...)
+func (p *BybitPerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
+	return p.market.FetchTickers(ctx)
 }
 
 func (p *BybitPerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
@@ -121,7 +121,7 @@ type bybitPerpMarket struct {
 func (m *bybitPerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	// 如果已加载且不需要重新加载，直接返回
 	m.bybit.mu.RLock()
-	if !reload && len(m.bybit.perpMarkets) > 0 {
+	if !reload && len(m.bybit.perpMarketsBySymbol) > 0 {
 		m.bybit.mu.RUnlock()
 		return nil
 	}
@@ -192,11 +192,13 @@ func (m *bybitPerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 
 	// 存储市场信息
 	m.bybit.mu.Lock()
-	if m.bybit.perpMarkets == nil {
-		m.bybit.perpMarkets = make(map[string]*model.Market)
+	if m.bybit.perpMarketsBySymbol == nil {
+		m.bybit.perpMarketsBySymbol = make(map[string]*model.Market)
+		m.bybit.perpMarketsByID = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
-		m.bybit.perpMarkets[market.Symbol] = market
+		m.bybit.perpMarketsBySymbol[market.Symbol] = market
+		m.bybit.perpMarketsByID[market.ID] = market
 	}
 	m.bybit.mu.Unlock()
 
@@ -212,32 +214,36 @@ func (m *bybitPerpMarket) FetchMarkets(ctx context.Context) ([]*model.Market, er
 	m.bybit.mu.RLock()
 	defer m.bybit.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.bybit.perpMarkets))
-	for _, market := range m.bybit.perpMarkets {
+	markets := make([]*model.Market, 0, len(m.bybit.perpMarketsBySymbol))
+	for _, market := range m.bybit.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
 	return markets, nil
 }
 
-func (m *bybitPerpMarket) GetMarket(symbol string) (*model.Market, error) {
+func (m *bybitPerpMarket) GetMarket(key string) (*model.Market, error) {
 	m.bybit.mu.RLock()
 	defer m.bybit.mu.RUnlock()
 
-	market, ok := m.bybit.perpMarkets[symbol]
-	if !ok {
-		return nil, fmt.Errorf("market not found: %s", symbol)
+	// 先尝试标准化格式
+	if market, ok := m.bybit.perpMarketsBySymbol[key]; ok {
+		return market, nil
+	}
+	// 再尝试原始格式
+	if market, ok := m.bybit.perpMarketsByID[key]; ok {
+		return market, nil
 	}
 
-	return market, nil
+	return nil, fmt.Errorf("market not found: %s", key)
 }
 
 func (m *bybitPerpMarket) GetMarkets() ([]*model.Market, error) {
 	m.bybit.mu.RLock()
 	defer m.bybit.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.bybit.perpMarkets))
-	for _, market := range m.bybit.perpMarkets {
+	markets := make([]*model.Market, 0, len(m.bybit.perpMarketsBySymbol))
+	for _, market := range m.bybit.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
@@ -297,11 +303,12 @@ func (m *bybitPerpMarket) FetchTicker(ctx context.Context, symbol string) (*mode
 	ticker.Low = item.LowPrice24h
 	ticker.Volume = item.Volume24h
 	ticker.QuoteVolume = item.Turnover24h
+	ticker.Timestamp = result.Time
 
 	return ticker, nil
 }
 
-func (m *bybitPerpMarket) FetchTickers(ctx context.Context, symbols ...string) (map[string]*model.Ticker, error) {
+func (m *bybitPerpMarket) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
 	resp, err := m.bybit.client.HTTPClient.Get(ctx, "/v5/market/tickers", map[string]interface{}{
 		"category": "linear",
 	})
@@ -319,81 +326,30 @@ func (m *bybitPerpMarket) FetchTickers(ctx context.Context, symbols ...string) (
 		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
 	}
 
-	// 如果需要过滤特定 symbols，先转换为 Bybit 格式
-	var bybitSymbols map[string]string
-	if len(symbols) > 0 {
-		bybitSymbols = make(map[string]string)
-		for _, s := range symbols {
-			market, err := m.GetMarket(s)
-			if err == nil {
-				bybitSymbols[market.ID] = s
-			} else {
-				// 如果市场未加载，尝试转换
-				bybitSymbol, err := ToBybitSymbol(s, true)
-				if err == nil {
-					bybitSymbols[bybitSymbol] = s
-				}
-			}
-		}
-	}
-
 	tickers := make(map[string]*model.Ticker)
 	for _, item := range result.Result.List {
-		// 如果指定了 symbols，进行过滤
-		if len(symbols) > 0 {
-			normalizedSymbol, ok := bybitSymbols[item.Symbol]
-			if !ok {
-				continue
-			}
-			ticker := &model.Ticker{
-				Symbol:    normalizedSymbol,
-				Timestamp: result.Time,
-			}
-			ticker.Bid = item.Bid1Price
-			ticker.Ask = item.Ask1Price
-			ticker.Last = item.LastPrice
-			ticker.Open = item.PrevPrice24h
-			ticker.High = item.HighPrice24h
-			ticker.Low = item.LowPrice24h
-			ticker.Volume = item.Volume24h
-			ticker.QuoteVolume = item.Turnover24h
-			tickers[normalizedSymbol] = ticker
-		} else {
-			// 如果没有指定 symbols，尝试从市场信息中查找
-			market, err := m.getMarketByID(item.Symbol)
-			if err != nil {
-				continue
-			}
-			ticker := &model.Ticker{
-				Symbol:    market.Symbol,
-				Timestamp: result.Time,
-			}
-			ticker.Bid = item.Bid1Price
-			ticker.Ask = item.Ask1Price
-			ticker.Last = item.LastPrice
-			ticker.Open = item.PrevPrice24h
-			ticker.High = item.HighPrice24h
-			ticker.Low = item.LowPrice24h
-			ticker.Volume = item.Volume24h
-			ticker.QuoteVolume = item.Turnover24h
-			tickers[market.Symbol] = ticker
+		// 尝试从市场信息中查找标准化格式
+		market, err := m.GetMarket(item.Symbol)
+		if err != nil {
+			continue
 		}
+		ticker := &model.Ticker{
+			Symbol:    market.Symbol,
+			Timestamp: result.Time,
+		}
+		ticker.Bid = item.Bid1Price
+		ticker.Ask = item.Ask1Price
+		ticker.Last = item.LastPrice
+		ticker.Open = item.PrevPrice24h
+		ticker.High = item.HighPrice24h
+		ticker.Low = item.LowPrice24h
+		ticker.Volume = item.Volume24h
+		ticker.QuoteVolume = item.Turnover24h
+		ticker.Timestamp = result.Time
+		tickers[market.Symbol] = ticker
 	}
 
 	return tickers, nil
-}
-
-// getMarketByID 通过交易所ID获取市场信息
-func (m *bybitPerpMarket) getMarketByID(id string) (*model.Market, error) {
-	m.bybit.mu.RLock()
-	defer m.bybit.mu.RUnlock()
-
-	for _, market := range m.bybit.perpMarkets {
-		if market.ID == id {
-			return market, nil
-		}
-	}
-	return nil, fmt.Errorf("market not found: %s", id)
 }
 
 func (m *bybitPerpMarket) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
@@ -530,7 +486,7 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 			continue
 		}
 
-		market, err := o.getMarketByID(item.Symbol)
+		market, err := o.bybit.perp.market.GetMarket(item.Symbol)
 		if err != nil {
 			continue
 		}
@@ -570,18 +526,6 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 	return positions, nil
 }
 
-// getMarketByID 通过交易所ID获取市场信息
-func (o *bybitPerpOrder) getMarketByID(id string) (*model.Market, error) {
-	o.bybit.mu.RLock()
-	defer o.bybit.mu.RUnlock()
-
-	for _, market := range o.bybit.perpMarkets {
-		if market.ID == id {
-			return market, nil
-		}
-	}
-	return nil, fmt.Errorf("market not found: %s", id)
-}
 
 func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
 	// 解析选项
@@ -987,7 +931,7 @@ func (o *bybitPerpOrder) FetchOpenOrders(ctx context.Context, symbol string) ([]
 		normalizedSymbol := symbol
 		if symbol == "" {
 			// 如果没有提供symbol，尝试从市场信息中查找
-			market, err := o.getMarketByID(item.OrderID)
+			market, err := o.bybit.perp.market.GetMarket(item.OrderID)
 			if err == nil {
 				normalizedSymbol = market.Symbol
 			} else {
