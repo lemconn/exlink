@@ -7,18 +7,6 @@ import (
 	"github.com/lemconn/exlink/types"
 )
 
-// ========== 现货市场模型 ==========
-
-// bybitSpotMarketsResponse Bybit 现货市场信息响应
-type bybitSpotMarketsResponse struct {
-	RetCode int    `json:"retCode"`
-	RetMsg  string `json:"retMsg"`
-	Result  struct {
-		Category string        `json:"category"`
-		List     []bybitSymbol `json:"list"`
-	} `json:"result"`
-}
-
 // bybitSymbol Bybit 交易对信息（现货和合约共用）
 type bybitSymbol struct {
 	Symbol        string             `json:"symbol"`
@@ -42,18 +30,6 @@ type bybitLotSizeFilter struct {
 // bybitPriceFilter Bybit 价格过滤器（现货和合约共用）
 type bybitPriceFilter struct {
 	TickSize types.ExDecimal `json:"tickSize"`
-}
-
-// bybitSpotTickerResponse Bybit 现货 Ticker 响应
-type bybitSpotTickerResponse struct {
-	RetCode int    `json:"retCode"`
-	RetMsg  string `json:"retMsg"`
-	Result  struct {
-		Category string            `json:"category"`
-		List     []bybitTickerItem `json:"list"`
-	} `json:"result"`
-	RetExtInfo map[string]interface{} `json:"retExtInfo"`
-	Time       types.ExTimestamp      `json:"time"`
 }
 
 // bybitTickerItem Bybit Ticker 数据项（现货和合约共用）
@@ -99,48 +75,6 @@ type bybitKline struct {
 	Close     types.ExDecimal   `json:"close"`     // closePrice
 	Volume    types.ExDecimal   `json:"volume"`    // volume (Trade volume USDT or USDC, contract: unit is base coin)
 	Turnover  types.ExDecimal   `json:"turnover"`  // turnover (Turnover USDT or USDC, contract: unit is quote coin)
-}
-
-// bybitSpotKline Bybit 现货 Kline 数据（类型别名）
-type bybitSpotKline = bybitKline
-
-// bybitSpotKlineResponse Bybit 现货 Kline 响应
-type bybitSpotKlineResponse struct {
-	RetCode int    `json:"retCode"`
-	RetMsg  string `json:"retMsg"`
-	Result  struct {
-		Category string           `json:"category"`
-		Symbol   string           `json:"symbol"`
-		List     []bybitSpotKline `json:"list"`
-	} `json:"result"`
-	RetExtInfo map[string]interface{} `json:"retExtInfo"`
-	Time       types.ExTimestamp      `json:"time"`
-}
-
-// bybitSpotBalanceResponse Bybit 现货余额响应
-type bybitSpotBalanceResponse struct {
-	RetCode int    `json:"retCode"`
-	RetMsg  string `json:"retMsg"`
-	Result  struct {
-		List []bybitSpotBalanceAccount `json:"list"`
-	} `json:"result"`
-	Time types.ExTimestamp `json:"time"`
-}
-
-// bybitSpotBalanceAccount Bybit 现货余额账户
-type bybitSpotBalanceAccount struct {
-	AccountType string                    `json:"accountType"`
-	Coin        []bybitSpotBalanceCoin    `json:"coin"`
-}
-
-// bybitSpotBalanceCoin Bybit 现货余额币种
-type bybitSpotBalanceCoin struct {
-	Equity          types.ExDecimal `json:"equity"`
-	TotalOrderIM    types.ExDecimal `json:"totalOrderIM"`
-	TotalPositionMM types.ExDecimal `json:"totalPositionMM"`
-	TotalPositionIM types.ExDecimal `json:"totalPositionIM"`
-	Locked          types.ExDecimal `json:"locked"`
-	Coin            string          `json:"coin"`
 }
 
 // UnmarshalJSON 自定义 JSON 反序列化，解析数组格式
@@ -211,44 +145,4 @@ func (k *bybitKline) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
-}
-
-// ========== 永续合约市场模型 ==========
-
-// bybitPerpMarketsResponse Bybit 永续合约市场信息响应
-type bybitPerpMarketsResponse struct {
-	RetCode int    `json:"retCode"`
-	RetMsg  string `json:"retMsg"`
-	Result  struct {
-		Category string        `json:"category"`
-		List     []bybitSymbol `json:"list"`
-	} `json:"result"`
-}
-
-// bybitPerpTickerResponse Bybit 永续合约 Ticker 响应
-type bybitPerpTickerResponse struct {
-	RetCode int    `json:"retCode"`
-	RetMsg  string `json:"retMsg"`
-	Result  struct {
-		Category string            `json:"category"`
-		List     []bybitTickerItem `json:"list"`
-	} `json:"result"`
-	RetExtInfo map[string]interface{} `json:"retExtInfo"`
-	Time       types.ExTimestamp      `json:"time"`
-}
-
-// bybitPerpKline Bybit 永续合约 Kline 数据（类型别名）
-type bybitPerpKline = bybitKline
-
-// bybitPerpKlineResponse Bybit 永续合约 Kline 响应
-type bybitPerpKlineResponse struct {
-	RetCode int    `json:"retCode"`
-	RetMsg  string `json:"retMsg"`
-	Result  struct {
-		Category string           `json:"category"`
-		Symbol   string           `json:"symbol"`
-		List     []bybitPerpKline `json:"list"`
-	} `json:"result"`
-	RetExtInfo map[string]interface{} `json:"retExtInfo"`
-	Time       types.ExTimestamp      `json:"time"`
 }

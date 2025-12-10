@@ -7,36 +7,6 @@ import (
 	"github.com/lemconn/exlink/types"
 )
 
-// ========== 现货市场模型 ==========
-
-// okxSpotMarketsResponse OKX 现货市场信息响应
-type okxSpotMarketsResponse struct {
-	Code string              `json:"code"`
-	Msg  string              `json:"msg"`
-	Data []okxSpotInstrument `json:"data"`
-}
-
-// okxSpotInstrument OKX 现货交易对信息
-type okxSpotInstrument struct {
-	InstType string          `json:"instType"`
-	InstID   string          `json:"instId"`
-	BaseCcy  string          `json:"baseCcy"`
-	QuoteCcy string          `json:"quoteCcy"`
-	State    string          `json:"state"`
-	MinSz    types.ExDecimal `json:"minSz"`
-	MaxSz    types.ExDecimal `json:"maxSz"`
-	LotSz    types.ExDecimal `json:"lotSz"`
-	TickSz   types.ExDecimal `json:"tickSz"`
-	MinSzVal types.ExDecimal `json:"minSzVal"`
-}
-
-// okxSpotTickerResponse OKX 现货 Ticker 响应
-type okxSpotTickerResponse struct {
-	Code string          `json:"code"`
-	Msg  string          `json:"msg"`
-	Data []okxTickerItem `json:"data"`
-}
-
 // okxTickerItem OKX Ticker 数据项（现货和合约共用）
 type okxTickerItem struct {
 	InstType  string            `json:"instType"`
@@ -68,47 +38,6 @@ type okxKline struct {
 	VolumeCcy      types.ExDecimal   `json:"volumeCcy"`      // volCcy, Trading volume is measured in base currency for derivatives and in quote currency for spot/margin
 	VolumeCcyQuote types.ExDecimal   `json:"volumeCcyQuote"` // volCcyQuote, Trading volume is the quote currency quantity
 	Confirm        types.ExDecimal   `json:"confirm"`        // confirm, Candlestick state: 0 for uncompleted, 1 for completed
-}
-
-// okxSpotKline OKX 现货 Kline 数据（类型别名）
-type okxSpotKline = okxKline
-
-// okxSpotKlineResponse OKX 现货 Kline 响应
-type okxSpotKlineResponse struct {
-	Code string         `json:"code"`
-	Msg  string         `json:"msg"`
-	Data []okxSpotKline `json:"data"`
-}
-
-// okxSpotBalanceResponse OKX 现货余额响应
-type okxSpotBalanceResponse struct {
-	Code string                    `json:"code"`
-	Msg  string                    `json:"msg"`
-	Data []okxSpotBalanceAccount    `json:"data"`
-}
-
-// okxSpotBalanceAccount OKX 现货余额账户
-type okxSpotBalanceAccount struct {
-	Details []okxSpotBalanceDetail `json:"details"`
-}
-
-// okxSpotBalanceDetail OKX 现货余额详情
-type okxSpotBalanceDetail struct {
-	AvailBal  types.ExDecimal   `json:"availBal"`
-	Ccy       string            `json:"ccy"`
-	Eq        types.ExDecimal   `json:"eq"`
-	FrozenBal types.ExDecimal   `json:"frozenBal"`
-	UTime     types.ExTimestamp `json:"uTime"`
-}
-
-// okxPerpKline OKX 永续合约 Kline 数据（类型别名）
-type okxPerpKline = okxKline
-
-// okxPerpKlineResponse OKX 永续合约 Kline 响应
-type okxPerpKlineResponse struct {
-	Code string         `json:"code"`
-	Msg  string         `json:"msg"`
-	Data []okxPerpKline `json:"data"`
 }
 
 // UnmarshalJSON 自定义 JSON 反序列化，解析数组格式
@@ -193,38 +122,4 @@ func (k *okxKline) UnmarshalJSON(data []byte) error {
 	}
 
 	return nil
-}
-
-// ========== 永续合约市场模型 ==========
-
-// okxPerpMarketsResponse OKX 永续合约市场信息响应
-type okxPerpMarketsResponse struct {
-	Code string              `json:"code"`
-	Msg  string              `json:"msg"`
-	Data []okxPerpInstrument `json:"data"`
-}
-
-// okxPerpInstrument OKX 永续合约交易对信息
-type okxPerpInstrument struct {
-	InstType  string          `json:"instType"`
-	InstID    string          `json:"instId"`
-	BaseCcy   string          `json:"baseCcy"`
-	QuoteCcy  string          `json:"quoteCcy"`
-	SettleCcy string          `json:"settleCcy"`
-	Uly       string          `json:"uly"`    // underlying，用于合约市场
-	CtType    string          `json:"ctType"` // linear, inverse
-	CtVal     string          `json:"ctVal"`  // 合约面值（1张合约等于多少个币）
-	State     string          `json:"state"`
-	MinSz     types.ExDecimal `json:"minSz"`
-	MaxSz     types.ExDecimal `json:"maxSz"`
-	LotSz     types.ExDecimal `json:"lotSz"`
-	TickSz    types.ExDecimal `json:"tickSz"`
-	MinSzVal  types.ExDecimal `json:"minSzVal"`
-}
-
-// okxPerpTickerResponse OKX 永续合约 Ticker 响应
-type okxPerpTickerResponse struct {
-	Code string          `json:"code"`
-	Msg  string          `json:"msg"`
-	Data []okxTickerItem `json:"data"`
 }
