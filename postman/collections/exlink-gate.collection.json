@@ -420,11 +420,13 @@
 					}
 				},
 				"url": {
-					"raw": "{{gate_base_url}}/spot/candlesticks?currency_pair=BTC_USDT&interval=1m",
+					"raw": "{{gate_base_url}}/api/v4/spot/candlesticks?currency_pair=BTC_USDT&interval=1m",
 					"host": [
 						"{{gate_base_url}}"
 					],
 					"path": [
+						"api",
+						"v4",
 						"spot",
 						"candlesticks"
 					],
