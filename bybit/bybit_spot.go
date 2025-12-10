@@ -77,14 +77,6 @@ func (s *BybitSpot) FetchOrder(ctx context.Context, orderID, symbol string) (*ty
 	return s.order.FetchOrder(ctx, orderID, symbol)
 }
 
-func (s *BybitSpot) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	return s.order.FetchOrders(ctx, symbol, since, limit)
-}
-
-func (s *BybitSpot) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	return s.order.FetchOpenOrders(ctx, symbol)
-}
-
 func (s *BybitSpot) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
 	return s.order.FetchTrades(ctx, symbol, since, limit)
 }
@@ -783,85 +775,6 @@ func (o *bybitSpotOrder) FetchOrder(ctx context.Context, orderID, symbol string)
 	}
 
 	return nil, fmt.Errorf("order not found")
-}
-
-func (o *bybitSpotOrder) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	// Bybit 现货 API 不支持直接查询历史订单列表
-	// 可以通过 FetchOpenOrders 获取未成交订单
-	// 历史订单需要通过其他方式获取（如通过订单ID逐个查询）
-	return nil, fmt.Errorf("not implemented: Bybit spot API does not support fetching order history directly")
-}
-
-func (o *bybitSpotOrder) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	params := map[string]interface{}{
-		"category": "spot",
-	}
-	if symbol != "" {
-		// 获取市场信息
-		market, err := o.bybit.spot.market.GetMarket(symbol)
-		if err != nil {
-			return nil, err
-		}
-
-		// 获取交易所格式的 symbol ID
-		bybitSymbol := market.ID
-		if bybitSymbol == "" {
-			var err error
-			bybitSymbol, err = ToBybitSymbol(symbol, false)
-			if err != nil {
-				return nil, fmt.Errorf("get market ID: %w", err)
-			}
-		}
-		params["symbol"] = bybitSymbol
-	}
-
-	resp, err := o.signAndRequest(ctx, "GET", "/v5/order/realtime", params, nil)
-	if err != nil {
-		return nil, fmt.Errorf("fetch open orders: %w", err)
-	}
-
-	var result struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-		Result  struct {
-			List []struct {
-				OrderID     string `json:"orderId"`
-				OrderLinkID string `json:"orderLinkId"`
-				OrderStatus string `json:"orderStatus"`
-				Side        string `json:"side"`
-				OrderType   string `json:"orderType"`
-				Price       string `json:"price"`
-				Qty         string `json:"qty"`
-				CumExecQty  string `json:"cumExecQty"`
-				CreatedTime string `json:"createdTime"`
-			} `json:"list"`
-		} `json:"result"`
-	}
-
-	if err := json.Unmarshal(resp, &result); err != nil {
-		return nil, fmt.Errorf("unmarshal orders: %w", err)
-	}
-
-	if result.RetCode != 0 {
-		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
-	}
-
-	orders := make([]*types.Order, 0, len(result.Result.List))
-	for _, item := range result.Result.List {
-		normalizedSymbol := symbol
-		if symbol == "" {
-			// 如果没有提供symbol，尝试从市场信息中查找
-			market, err := o.bybit.spot.market.GetMarket(item.OrderID)
-			if err == nil {
-				normalizedSymbol = market.Symbol
-			} else {
-				normalizedSymbol = item.OrderID // 临时使用原格式
-			}
-		}
-		orders = append(orders, o.parseOrder(item, normalizedSymbol))
-	}
-
-	return orders, nil
 }
 
 func (o *bybitSpotOrder) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {

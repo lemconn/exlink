@@ -80,14 +80,6 @@ func (p *GatePerp) FetchOrder(ctx context.Context, orderID, symbol string) (*typ
 	return p.order.FetchOrder(ctx, orderID, symbol)
 }
 
-func (p *GatePerp) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	return p.order.FetchOrders(ctx, symbol, since, limit)
-}
-
-func (p *GatePerp) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	return p.order.FetchOpenOrders(ctx, symbol)
-}
-
 func (p *GatePerp) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
 	return p.order.FetchTrades(ctx, symbol, since, limit)
 }
@@ -499,7 +491,6 @@ func (o *gatePerpOrder) FetchPositions(ctx context.Context, symbols ...string) (
 	return positions, nil
 }
 
-
 func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
 	// 解析选项
 	options := types.ApplyOrderOptions(opts...)
@@ -742,55 +733,6 @@ func (o *gatePerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) 
 	}
 
 	return o.parseOrder(data, symbol), nil
-}
-
-func (o *gatePerpOrder) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	// Gate 合约 API 不支持直接查询历史订单列表
-	// 可以通过 FetchOpenOrders 获取未成交订单
-	// 历史订单需要通过其他方式获取（如通过订单ID逐个查询）
-	return nil, fmt.Errorf("not implemented: Gate perp API does not support fetching order history directly")
-}
-
-func (o *gatePerpOrder) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	// 获取市场信息
-	market, err := o.gate.perp.market.GetMarket(symbol)
-	if err != nil {
-		return nil, err
-	}
-
-	// 获取交易所格式的 symbol ID
-	gateSymbol := market.ID
-	if gateSymbol == "" {
-		var err error
-		gateSymbol, err = ToGateSymbol(symbol, true)
-		if err != nil {
-			return nil, fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	settle := strings.ToLower(market.Settle)
-	path := fmt.Sprintf("/api/v4/futures/%s/orders", settle)
-	params := map[string]interface{}{
-		"contract": gateSymbol,
-		"status":   "open",
-	}
-
-	resp, err := o.signAndRequest(ctx, "GET", path, params, nil)
-	if err != nil {
-		return nil, fmt.Errorf("fetch open orders: %w", err)
-	}
-
-	var data []map[string]interface{}
-	if err := json.Unmarshal(resp, &data); err != nil {
-		return nil, fmt.Errorf("unmarshal orders: %w", err)
-	}
-
-	orders := make([]*types.Order, 0, len(data))
-	for _, item := range data {
-		orders = append(orders, o.parseOrder(item, symbol))
-	}
-
-	return orders, nil
 }
 
 func (o *gatePerpOrder) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {

@@ -86,12 +86,6 @@ type SpotExchange interface {
     // 查询订单
     FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error)
     
-    // 查询订单列表
-    FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error)
-    
-    // 查询未成交订单
-    FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error)
-    
     // ========== 交易记录 ==========
     
     // 获取交易记录（公共）
@@ -141,12 +135,6 @@ type PerpExchange interface {
     
     // 查询订单
     FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error)
-    
-    // 查询订单列表
-    FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error)
-    
-    // 查询未成交订单
-    FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error)
     
     // ========== 交易记录 ==========
     

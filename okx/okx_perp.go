@@ -79,14 +79,6 @@ func (p *OKXPerp) FetchOrder(ctx context.Context, orderID, symbol string) (*type
 	return p.order.FetchOrder(ctx, orderID, symbol)
 }
 
-func (p *OKXPerp) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	return p.order.FetchOrders(ctx, symbol, since, limit)
-}
-
-func (p *OKXPerp) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	return p.order.FetchOpenOrders(ctx, symbol)
-}
-
 func (p *OKXPerp) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
 	return p.order.FetchTrades(ctx, symbol, since, limit)
 }
@@ -640,7 +632,6 @@ func (o *okxPerpOrder) FetchPositions(ctx context.Context, symbols ...string) ([
 	return positions, nil
 }
 
-
 func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
 	// 解析选项
 	options := types.ApplyOrderOptions(opts...)
@@ -948,107 +939,6 @@ func (o *okxPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (
 	}
 
 	return o.parseOrder(result.Data[0], symbol), nil
-}
-
-func (o *okxPerpOrder) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	// OKX 合约 API 不支持直接查询历史订单列表
-	// 可以通过 FetchOpenOrders 获取未成交订单
-	// 历史订单需要通过其他方式获取（如通过订单ID逐个查询）
-	return nil, fmt.Errorf("not implemented: OKX perp API does not support fetching order history directly")
-}
-
-func (o *okxPerpOrder) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	params := map[string]interface{}{
-		"instType": "SWAP",
-	}
-	if symbol != "" {
-		// 获取市场信息
-		market, err := o.okx.perp.market.GetMarket(symbol)
-		if err != nil {
-			return nil, err
-		}
-
-		// 获取交易所格式的 symbol ID
-		okxSymbol := market.ID
-		if okxSymbol == "" {
-			var err error
-			okxSymbol, err = ToOKXSymbol(symbol, true)
-			if err != nil {
-				return nil, fmt.Errorf("get market ID: %w", err)
-			}
-		}
-		params["instId"] = okxSymbol
-	}
-
-	resp, err := o.signAndRequest(ctx, "GET", "/api/v5/trade/orders-pending", params, nil)
-	if err != nil {
-		return nil, fmt.Errorf("fetch open orders: %w", err)
-	}
-
-	var result struct {
-		Code string `json:"code"`
-		Msg  string `json:"msg"`
-		Data []struct {
-			InstID    string `json:"instId"`
-			OrdID     string `json:"ordId"`
-			ClOrdID   string `json:"clOrdId"`
-			State     string `json:"state"`
-			Side      string `json:"side"`
-			OrdType   string `json:"ordType"`
-			Px        string `json:"px"`
-			Sz        string `json:"sz"`
-			AccFillSz string `json:"accFillSz"`
-		} `json:"data"`
-	}
-
-	if err := json.Unmarshal(resp, &result); err != nil {
-		return nil, fmt.Errorf("unmarshal orders: %w", err)
-	}
-
-	if result.Code != "0" {
-		return nil, fmt.Errorf("okx api error: %s", result.Msg)
-	}
-
-	orders := make([]*types.Order, 0, len(result.Data))
-	for _, item := range result.Data {
-		normalizedSymbol := symbol
-		if symbol == "" {
-			// 如果没有提供symbol，尝试从市场信息中查找
-			market, err := o.okx.perp.market.GetMarket(item.InstID)
-			if err == nil {
-				normalizedSymbol = market.Symbol
-			} else {
-				normalizedSymbol = item.InstID // 临时使用原格式
-			}
-		}
-		// 创建临时结构体以匹配 parseOrder 的签名
-		orderItem := struct {
-			InstID    string `json:"instId"`
-			OrdID     string `json:"ordId"`
-			ClOrdID   string `json:"clOrdId"`
-			State     string `json:"state"`
-			Side      string `json:"side"`
-			OrdType   string `json:"ordType"`
-			Px        string `json:"px"`
-			Sz        string `json:"sz"`
-			AccFillSz string `json:"accFillSz"`
-			UTime     string `json:"uTime"`
-		}{
-			InstID:    item.InstID,
-			OrdID:     item.OrdID,
-			ClOrdID:   item.ClOrdID,
-			State:     item.State,
-			Side:      item.Side,
-			OrdType:   item.OrdType,
-			Px:        item.Px,
-			Sz:        item.Sz,
-			AccFillSz: item.AccFillSz,
-			UTime:     "",
-		}
-		orders = append(orders, o.parseOrder(orderItem, normalizedSymbol))
-	}
-
-	return orders, nil
 }
 
 func (o *okxPerpOrder) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {

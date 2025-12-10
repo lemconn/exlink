@@ -76,14 +76,6 @@ func (s *GateSpot) FetchOrder(ctx context.Context, orderID, symbol string) (*typ
 	return s.order.FetchOrder(ctx, orderID, symbol)
 }
 
-func (s *GateSpot) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	return s.order.FetchOrders(ctx, symbol, since, limit)
-}
-
-func (s *GateSpot) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	return s.order.FetchOpenOrders(ctx, symbol)
-}
-
 func (s *GateSpot) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
 	return s.order.FetchTrades(ctx, symbol, since, limit)
 }
@@ -648,63 +640,6 @@ func (o *gateSpotOrder) FetchOrder(ctx context.Context, orderID, symbol string) 
 	}
 
 	return o.parseOrder(data, symbol), nil
-}
-
-func (o *gateSpotOrder) FetchOrders(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Order, error) {
-	// Gate 现货 API 不支持直接查询历史订单列表
-	// 可以通过 FetchOpenOrders 获取未成交订单
-	// 历史订单需要通过其他方式获取（如通过订单ID逐个查询）
-	return nil, fmt.Errorf("not implemented: Gate spot API does not support fetching order history directly")
-}
-
-func (o *gateSpotOrder) FetchOpenOrders(ctx context.Context, symbol string) ([]*types.Order, error) {
-	params := map[string]interface{}{}
-	if symbol != "" {
-		// 获取市场信息
-		market, err := o.gate.spot.market.GetMarket(symbol)
-		if err != nil {
-			return nil, err
-		}
-
-		// 获取交易所格式的 symbol ID
-		gateSymbol := market.ID
-		if gateSymbol == "" {
-			var err error
-			gateSymbol, err = ToGateSymbol(symbol, false)
-			if err != nil {
-				return nil, fmt.Errorf("get market ID: %w", err)
-			}
-		}
-		params["currency_pair"] = gateSymbol
-	}
-
-	resp, err := o.signAndRequest(ctx, "GET", "/api/v4/spot/open_orders", params, nil)
-	if err != nil {
-		return nil, fmt.Errorf("fetch open orders: %w", err)
-	}
-
-	var data []map[string]interface{}
-	if err := json.Unmarshal(resp, &data); err != nil {
-		return nil, fmt.Errorf("unmarshal orders: %w", err)
-	}
-
-	orders := make([]*types.Order, 0, len(data))
-	for _, item := range data {
-		normalizedSymbol := symbol
-		if symbol == "" {
-			// 如果没有提供symbol，尝试从市场信息中查找
-			currencyPair := getString(item, "currency_pair")
-			market, err := o.gate.spot.market.GetMarket(currencyPair)
-			if err == nil {
-				normalizedSymbol = market.Symbol
-			} else {
-				normalizedSymbol = currencyPair // 临时使用原格式
-			}
-		}
-		orders = append(orders, o.parseOrder(item, normalizedSymbol))
-	}
-
-	return orders, nil
 }
 
 func (o *gateSpotOrder) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
