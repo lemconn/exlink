@@ -12,6 +12,7 @@ import (
 	"github.com/lemconn/exlink/exchange"
 	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/types"
+	"github.com/shopspring/decimal"
 )
 
 // BybitPerp Bybit 永续合约实现
@@ -62,7 +63,7 @@ func (p *BybitPerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe st
 	return p.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 }
 
-func (p *BybitPerp) FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error) {
+func (p *BybitPerp) FetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
 	return p.order.FetchPositions(ctx, symbols...)
 }
 
@@ -424,7 +425,7 @@ func (o *bybitPerpOrder) signAndRequest(ctx context.Context, method, path string
 	}
 }
 
-func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error) {
+func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
 	params := map[string]interface{}{
 		"category": "linear",
 	}
@@ -471,7 +472,7 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
 	}
 
-	positions := make([]*types.Position, 0)
+	positions := make([]*model.Position, 0)
 	for _, item := range result.Result.List {
 		size, _ := strconv.ParseFloat(item.Size, 64)
 		if size == 0 {
@@ -496,20 +497,30 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 			}
 		}
 
-		position := &types.Position{
-			Symbol:    market.Symbol,
-			Amount:    size,
-			Timestamp: time.Now(),
+		entryPrice, _ := strconv.ParseFloat(item.EntryPrice, 64)
+		markPrice, _ := strconv.ParseFloat(item.MarkPrice, 64)
+		unrealizedPnl, _ := strconv.ParseFloat(item.UnrealisedPnl, 64)
+
+		var side string
+		if strings.ToUpper(item.Side) == "BUY" {
+			side = string(types.PositionSideLong)
+		} else {
+			side = string(types.PositionSideShort)
 		}
 
-		position.EntryPrice, _ = strconv.ParseFloat(item.EntryPrice, 64)
-		position.MarkPrice, _ = strconv.ParseFloat(item.MarkPrice, 64)
-		position.UnrealizedPnl, _ = strconv.ParseFloat(item.UnrealisedPnl, 64)
-
-		if strings.ToUpper(item.Side) == "BUY" {
-			position.Side = types.PositionSideLong
-		} else {
-			position.Side = types.PositionSideShort
+		position := &model.Position{
+			Symbol:          market.Symbol,
+			Side:            side,
+			Amount:          types.ExDecimal{Decimal: decimal.NewFromFloat(size)},
+			EntryPrice:      types.ExDecimal{Decimal: decimal.NewFromFloat(entryPrice)},
+			MarkPrice:       types.ExDecimal{Decimal: decimal.NewFromFloat(markPrice)},
+			UnrealizedPnl:   types.ExDecimal{Decimal: decimal.NewFromFloat(unrealizedPnl)},
+			LiquidationPrice: types.ExDecimal{},
+			RealizedPnl:     types.ExDecimal{},
+			Leverage:        types.ExDecimal{},
+			Margin:          types.ExDecimal{},
+			Percentage:      types.ExDecimal{},
+			Timestamp:       types.ExTimestamp{Time: time.Now()},
 		}
 
 		positions = append(positions, position)

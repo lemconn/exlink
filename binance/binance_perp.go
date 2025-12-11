@@ -71,7 +71,7 @@ func (p *BinancePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe 
 }
 
 // FetchPositions 获取持仓
-func (p *BinancePerp) FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error) {
+func (p *BinancePerp) FetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
 	return p.order.FetchPositions(ctx, symbols...)
 }
 
@@ -459,7 +459,7 @@ type binancePerpOrder struct {
 }
 
 // FetchPositions 获取持仓
-func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error) {
+func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
 	if o.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
@@ -496,7 +496,7 @@ func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string
 		return nil, fmt.Errorf("unmarshal positions: %w", err)
 	}
 
-	positions := make([]*types.Position, 0)
+	positions := make([]*model.Position, 0)
 	for _, item := range data {
 		positionAmt, _ := strconv.ParseFloat(item.PositionAmt, 64)
 		if positionAmt == 0 {
@@ -530,25 +530,27 @@ func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string
 		leverage, _ := strconv.ParseFloat(item.Leverage, 64)
 		margin, _ := strconv.ParseFloat(item.IsolatedMargin, 64)
 
-		var side types.PositionSide
+		var side string
 		if positionAmt > 0 {
-			side = types.PositionSideLong
+			side = string(types.PositionSideLong)
 		} else {
-			side = types.PositionSideShort
+			side = string(types.PositionSideShort)
 			positionAmt = -positionAmt
 		}
 
-		position := &types.Position{
+		position := &model.Position{
 			Symbol:           market.Symbol,
 			Side:             side,
-			Amount:           positionAmt,
-			EntryPrice:       entryPrice,
-			MarkPrice:        markPrice,
-			LiquidationPrice: liquidationPrice,
-			UnrealizedPnl:    unrealizedPnl,
-			Leverage:         leverage,
-			Margin:           margin,
-			Timestamp:        time.UnixMilli(item.UpdateTime),
+			Amount:           types.ExDecimal{Decimal: decimal.NewFromFloat(positionAmt)},
+			EntryPrice:       types.ExDecimal{Decimal: decimal.NewFromFloat(entryPrice)},
+			MarkPrice:        types.ExDecimal{Decimal: decimal.NewFromFloat(markPrice)},
+			LiquidationPrice: types.ExDecimal{Decimal: decimal.NewFromFloat(liquidationPrice)},
+			UnrealizedPnl:    types.ExDecimal{Decimal: decimal.NewFromFloat(unrealizedPnl)},
+			RealizedPnl:      types.ExDecimal{},
+			Leverage:         types.ExDecimal{Decimal: decimal.NewFromFloat(leverage)},
+			Margin:           types.ExDecimal{Decimal: decimal.NewFromFloat(margin)},
+			Percentage:       types.ExDecimal{},
+			Timestamp:        types.ExTimestamp{Time: time.UnixMilli(item.UpdateTime)},
 		}
 
 		positions = append(positions, position)
