@@ -40,7 +40,7 @@ type PerpExchange interface {
 	// ========== 账户信息 ==========
 
 	// FetchPositions 获取持仓
-	FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error)
+	FetchPositions(ctx context.Context, symbols ...string) (model.Positions, error)
 
 	// ========== 订单操作 ==========
 

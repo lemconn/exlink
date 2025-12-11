@@ -63,7 +63,7 @@ func (p *OKXPerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe stri
 	return p.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 }
 
-func (p *OKXPerp) FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error) {
+func (p *OKXPerp) FetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
 	return p.order.FetchPositions(ctx, symbols...)
 }
 
@@ -536,7 +536,7 @@ func (o *okxPerpOrder) getPositionMode(ctx context.Context) (string, error) {
 	return posMode, nil
 }
 
-func (o *okxPerpOrder) FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error) {
+func (o *okxPerpOrder) FetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
 	params := map[string]interface{}{
 		"instType": "SWAP",
 	}
@@ -584,7 +584,7 @@ func (o *okxPerpOrder) FetchPositions(ctx context.Context, symbols ...string) ([
 		return nil, fmt.Errorf("okx api error: %s", result.Msg)
 	}
 
-	positions := make([]*types.Position, 0)
+	positions := make([]*model.Position, 0)
 	for _, item := range result.Data {
 		pos, _ := strconv.ParseFloat(item.Pos, 64)
 		if pos == 0 {
@@ -609,21 +609,31 @@ func (o *okxPerpOrder) FetchPositions(ctx context.Context, symbols ...string) ([
 			}
 		}
 
-		position := &types.Position{
-			Symbol:    market.Symbol,
-			Amount:    pos,
-			Timestamp: time.Now(),
-		}
+		entryPrice, _ := strconv.ParseFloat(item.AvgPx, 64)
+		markPrice, _ := strconv.ParseFloat(item.MarkPx, 64)
+		unrealizedPnl, _ := strconv.ParseFloat(item.Upl, 64)
 
-		position.EntryPrice, _ = strconv.ParseFloat(item.AvgPx, 64)
-		position.MarkPrice, _ = strconv.ParseFloat(item.MarkPx, 64)
-		position.UnrealizedPnl, _ = strconv.ParseFloat(item.Upl, 64)
-
+		var side string
 		// 根据 posSide 确定持仓方向
 		if item.PosSide == "long" || (item.PosSide == "net" && pos > 0) {
-			position.Side = types.PositionSideLong
+			side = string(types.PositionSideLong)
 		} else {
-			position.Side = types.PositionSideShort
+			side = string(types.PositionSideShort)
+		}
+
+		position := &model.Position{
+			Symbol:         market.Symbol,
+			Side:           side,
+			Amount:         types.ExDecimal{Decimal: decimal.NewFromFloat(pos)},
+			EntryPrice:     types.ExDecimal{Decimal: decimal.NewFromFloat(entryPrice)},
+			MarkPrice:      types.ExDecimal{Decimal: decimal.NewFromFloat(markPrice)},
+			UnrealizedPnl:  types.ExDecimal{Decimal: decimal.NewFromFloat(unrealizedPnl)},
+			LiquidationPrice: types.ExDecimal{},
+			RealizedPnl:     types.ExDecimal{},
+			Leverage:        types.ExDecimal{},
+			Margin:          types.ExDecimal{},
+			Percentage:      types.ExDecimal{},
+			Timestamp:       types.ExTimestamp{Time: time.Now()},
 		}
 
 		positions = append(positions, position)
