@@ -64,3 +64,43 @@ type binanceSpotBalanceItem struct {
 	Free   types.ExDecimal `json:"free"`
 	Locked types.ExDecimal `json:"locked"`
 }
+
+// binanceSpotCreateOrderRequest Binance 现货创建订单请求
+type binanceSpotCreateOrderRequest struct {
+	Symbol           string `json:"symbol"`            // 交易对
+	Side             string `json:"side"`              // 订单方向 BUY/SELL
+	Type             string `json:"type"`              // 订单类型 LIMIT/MARKET
+	Quantity         string `json:"quantity"`          // 数量
+	Price            string `json:"price,omitempty"`   // 价格（限价单必填）
+	TimeInForce      string `json:"timeInForce,omitempty"` // 有效期类型
+	NewClientOrderId string `json:"newClientOrderId,omitempty"` // 客户端订单ID
+	Timestamp        int64  `json:"timestamp"`         // 时间戳
+}
+
+// binanceSpotCreateOrderResponse Binance 现货创建订单响应
+type binanceSpotCreateOrderResponse struct {
+	Symbol                  string                       `json:"symbol"`
+	OrderID                 int64                        `json:"orderId"`
+	ClientOrderID           string                       `json:"clientOrderId"`
+	TransactTime            types.ExTimestamp            `json:"transactTime"`
+	Price                   types.ExDecimal              `json:"price"`
+	OrigQty                 types.ExDecimal              `json:"origQty"`
+	ExecutedQty             types.ExDecimal              `json:"executedQty"`
+	CummulativeQuoteQty     types.ExDecimal              `json:"cummulativeQuoteQty"`
+	Status                  string                       `json:"status"`
+	TimeInForce             string                       `json:"timeInForce"`
+	Type                    string                       `json:"type"`
+	Side                    string                       `json:"side"`
+	WorkingTime             types.ExTimestamp            `json:"workingTime"`
+	Fills                   []binanceSpotCreateOrderFill `json:"fills"`
+	OrigQuoteOrderQty       types.ExDecimal              `json:"origQuoteOrderQty,omitempty"`
+}
+
+// binanceSpotCreateOrderFill Binance 现货订单成交明细
+type binanceSpotCreateOrderFill struct {
+	Price           types.ExDecimal `json:"price"`
+	Qty             types.ExDecimal `json:"qty"`
+	Commission      types.ExDecimal `json:"commission"`
+	CommissionAsset string          `json:"commissionAsset"`
+	TradeID         int64           `json:"tradeId"`
+}

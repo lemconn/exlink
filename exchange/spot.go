@@ -45,7 +45,7 @@ type SpotExchange interface {
 	// ========== 订单操作 ==========
 
 	// CreateOrder 创建订单
-	CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error)
+	CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...model.OrderOption) (*model.Order, error)
 
 	// CancelOrder 取消订单
 	CancelOrder(ctx context.Context, orderID, symbol string) error

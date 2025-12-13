@@ -62,3 +62,34 @@ type okxSpotBalanceDetail struct {
 	FrozenBal types.ExDecimal   `json:"frozenBal"`
 	UTime     types.ExTimestamp `json:"uTime"`
 }
+
+// okxSpotCreateOrderRequest OKX 现货创建订单请求
+type okxSpotCreateOrderRequest struct {
+	InstId    string `json:"instId"`              // 产品ID
+	TdMode    string `json:"tdMode"`              // 交易模式 cash
+	Side      string `json:"side"`                // 订单方向 buy/sell
+	OrdType   string `json:"ordType"`             // 订单类型 market/limit
+	Sz        string `json:"sz"`                  // 数量
+	Px        string `json:"px,omitempty"`        // 价格（限价单必填）
+	TgtCcy    string `json:"tgtCcy,omitempty"`    // 目标币种 base_ccy/quote_ccy
+	ClOrdId   string `json:"clOrdId,omitempty"`   // 客户端订单ID
+}
+
+// okxSpotCreateOrderResponse OKX 现货创建订单响应
+type okxSpotCreateOrderResponse struct {
+	Code    string                      `json:"code"`
+	Msg     string                      `json:"msg"`
+	Data    []okxSpotCreateOrderData    `json:"data"`
+	InTime  types.ExTimestamp           `json:"inTime"`
+	OutTime types.ExTimestamp           `json:"outTime"`
+}
+
+// okxSpotCreateOrderData OKX 现货创建订单数据
+type okxSpotCreateOrderData struct {
+	ClOrdId string            `json:"clOrdId"`
+	OrdId   string            `json:"ordId"`
+	Tag     string            `json:"tag"`
+	SCode   string            `json:"sCode"`
+	SMsg    string            `json:"sMsg"`
+	Ts      types.ExTimestamp `json:"ts"`
+}
