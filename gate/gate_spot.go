@@ -64,8 +64,8 @@ func (s *GateSpot) FetchBalance(ctx context.Context) (model.Balances, error) {
 	return s.order.FetchBalance(ctx)
 }
 
-func (s *GateSpot) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
-	return s.order.CreateOrder(ctx, symbol, side, amount, opts...)
+func (s *GateSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...model.OrderOption) (*model.Order, error) {
+	return s.order.CreateOrder(ctx, symbol, side, opts...)
 }
 
 func (s *GateSpot) CancelOrder(ctx context.Context, orderID, symbol string) error {
@@ -414,9 +414,15 @@ func (o *gateSpotOrder) FetchBalance(ctx context.Context) (model.Balances, error
 	return balances, nil
 }
 
-func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
+func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...model.OrderOption) (*model.Order, error) {
 	// 解析选项
-	options := types.ApplyOrderOptions(opts...)
+	options := model.ApplyOrderOptions(opts...)
+
+	if options == nil || *options.Size == "" {
+		return nil, fmt.Errorf("size is required")
+	}
+
+	amount := *options.Size
 
 	// 判断订单类型
 	var orderType types.OrderType
@@ -478,7 +484,7 @@ func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side typ
 		reqBody["time_in_force"] = "ioc" // 市价单固定 ioc
 
 		// 现货市价买单: 需要通过Ticker换算成USDT数量
-		if side == types.OrderSideBuy {
+		if side == model.OrderSideBuy {
 			ticker, err := o.gate.spot.market.FetchTicker(ctx, symbol)
 			if err != nil {
 				return nil, fmt.Errorf("fetch ticker for market buy: %w", err)
@@ -501,7 +507,7 @@ func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side typ
 	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
 		reqBody["text"] = *options.ClientOrderID
 	} else {
-		reqBody["text"] = common.GenerateClientOrderID(o.gate.Name(), side)
+		reqBody["text"] = common.GenerateClientOrderID(o.gate.Name(), types.OrderSide(side))
 	}
 
 	resp, err := o.signAndRequest(ctx, "POST", path, nil, reqBody)
@@ -509,31 +515,59 @@ func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side typ
 		return nil, fmt.Errorf("create order: %w", err)
 	}
 
-	var data map[string]interface{}
-	if err := json.Unmarshal(resp, &data); err != nil {
+	var result gateSpotCreateOrderResponse
+	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
-	order := &types.Order{
-		ID:        getString(data, "id"),
-		Symbol:    symbol,
-		Type:      orderType,
-		Side:      side,
-		Amount:    amountFloat,
-		Price:     priceFloat,
-		Timestamp: time.Now(),
-		Status:    types.OrderStatusNew,
+	// 解析状态
+	var status model.OrderStatus
+	switch result.FinishAs {
+	case "":
+		status = model.OrderStatusOpen
+	case "filled":
+		status = model.OrderStatusClosed
+	case "cancelled":
+		status = model.OrderStatusCanceled
+	case "expired":
+		status = model.OrderStatusExpired
+	default:
+		status = model.OrderStatusNew
 	}
 
-	// 解析状态
-	if statusStr := getString(data, "status"); statusStr != "" {
-		switch statusStr {
-		case "open":
-			order.Status = types.OrderStatusOpen
-		case "closed":
-			order.Status = types.OrderStatusFilled
-		case "cancelled":
-			order.Status = types.OrderStatusCanceled
+	// 转换订单类型
+	var modelOrderType model.OrderType
+	if orderType == types.OrderTypeMarket {
+		modelOrderType = model.OrderTypeMarket
+	} else {
+		modelOrderType = model.OrderTypeLimit
+	}
+
+	// 转换订单方向
+	var modelOrderSide model.OrderSide
+	if side == model.OrderSideBuy {
+		modelOrderSide = model.OrderSideBuy
+	} else {
+		modelOrderSide = model.OrderSideSell
+	}
+
+	order := &model.Order{
+		ID:            result.ID,
+		ClientOrderID: result.Text,
+		Symbol:        symbol,
+		Type:          modelOrderType,
+		Side:          modelOrderSide,
+		Amount:        result.Amount,
+		Price:         result.Price,
+		Timestamp:     result.CreateTimeMs,
+		Status:        status,
+	}
+
+	// 设置手续费
+	if !result.Fee.IsZero() && result.FeeCurrency != "" {
+		order.Fee = &model.Fee{
+			Currency: result.FeeCurrency,
+			Cost:     result.Fee,
 		}
 	}
 

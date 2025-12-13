@@ -65,8 +65,8 @@ func (s *BybitSpot) FetchBalance(ctx context.Context) (model.Balances, error) {
 	return s.order.FetchBalance(ctx)
 }
 
-func (s *BybitSpot) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
-	return s.order.CreateOrder(ctx, symbol, side, amount, opts...)
+func (s *BybitSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...model.OrderOption) (*model.Order, error) {
+	return s.order.CreateOrder(ctx, symbol, side, opts...)
 }
 
 func (s *BybitSpot) CancelOrder(ctx context.Context, orderID, symbol string) error {
@@ -440,9 +440,15 @@ func (o *bybitSpotOrder) FetchBalance(ctx context.Context) (model.Balances, erro
 	return balances, nil
 }
 
-func (o *bybitSpotOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
+func (o *bybitSpotOrder) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...model.OrderOption) (*model.Order, error) {
 	// 解析选项
-	options := types.ApplyOrderOptions(opts...)
+	options := model.ApplyOrderOptions(opts...)
+
+	if options == nil || *options.Amount == "" {
+		return nil, fmt.Errorf("amount is required")
+	}
+
+	amount := *options.Amount
 
 	// 判断订单类型
 	var orderType types.OrderType
@@ -482,7 +488,7 @@ func (o *bybitSpotOrder) CreateOrder(ctx context.Context, symbol string, side ty
 	}
 
 	// 现货市价买单特殊处理
-	if orderType == types.OrderTypeMarket && side == types.OrderSideBuy {
+	if orderType == types.OrderTypeMarket && side == model.OrderSideBuy {
 		// Calculate cost: amount * price (use current ask price if price not provided)
 		amountDecimal, err := decimal.NewFromString(amount)
 		if err != nil {
@@ -552,7 +558,7 @@ func (o *bybitSpotOrder) CreateOrder(ctx context.Context, symbol string, side ty
 	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
 		reqBody["orderLinkId"] = *options.ClientOrderID
 	} else {
-		reqBody["orderLinkId"] = common.GenerateClientOrderID(o.bybit.Name(), side)
+		reqBody["orderLinkId"] = common.GenerateClientOrderID(o.bybit.Name(), types.OrderSide(side))
 	}
 
 	resp, err := o.signAndRequest(ctx, "POST", "/v5/order/create", nil, reqBody)
@@ -560,15 +566,7 @@ func (o *bybitSpotOrder) CreateOrder(ctx context.Context, symbol string, side ty
 		return nil, fmt.Errorf("create order: %w", err)
 	}
 
-	var result struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-		Result  struct {
-			OrderID     string `json:"orderId"`
-			OrderLinkID string `json:"orderLinkId"`
-		} `json:"result"`
-	}
-
+	var result bybitSpotCreateOrderResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
@@ -577,22 +575,39 @@ func (o *bybitSpotOrder) CreateOrder(ctx context.Context, symbol string, side ty
 		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
 	}
 
-	amountFloat, _ := strconv.ParseFloat(amount, 64)
-	var priceFloat float64
+	// 解析数量和价格
+	amountDecimal, _ := decimal.NewFromString(amount)
+	var priceDecimal decimal.Decimal
 	if priceStr != "" {
-		priceFloat, _ = strconv.ParseFloat(priceStr, 64)
+		priceDecimal, _ = decimal.NewFromString(priceStr)
 	}
 
-	order := &types.Order{
+	// 转换订单类型
+	var modelOrderType model.OrderType
+	if orderType == types.OrderTypeMarket {
+		modelOrderType = model.OrderTypeMarket
+	} else {
+		modelOrderType = model.OrderTypeLimit
+	}
+
+	// 转换订单方向
+	var modelOrderSide model.OrderSide
+	if side == model.OrderSideBuy {
+		modelOrderSide = model.OrderSideBuy
+	} else {
+		modelOrderSide = model.OrderSideSell
+	}
+
+	order := &model.Order{
 		ID:            result.Result.OrderID,
 		ClientOrderID: result.Result.OrderLinkID,
 		Symbol:        symbol,
-		Type:          orderType,
-		Side:          side,
-		Amount:        amountFloat,
-		Price:         priceFloat,
-		Timestamp:     time.Now(),
-		Status:        types.OrderStatusNew,
+		Type:          modelOrderType,
+		Side:          modelOrderSide,
+		Amount:        types.ExDecimal{Decimal: amountDecimal},
+		Price:         types.ExDecimal{Decimal: priceDecimal},
+		Timestamp:     result.Time,
+		Status:        model.OrderStatusNew,
 	}
 
 	return order, nil
