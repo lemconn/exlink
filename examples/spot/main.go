@@ -73,6 +73,6 @@ func main() {
 	// 打印结果
 	fmt.Printf("下单成功，打印结果:\n")
 	fmt.Printf("ID:%s, 订单ID：%s, 交易对：%s, 订单类型：%s, 方向：%s, 数量：%s, 价格：%s, 状态：%s",
-		order.ID, order.ClientOrderID, order.Symbol, order.Type, order.Side, order.Amount, order.Status)
+		order.ID, order.ClientOrderID, order.Symbol, order.Type, order.Side, order.Amount, order.Price, order.Status)
 
 }

@@ -149,31 +149,20 @@ type gateSpotBalanceItem struct {
 	Locked    types.ExDecimal `json:"locked"`
 }
 
-// gateSpotCreateOrderRequest Gate 现货创建订单请求
-type gateSpotCreateOrderRequest struct {
-	CurrencyPair string `json:"currency_pair"`         // 交易对
-	Side         string `json:"side"`                  // 订单方向 buy/sell
-	Amount       string `json:"amount"`                // 数量
-	Price        string `json:"price,omitempty"`       // 价格（限价单必填）
-	Type         string `json:"type"`                  // 订单类型 limit/market
-	TimeInForce  string `json:"time_in_force"`         // 有效期类型 gtc/ioc
-	Text         string `json:"text,omitempty"`        // 客户端订单ID
-}
-
 // gateSpotCreateOrderResponse Gate 现货创建订单响应
 type gateSpotCreateOrderResponse struct {
-	ID            string            `json:"id"`
-	Text          string            `json:"text"`
-	CreateTime    types.ExTimestamp `json:"create_time"`
-	CreateTimeMs  types.ExTimestamp `json:"create_time_ms"`
-	CurrencyPair  string            `json:"currency_pair"`
-	Type          string            `json:"type"`
-	Account       string            `json:"account"`
-	Side          string            `json:"side"`
-	Amount        types.ExDecimal   `json:"amount"`
-	Price         types.ExDecimal   `json:"price"`
-	TimeInForce   string            `json:"time_in_force"`
-	Fee           types.ExDecimal   `json:"fee,omitempty"`
-	FeeCurrency   string            `json:"fee_currency,omitempty"`
-	FinishAs      string            `json:"finish_as,omitempty"`
+	ID           string            `json:"id"`
+	Text         string            `json:"text"`
+	CreateTime   types.ExTimestamp `json:"create_time"`
+	CreateTimeMs types.ExTimestamp `json:"create_time_ms"`
+	CurrencyPair string            `json:"currency_pair"`
+	Type         string            `json:"type"`
+	Account      string            `json:"account"`
+	Side         string            `json:"side"`
+	Amount       types.ExDecimal   `json:"amount"`
+	Price        types.ExDecimal   `json:"price"`
+	TimeInForce  string            `json:"time_in_force"`
+	Fee          types.ExDecimal   `json:"fee,omitempty"`
+	FeeCurrency  string            `json:"fee_currency,omitempty"`
+	FinishAs     string            `json:"finish_as,omitempty"`
 }
