@@ -53,14 +53,6 @@ type PerpExchange interface {
 	// FetchOrder 查询订单
 	FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error)
 
-	// ========== 交易记录 ==========
-
-	// FetchTrades 获取交易记录（公共）
-	FetchTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error)
-
-	// FetchMyTrades 获取我的交易记录
-	FetchMyTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error)
-
 	// ========== 合约特有功能 ==========
 
 	// SetLeverage 设置杠杆
