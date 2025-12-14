@@ -12,7 +12,6 @@ import (
 	"github.com/lemconn/exlink/exchange"
 	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/types"
-	"github.com/shopspring/decimal"
 )
 
 // BybitPerp Bybit 永续合约实现
@@ -449,21 +448,7 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 		return nil, fmt.Errorf("fetch positions: %w", err)
 	}
 
-	var result struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-		Result  struct {
-			List []struct {
-				Symbol        string `json:"symbol"`
-				Side          string `json:"side"`
-				Size          string `json:"size"`
-				EntryPrice    string `json:"avgPrice"`
-				MarkPrice     string `json:"markPrice"`
-				UnrealisedPnl string `json:"unrealisedPnl"`
-			} `json:"list"`
-		} `json:"result"`
-	}
-
+	var result bybitPerpPositionResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal positions: %w", err)
 	}
@@ -474,7 +459,7 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 
 	positions := make([]*model.Position, 0)
 	for _, item := range result.Result.List {
-		size, _ := strconv.ParseFloat(item.Size, 64)
+		size, _ := item.Size.Float64()
 		if size == 0 {
 			continue
 		}
@@ -497,10 +482,6 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 			}
 		}
 
-		entryPrice, _ := strconv.ParseFloat(item.EntryPrice, 64)
-		markPrice, _ := strconv.ParseFloat(item.MarkPrice, 64)
-		unrealizedPnl, _ := strconv.ParseFloat(item.UnrealisedPnl, 64)
-
 		var side string
 		if strings.ToUpper(item.Side) == "BUY" {
 			side = string(types.PositionSideLong)
@@ -509,18 +490,18 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 		}
 
 		position := &model.Position{
-			Symbol:          market.Symbol,
-			Side:            side,
-			Amount:          types.ExDecimal{Decimal: decimal.NewFromFloat(size)},
-			EntryPrice:      types.ExDecimal{Decimal: decimal.NewFromFloat(entryPrice)},
-			MarkPrice:       types.ExDecimal{Decimal: decimal.NewFromFloat(markPrice)},
-			UnrealizedPnl:   types.ExDecimal{Decimal: decimal.NewFromFloat(unrealizedPnl)},
-			LiquidationPrice: types.ExDecimal{},
-			RealizedPnl:     types.ExDecimal{},
-			Leverage:        types.ExDecimal{},
-			Margin:          types.ExDecimal{},
-			Percentage:      types.ExDecimal{},
-			Timestamp:       types.ExTimestamp{Time: time.Now()},
+			Symbol:           market.Symbol,
+			Side:             side,
+			Amount:           item.Size,
+			EntryPrice:       item.AvgPrice,
+			MarkPrice:        item.MarkPrice,
+			UnrealizedPnl:    item.UnrealisedPnl,
+			LiquidationPrice: item.LiqPrice,
+			RealizedPnl:      item.CumRealisedPnl,
+			Leverage:         item.Leverage,
+			Margin:           item.PositionIM,
+			Percentage:       types.ExDecimal{},
+			Timestamp:        item.UpdatedTime,
 		}
 
 		positions = append(positions, position)
