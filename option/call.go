@@ -4,6 +4,28 @@ import (
 	"time"
 )
 
+// ========== 现货开仓选项 ==========
+
+const (
+	// Buy 买入
+	Buy = "BUY"
+	// Sell 卖出
+	Sell = "SELL"
+)
+
+// ========== 合约开仓选项 ==========
+
+const (
+	// OpenLong 开多
+	OpenLong = "OPEN_LONG"
+	// OpenShort 开空
+	OpenShort = "OPEN_SHORT"
+	// CloseLong 平多
+	CloseLong = "CLOSE_LONG"
+	// CloseShort 平空
+	CloseShort = "CLOSE_SHORT"
+)
+
 // ExchangeArgsOptions 方法调用参数选项（用于 Exchange 方法调用）
 type ExchangeArgsOptions struct {
 	// ========== 通用查询参数 ==========

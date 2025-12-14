@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/lemconn/exlink/option"
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/exchange"
 	"github.com/lemconn/exlink/model"
+	"github.com/lemconn/exlink/option"
 	"github.com/lemconn/exlink/types"
 	"github.com/shopspring/decimal"
 )
@@ -139,50 +139,6 @@ func (p *BinancePerp) CancelOrder(ctx context.Context, orderID, symbol string) e
 // FetchOrder 查询订单
 func (p *BinancePerp) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
 	return p.order.FetchOrder(ctx, orderID, symbol)
-}
-
-// FetchTrades 获取交易记录（公共）
-func (p *BinancePerp) FetchTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error) {
-	// 解析参数
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-
-	// 获取参数值（带默认值）
-	limit := 100 // 默认值
-	if argsOpts.Limit != nil {
-		limit = *argsOpts.Limit
-	}
-
-	since := time.Time{} // 默认值
-	if argsOpts.Since != nil {
-		since = *argsOpts.Since
-	}
-
-	return p.order.FetchTrades(ctx, symbol, since, limit)
-}
-
-// FetchMyTrades 获取我的交易记录
-func (p *BinancePerp) FetchMyTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error) {
-	// 解析参数
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-
-	// 获取参数值（带默认值）
-	limit := 100 // 默认值
-	if argsOpts.Limit != nil {
-		limit = *argsOpts.Limit
-	}
-
-	since := time.Time{} // 默认值
-	if argsOpts.Since != nil {
-		since = *argsOpts.Since
-	}
-
-	return p.order.FetchMyTrades(ctx, symbol, since, limit)
 }
 
 // SetLeverage 设置杠杆
@@ -989,166 +945,6 @@ func (o *binancePerpOrder) FetchOrder(ctx context.Context, orderID, symbol strin
 	}
 
 	return order, nil
-}
-
-// FetchTrades 获取交易记录（公共）
-func (o *binancePerpOrder) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
-	// 获取市场信息
-	market, err := o.binance.perp.market.GetMarket(symbol)
-	if err != nil {
-		return nil, err
-	}
-
-	// 获取交易所格式的 symbol ID
-	binanceSymbol := market.ID
-	if binanceSymbol == "" {
-		var err error
-		binanceSymbol, err = ToBinanceSymbol(symbol, true)
-		if err != nil {
-			return nil, fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	params := map[string]interface{}{
-		"symbol": binanceSymbol,
-		"limit":  limit,
-	}
-	if !since.IsZero() {
-		params["startTime"] = since.UnixMilli()
-	}
-
-	resp, err := o.binance.client.PerpClient.Get(ctx, "/fapi/v1/trades", params)
-	if err != nil {
-		return nil, fmt.Errorf("fetch trades: %w", err)
-	}
-
-	var data []struct {
-		ID      int64  `json:"id"`
-		Price   string `json:"price"`
-		Qty     string `json:"qty"`
-		Time    int64  `json:"time"`
-		IsBuyer bool   `json:"isBuyerMaker"`
-	}
-
-	if err := json.Unmarshal(resp, &data); err != nil {
-		return nil, fmt.Errorf("unmarshal trades: %w", err)
-	}
-
-	trades := make([]*types.Trade, 0, len(data))
-	for _, item := range data {
-		price, _ := strconv.ParseFloat(item.Price, 64)
-		qty, _ := strconv.ParseFloat(item.Qty, 64)
-
-		trade := &types.Trade{
-			ID:        strconv.FormatInt(item.ID, 10),
-			Symbol:    symbol, // 使用标准化格式
-			Price:     price,
-			Amount:    qty,
-			Cost:      price * qty,
-			Timestamp: time.UnixMilli(item.Time),
-		}
-
-		if !item.IsBuyer {
-			trade.Side = "buy"
-		} else {
-			trade.Side = "sell"
-		}
-
-		trades = append(trades, trade)
-	}
-
-	return trades, nil
-}
-
-// FetchMyTrades 获取我的交易记录
-func (o *binancePerpOrder) FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
-	if o.binance.client.SecretKey == "" {
-		return nil, fmt.Errorf("authentication required")
-	}
-
-	// 获取市场信息
-	market, err := o.binance.perp.market.GetMarket(symbol)
-	if err != nil {
-		return nil, err
-	}
-
-	// 获取交易所格式的 symbol ID
-	binanceSymbol := market.ID
-	if binanceSymbol == "" {
-		var err error
-		binanceSymbol, err = ToBinanceSymbol(symbol, true)
-		if err != nil {
-			return nil, fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	timestamp := common.GetTimestamp()
-	params := map[string]interface{}{
-		"symbol":    binanceSymbol,
-		"limit":     limit,
-		"timestamp": timestamp,
-	}
-	if !since.IsZero() {
-		params["startTime"] = since.UnixMilli()
-	}
-
-	queryString := BuildQueryString(params)
-	signature := o.binance.signer.Sign(queryString)
-	params["signature"] = signature
-
-	resp, err := o.binance.client.PerpClient.Get(ctx, "/fapi/v1/userTrades", params)
-	if err != nil {
-		return nil, fmt.Errorf("fetch my trades: %w", err)
-	}
-
-	var data []struct {
-		ID              int64  `json:"id"`
-		OrderID         int64  `json:"orderId"`
-		Price           string `json:"price"`
-		Qty             string `json:"qty"`
-		Time            int64  `json:"time"`
-		IsBuyer         bool   `json:"buyer"`
-		Commission      string `json:"commission"`
-		CommissionAsset string `json:"commissionAsset"`
-	}
-
-	if err := json.Unmarshal(resp, &data); err != nil {
-		return nil, fmt.Errorf("unmarshal trades: %w", err)
-	}
-
-	trades := make([]*types.Trade, 0, len(data))
-	for _, item := range data {
-		price, _ := strconv.ParseFloat(item.Price, 64)
-		qty, _ := strconv.ParseFloat(item.Qty, 64)
-		commission, _ := strconv.ParseFloat(item.Commission, 64)
-
-		trade := &types.Trade{
-			ID:        strconv.FormatInt(item.ID, 10),
-			OrderID:   strconv.FormatInt(item.OrderID, 10),
-			Symbol:    symbol, // 使用标准化格式
-			Price:     price,
-			Amount:    qty,
-			Cost:      price * qty,
-			Timestamp: time.UnixMilli(item.Time),
-		}
-
-		if item.IsBuyer {
-			trade.Side = "buy"
-		} else {
-			trade.Side = "sell"
-		}
-
-		if commission > 0 {
-			trade.Fee = &types.Fee{
-				Currency: item.CommissionAsset,
-				Cost:     commission,
-			}
-		}
-
-		trades = append(trades, trade)
-	}
-
-	return trades, nil
 }
 
 // SetLeverage 设置杠杆
