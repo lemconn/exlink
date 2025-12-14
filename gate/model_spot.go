@@ -148,3 +148,21 @@ type gateSpotBalanceItem struct {
 	Available types.ExDecimal `json:"available"`
 	Locked    types.ExDecimal `json:"locked"`
 }
+
+// gateSpotCreateOrderResponse Gate 现货创建订单响应
+type gateSpotCreateOrderResponse struct {
+	ID           string            `json:"id"`
+	Text         string            `json:"text"`
+	CreateTime   types.ExTimestamp `json:"create_time"`
+	CreateTimeMs types.ExTimestamp `json:"create_time_ms"`
+	CurrencyPair string            `json:"currency_pair"`
+	Type         string            `json:"type"`
+	Account      string            `json:"account"`
+	Side         string            `json:"side"`
+	Amount       types.ExDecimal   `json:"amount"`
+	Price        types.ExDecimal   `json:"price"`
+	TimeInForce  string            `json:"time_in_force"`
+	Fee          types.ExDecimal   `json:"fee,omitempty"`
+	FeeCurrency  string            `json:"fee_currency,omitempty"`
+	FinishAs     string            `json:"finish_as,omitempty"`
+}

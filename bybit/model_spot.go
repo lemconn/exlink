@@ -67,3 +67,18 @@ type bybitSpotBalanceCoin struct {
 	Locked          types.ExDecimal `json:"locked"`
 	Coin            string          `json:"coin"`
 }
+
+// bybitSpotCreateOrderResponse Bybit 现货创建订单响应
+type bybitSpotCreateOrderResponse struct {
+	RetCode    int                        `json:"retCode"`
+	RetMsg     string                     `json:"retMsg"`
+	Result     bybitSpotCreateOrderResult `json:"result"`
+	RetExtInfo map[string]interface{}     `json:"retExtInfo"`
+	Time       types.ExTimestamp          `json:"time"`
+}
+
+// bybitSpotCreateOrderResult Bybit 现货创建订单结果
+type bybitSpotCreateOrderResult struct {
+	OrderID     string `json:"orderId"`
+	OrderLinkID string `json:"orderLinkId"`
+}

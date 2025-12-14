@@ -7,14 +7,15 @@ import (
 	"time"
 
 	"github.com/lemconn/exlink"
+	"github.com/lemconn/exlink/model"
 )
 
 func main() {
 	ctx := context.Background()
 
 	// 从环境变量获取 API 密钥
-	apiKey := os.Getenv("BINANCE_API_KEY")
-	secretKey := os.Getenv("BINANCE_SECRET_KEY")
+	apiKey := os.Getenv("OKX_API_KEY")
+	secretKey := os.Getenv("OKX_SECRET_KEY")
 
 	// 创建 Binance 交易所实例
 	opts := []exlink.Option{
@@ -54,4 +55,24 @@ func main() {
 			ohlcv.Timestamp.Format("2006-01-02 15:04:05"),
 			ohlcv.Open.String(), ohlcv.High.String(), ohlcv.Low.String(), ohlcv.Close.String(), ohlcv.Volume.String())
 	}
+
+	// 创建订单
+	symbol = "SOL/USDT"
+	side := model.OrderSideBuy
+	orderOpts := []model.OrderOption{
+		model.WithAmount("0.1"), // 交易对数量
+		model.WithSize("0.1"),   // 张数量（针对 gate/okx 交易所）
+		model.WithPrice("130"),
+	}
+	order, err := spot.CreateOrder(ctx, symbol, side, orderOpts...)
+	if err != nil {
+		fmt.Printf("下单失败: %v\n", err)
+		return
+	}
+
+	// 打印结果
+	fmt.Printf("下单成功，打印结果:\n")
+	fmt.Printf("ID:%s, 订单ID：%s, 交易对：%s, 订单类型：%s, 方向：%s, 数量：%s, 价格：%s, 状态：%s",
+		order.ID, order.ClientOrderID, order.Symbol, order.Type, order.Side, order.Amount, order.Price, order.Status)
+
 }

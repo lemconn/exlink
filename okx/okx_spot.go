@@ -12,6 +12,7 @@ import (
 	"github.com/lemconn/exlink/exchange"
 	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/types"
+	"github.com/shopspring/decimal"
 )
 
 // OKXSpot OKX 现货实现
@@ -64,8 +65,8 @@ func (s *OKXSpot) FetchBalance(ctx context.Context) (model.Balances, error) {
 	return s.order.FetchBalance(ctx)
 }
 
-func (s *OKXSpot) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
-	return s.order.CreateOrder(ctx, symbol, side, amount, opts...)
+func (s *OKXSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...model.OrderOption) (*model.Order, error) {
+	return s.order.CreateOrder(ctx, symbol, side, opts...)
 }
 
 func (s *OKXSpot) CancelOrder(ctx context.Context, orderID, symbol string) error {
@@ -442,9 +443,15 @@ func (o *okxSpotOrder) FetchBalance(ctx context.Context) (model.Balances, error)
 	return balances, nil
 }
 
-func (o *okxSpotOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
+func (o *okxSpotOrder) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...model.OrderOption) (*model.Order, error) {
 	// 解析选项
-	options := types.ApplyOrderOptions(opts...)
+	options := model.ApplyOrderOptions(opts...)
+
+	if options == nil || *options.Size == "" {
+		return nil, fmt.Errorf("size is required")
+	}
+
+	amount := *options.Size
 
 	// 判断订单类型
 	var orderType types.OrderType
@@ -499,7 +506,7 @@ func (o *okxSpotOrder) CreateOrder(ctx context.Context, symbol string, side type
 	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
 		reqBody["clOrdId"] = *options.ClientOrderID
 	} else {
-		reqBody["clOrdId"] = common.GenerateClientOrderID(o.okx.Name(), side)
+		reqBody["clOrdId"] = common.GenerateClientOrderID(o.okx.Name(), types.OrderSide(side))
 	}
 
 	resp, err := o.signAndRequest(ctx, "POST", "/api/v5/trade/order", nil, reqBody)
@@ -507,18 +514,7 @@ func (o *okxSpotOrder) CreateOrder(ctx context.Context, symbol string, side type
 		return nil, fmt.Errorf("create order: %w", err)
 	}
 
-	var result struct {
-		Code string `json:"code"`
-		Msg  string `json:"msg"`
-		Data []struct {
-			OrdID   string `json:"ordId"`
-			ClOrdID string `json:"clOrdId"`
-			Tag     string `json:"tag"`
-			SCode   string `json:"sCode"`
-			SMsg    string `json:"sMsg"`
-		} `json:"data"`
-	}
-
+	var result okxSpotCreateOrderResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
@@ -544,22 +540,39 @@ func (o *okxSpotOrder) CreateOrder(ctx context.Context, symbol string, side type
 		return nil, fmt.Errorf("okx api error: %s (code: %s)", errMsg, data.SCode)
 	}
 
-	amountFloat, _ := strconv.ParseFloat(amount, 64)
-	var priceFloat float64
+	// 解析数量和价格
+	amountDecimal, _ := decimal.NewFromString(amount)
+	var priceDecimal decimal.Decimal
 	if priceStr != "" {
-		priceFloat, _ = strconv.ParseFloat(priceStr, 64)
+		priceDecimal, _ = decimal.NewFromString(priceStr)
 	}
 
-	order := &types.Order{
-		ID:            data.OrdID,
-		ClientOrderID: data.ClOrdID,
+	// 转换订单类型
+	var modelOrderType model.OrderType
+	if orderType == types.OrderTypeMarket {
+		modelOrderType = model.OrderTypeMarket
+	} else {
+		modelOrderType = model.OrderTypeLimit
+	}
+
+	// 转换订单方向
+	var modelOrderSide model.OrderSide
+	if side == model.OrderSideBuy {
+		modelOrderSide = model.OrderSideBuy
+	} else {
+		modelOrderSide = model.OrderSideSell
+	}
+
+	order := &model.Order{
+		ID:            data.OrdId,
+		ClientOrderID: data.ClOrdId,
 		Symbol:        symbol,
-		Type:          orderType,
-		Side:          side,
-		Amount:        amountFloat,
-		Price:         priceFloat,
-		Timestamp:     time.Now(),
-		Status:        types.OrderStatusNew,
+		Type:          modelOrderType,
+		Side:          modelOrderSide,
+		Amount:        types.ExDecimal{Decimal: amountDecimal},
+		Price:         types.ExDecimal{Decimal: priceDecimal},
+		Timestamp:     data.Ts,
+		Status:        model.OrderStatusNew,
 	}
 
 	return order, nil

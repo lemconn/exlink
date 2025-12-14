@@ -62,3 +62,22 @@ type okxSpotBalanceDetail struct {
 	FrozenBal types.ExDecimal   `json:"frozenBal"`
 	UTime     types.ExTimestamp `json:"uTime"`
 }
+
+// okxSpotCreateOrderResponse OKX 现货创建订单响应
+type okxSpotCreateOrderResponse struct {
+	Code    string                   `json:"code"`
+	Msg     string                   `json:"msg"`
+	Data    []okxSpotCreateOrderData `json:"data"`
+	InTime  types.ExTimestamp        `json:"inTime"`
+	OutTime types.ExTimestamp        `json:"outTime"`
+}
+
+// okxSpotCreateOrderData OKX 现货创建订单数据
+type okxSpotCreateOrderData struct {
+	ClOrdId string            `json:"clOrdId"`
+	OrdId   string            `json:"ordId"`
+	Tag     string            `json:"tag"`
+	SCode   string            `json:"sCode"`
+	SMsg    string            `json:"sMsg"`
+	Ts      types.ExTimestamp `json:"ts"`
+}
