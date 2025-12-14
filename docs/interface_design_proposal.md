@@ -29,7 +29,8 @@ package exchange
 
 import (
     "context"
-    "time"
+    "github.com/lemconn/exlink/model"
+    "github.com/lemconn/exlink/option"
     "github.com/lemconn/exlink/types"
 )
 
@@ -68,7 +69,7 @@ type SpotExchange interface {
     FetchOrderBook(ctx context.Context, symbol string, limit ...int) (*types.OrderBook, error)
     
     // 获取K线数据
-    FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error)
+    FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error)
     
     // ========== 账户信息 ==========
     
@@ -78,7 +79,7 @@ type SpotExchange interface {
     // ========== 订单操作 ==========
     
     // 创建订单
-    CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error)
+    CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...option.ArgsOption) (*model.Order, error)
     
     // 取消订单
     CancelOrder(ctx context.Context, orderID, symbol string) error
@@ -89,10 +90,10 @@ type SpotExchange interface {
     // ========== 交易记录 ==========
     
     // 获取交易记录（公共）
-    FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error)
+    FetchTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error)
     
     // 获取我的交易记录
-    FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error)
+    FetchMyTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error)
 }
 
 // PerpExchange 永续合约交易接口
@@ -118,17 +119,17 @@ type PerpExchange interface {
     FetchOrderBook(ctx context.Context, symbol string, limit ...int) (*types.OrderBook, error)
     
     // 获取K线数据
-    FetchOHLCV(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (types.OHLCVs, error)
+    FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error)
     
     // ========== 账户信息 ==========
     
     // 获取持仓
-    FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error)
+    FetchPositions(ctx context.Context, opts ...option.ArgsOption) (model.Positions, error)
     
     // ========== 订单操作 ==========
     
     // 创建订单
-    CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error)
+    CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error)
     
     // 取消订单
     CancelOrder(ctx context.Context, orderID, symbol string) error
@@ -139,10 +140,10 @@ type PerpExchange interface {
     // ========== 交易记录 ==========
     
     // 获取交易记录（公共）
-    FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error)
+    FetchTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error)
     
     // 获取我的交易记录
-    FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error)
+    FetchMyTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error)
     
     // ========== 合约特有功能 ==========
     
@@ -179,8 +180,8 @@ type PerpExchange interface {
 
 ### 3. 可选参数处理
 
-- `FetchOrderBook` 的 `limit` 参数使用可变参数 `...int`，方便调用
-- `CreateOrder` 使用 `...types.OrderOption` 处理可选参数（价格、时间等）
+- `FetchOrderBook` 的 `limit` 参数使用 `option.ArgsOption`，方便调用
+- `CreateOrder` 使用 `...option.ArgsOption` 处理可选参数（价格、时间等）
 
 ### 4. 向后兼容考虑
 
@@ -192,11 +193,11 @@ type LegacyExchange struct {
     exchange Exchange
 }
 
-func (l *LegacyExchange) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
+func (l *LegacyExchange) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
     // 根据 symbol 判断是现货还是合约
     market, err := l.exchange.Spot().GetMarket(symbol)
     if err == nil && market != nil {
-        return l.exchange.Spot().CreateOrder(ctx, symbol, side, amount, opts...)
+        return l.exchange.Spot().CreateOrder(ctx, symbol, model.OrderSide(side), opts...)
     }
     
     market, err = l.exchange.Perp().GetMarket(symbol)
@@ -218,6 +219,9 @@ package binance
 import (
     "github.com/lemconn/exlink/exchange"
     "github.com/lemconn/exlink/common"
+    "github.com/lemconn/exlink/model"
+    "github.com/lemconn/exlink/option"
+    "github.com/lemconn/exlink/types"
 )
 
 // Binance 交易所实现
@@ -255,7 +259,7 @@ func (s *BinanceSpot) FetchMarkets(ctx context.Context) ([]*types.Market, error)
     // 实现逻辑
 }
 
-func (s *BinanceSpot) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
+func (s *BinanceSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...option.ArgsOption) (*model.Order, error) {
     // 使用 s.client 发送现货订单请求
 }
 
@@ -269,11 +273,11 @@ func (p *BinancePerp) FetchMarkets(ctx context.Context) ([]*types.Market, error)
     // 实现逻辑
 }
 
-func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
+func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
     // 使用 p.fapiClient 发送合约订单请求
 }
 
-func (p *BinancePerp) FetchPositions(ctx context.Context, symbols ...string) ([]*types.Position, error) {
+func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption) (model.Positions, error) {
     // 实现逻辑
 }
 ```
@@ -283,8 +287,8 @@ func (p *BinancePerp) FetchPositions(ctx context.Context, symbols ...string) ([]
 ```go
 // 创建交易所
 exchange, err := exlink.NewExchange(exlink.ExchangeBinance,
-    exlink.WithAPIKey(apiKey),
-    exlink.WithSecretKey(secretKey),
+    option.WithAPIKey(apiKey),
+    option.WithSecretKey(secretKey),
 )
 if err != nil {
     log.Fatal(err)
@@ -297,8 +301,11 @@ spot := exchange.Spot()
 markets, err := spot.FetchMarkets(ctx)
 
 // 创建现货订单
-order, err := spot.CreateOrder(ctx, "BTC/USDT", types.OrderSideBuy, "0.001",
-    types.WithPrice("50000"),
+import "github.com/lemconn/exlink/option"
+
+order, err := spot.CreateOrder(ctx, "BTC/USDT", model.OrderSideBuy,
+    option.WithPrice("50000"),
+    option.WithAmount("0.001"),
 )
 
 // 查询现货余额
@@ -315,12 +322,14 @@ err = perp.SetLeverage(ctx, "BTC/USDT:USDT", 10)
 
 // 创建合约订单
 order, err := perp.CreateOrder(ctx, "BTC/USDT:USDT", types.OrderSideBuy, "0.001",
-    types.WithPrice("50000"),
-    types.WithPositionSide(types.PositionSideLong),
+    option.WithPrice("50000"),
+    option.WithPositionSide("long"),
 )
 
 // 查询持仓
-positions, err := perp.FetchPositions(ctx, "BTC/USDT:USDT")
+positions, err := perp.FetchPositions(ctx,
+    option.WithSymbols("BTC/USDT:USDT"),
+)
 ```
 
 ## 六、总结

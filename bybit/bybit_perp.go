@@ -11,6 +11,7 @@ import (
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/exchange"
 	"github.com/lemconn/exlink/model"
+	"github.com/lemconn/exlink/option"
 	"github.com/lemconn/exlink/types"
 )
 
@@ -58,16 +59,53 @@ func (p *BybitPerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker,
 	return p.market.FetchTickers(ctx)
 }
 
-func (p *BybitPerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+func (p *BybitPerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+	limit := 100
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+	since := time.Time{}
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
 	return p.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 }
 
-func (p *BybitPerp) FetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
+func (p *BybitPerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption) (model.Positions, error) {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+	symbols := []string{}
+	if argsOpts.Symbols != nil {
+		symbols = argsOpts.Symbols
+	}
 	return p.order.FetchPositions(ctx, symbols...)
 }
 
-func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
-	return p.order.CreateOrder(ctx, symbol, side, amount, opts...)
+func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+	orderOpts := []types.OrderOption{}
+	if argsOpts.Price != nil {
+		orderOpts = append(orderOpts, types.WithPrice(*argsOpts.Price))
+	}
+	if argsOpts.ClientOrderID != nil {
+		orderOpts = append(orderOpts, types.WithClientOrderID(*argsOpts.ClientOrderID))
+	}
+	if argsOpts.PositionSide != nil {
+		orderOpts = append(orderOpts, types.WithPositionSide(types.PositionSide(*argsOpts.PositionSide)))
+	}
+	if argsOpts.TimeInForce != nil {
+		orderOpts = append(orderOpts, types.WithTimeInForce(types.OrderTimeInForceType(*argsOpts.TimeInForce)))
+	}
+	return p.order.CreateOrder(ctx, symbol, side, amount, orderOpts...)
 }
 
 func (p *BybitPerp) CancelOrder(ctx context.Context, orderID, symbol string) error {
@@ -78,11 +116,35 @@ func (p *BybitPerp) FetchOrder(ctx context.Context, orderID, symbol string) (*ty
 	return p.order.FetchOrder(ctx, orderID, symbol)
 }
 
-func (p *BybitPerp) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
+func (p *BybitPerp) FetchTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error) {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+	limit := 100
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+	since := time.Time{}
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
 	return p.order.FetchTrades(ctx, symbol, since, limit)
 }
 
-func (p *BybitPerp) FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
+func (p *BybitPerp) FetchMyTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error) {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+	limit := 100
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+	since := time.Time{}
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
 	return p.order.FetchMyTrades(ctx, symbol, since, limit)
 }
 

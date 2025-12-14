@@ -8,6 +8,7 @@ import (
 
 	"github.com/lemconn/exlink"
 	"github.com/lemconn/exlink/model"
+	"github.com/lemconn/exlink/option"
 )
 
 func main() {
@@ -18,10 +19,10 @@ func main() {
 	secretKey := os.Getenv("OKX_SECRET_KEY")
 
 	// 创建 Binance 交易所实例
-	opts := []exlink.Option{
-		exlink.WithAPIKey(apiKey),
-		exlink.WithSecretKey(secretKey),
-		exlink.WithSandbox(true),
+	opts := []option.Option{
+		option.WithAPIKey(apiKey),
+		option.WithSecretKey(secretKey),
+		option.WithSandbox(true),
 	}
 
 	ex, err := exlink.NewExchange(exlink.ExchangeBinance, opts...)
@@ -42,7 +43,10 @@ func main() {
 	// 获取 OHLCV 数据
 	symbol := "BTC/USDT"
 	timeframe := "1h"
-	ohlcvs, err := spot.FetchOHLCVs(ctx, symbol, timeframe, time.Time{}, 10)
+	ohlcvs, err := spot.FetchOHLCVs(ctx, symbol, timeframe,
+		option.WithLimit(10),
+		option.WithSince(time.Time{}),
+	)
 	if err != nil {
 		fmt.Printf("获取 OHLCV 数据失败: %v\n", err)
 		return
@@ -59,12 +63,11 @@ func main() {
 	// 创建订单
 	symbol = "SOL/USDT"
 	side := model.OrderSideBuy
-	orderOpts := []model.OrderOption{
-		model.WithAmount("0.1"), // 交易对数量
-		model.WithSize("0.1"),   // 张数量（针对 gate/okx 交易所）
-		model.WithPrice("130"),
-	}
-	order, err := spot.CreateOrder(ctx, symbol, side, orderOpts...)
+	order, err := spot.CreateOrder(ctx, symbol, side,
+		option.WithAmount("0.1"), // 交易对数量
+		option.WithSize("0.1"),   // 张数量（针对 gate/okx 交易所）
+		option.WithPrice("130"),
+	)
 	if err != nil {
 		fmt.Printf("下单失败: %v\n", err)
 		return

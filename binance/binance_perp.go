@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/lemconn/exlink/option"
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/exchange"
 	"github.com/lemconn/exlink/model"
@@ -66,18 +67,68 @@ func (p *BinancePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticke
 }
 
 // FetchOHLCVs 获取K线数据
-func (p *BinancePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+func (p *BinancePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 获取参数值（带默认值）
+	limit := 100 // 默认值
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+
+	since := time.Time{} // 默认值
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
+
 	return p.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 }
 
 // FetchPositions 获取持仓
-func (p *BinancePerp) FetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
+func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption) (model.Positions, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 获取参数值（带默认值）
+	symbols := []string{} // 默认值
+	if argsOpts.Symbols != nil {
+		symbols = argsOpts.Symbols
+	}
+
 	return p.order.FetchPositions(ctx, symbols...)
 }
 
 // CreateOrder 创建订单
-func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
-	return p.order.CreateOrder(ctx, symbol, side, amount, opts...)
+func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 转换为 types.OrderOption
+	orderOpts := []types.OrderOption{}
+	if argsOpts.Price != nil {
+		orderOpts = append(orderOpts, types.WithPrice(*argsOpts.Price))
+	}
+	if argsOpts.ClientOrderID != nil {
+		orderOpts = append(orderOpts, types.WithClientOrderID(*argsOpts.ClientOrderID))
+	}
+	if argsOpts.PositionSide != nil {
+		orderOpts = append(orderOpts, types.WithPositionSide(types.PositionSide(*argsOpts.PositionSide)))
+	}
+	if argsOpts.TimeInForce != nil {
+		orderOpts = append(orderOpts, types.WithTimeInForce(types.OrderTimeInForceType(*argsOpts.TimeInForce)))
+	}
+
+	return p.order.CreateOrder(ctx, symbol, side, amount, orderOpts...)
 }
 
 // CancelOrder 取消订单
@@ -91,12 +142,46 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, orderID, symbol string) (*
 }
 
 // FetchTrades 获取交易记录（公共）
-func (p *BinancePerp) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
+func (p *BinancePerp) FetchTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 获取参数值（带默认值）
+	limit := 100 // 默认值
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+
+	since := time.Time{} // 默认值
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
+
 	return p.order.FetchTrades(ctx, symbol, since, limit)
 }
 
 // FetchMyTrades 获取我的交易记录
-func (p *BinancePerp) FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
+func (p *BinancePerp) FetchMyTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 获取参数值（带默认值）
+	limit := 100 // 默认值
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+
+	since := time.Time{} // 默认值
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
+
 	return p.order.FetchMyTrades(ctx, symbol, since, limit)
 }
 

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/lemconn/exlink"
+	"github.com/lemconn/exlink/option"
 )
 
 func main() {
@@ -17,10 +18,10 @@ func main() {
 	secretKey := os.Getenv("BINANCE_SECRET_KEY")
 
 	// 创建 Binance 交易所实例
-	opts := []exlink.Option{
-		exlink.WithAPIKey(apiKey),
-		exlink.WithSecretKey(secretKey),
-		exlink.WithSandbox(true),
+	opts := []option.Option{
+		option.WithAPIKey(apiKey),
+		option.WithSecretKey(secretKey),
+		option.WithSandbox(true),
 	}
 
 	ex, err := exlink.NewExchange(exlink.ExchangeBinance, opts...)
@@ -41,7 +42,10 @@ func main() {
 	// 获取 OHLCV 数据
 	symbol := "BTC/USDT:USDT"
 	timeframe := "1h"
-	ohlcvs, err := perp.FetchOHLCVs(ctx, symbol, timeframe, time.Time{}, 10)
+	ohlcvs, err := perp.FetchOHLCVs(ctx, symbol, timeframe,
+		option.WithLimit(10),
+		option.WithSince(time.Time{}),
+	)
 	if err != nil {
 		fmt.Printf("获取 OHLCV 数据失败: %v\n", err)
 		return
