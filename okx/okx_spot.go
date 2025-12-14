@@ -11,6 +11,7 @@ import (
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/exchange"
 	"github.com/lemconn/exlink/model"
+	"github.com/lemconn/exlink/option"
 	"github.com/lemconn/exlink/types"
 	"github.com/shopspring/decimal"
 )
@@ -57,7 +58,19 @@ func (s *OKXSpot) FetchTickers(ctx context.Context) (map[string]*model.Ticker, e
 	return s.market.FetchTickers(ctx)
 }
 
-func (s *OKXSpot) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+func (s *OKXSpot) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+	limit := 100
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+	since := time.Time{}
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
 	return s.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 }
 
@@ -65,8 +78,28 @@ func (s *OKXSpot) FetchBalance(ctx context.Context) (model.Balances, error) {
 	return s.order.FetchBalance(ctx)
 }
 
-func (s *OKXSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...model.OrderOption) (*model.Order, error) {
-	return s.order.CreateOrder(ctx, symbol, side, opts...)
+func (s *OKXSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...option.ArgsOption) (*model.Order, error) {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+	orderOpts := []model.OrderOption{}
+	if argsOpts.Price != nil {
+		orderOpts = append(orderOpts, model.WithPrice(*argsOpts.Price))
+	}
+	if argsOpts.Amount != nil {
+		orderOpts = append(orderOpts, model.WithAmount(*argsOpts.Amount))
+	}
+	if argsOpts.Size != nil {
+		orderOpts = append(orderOpts, model.WithSize(*argsOpts.Size))
+	}
+	if argsOpts.ClientOrderID != nil {
+		orderOpts = append(orderOpts, model.WithClientOrderID(*argsOpts.ClientOrderID))
+	}
+	if argsOpts.TimeInForce != nil {
+		orderOpts = append(orderOpts, model.WithTimeInForce(model.OrderTimeInForce(*argsOpts.TimeInForce)))
+	}
+	return s.order.CreateOrder(ctx, symbol, side, orderOpts...)
 }
 
 func (s *OKXSpot) CancelOrder(ctx context.Context, orderID, symbol string) error {
@@ -77,11 +110,35 @@ func (s *OKXSpot) FetchOrder(ctx context.Context, orderID, symbol string) (*type
 	return s.order.FetchOrder(ctx, orderID, symbol)
 }
 
-func (s *OKXSpot) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
+func (s *OKXSpot) FetchTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error) {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+	limit := 100
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+	since := time.Time{}
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
 	return s.order.FetchTrades(ctx, symbol, since, limit)
 }
 
-func (s *OKXSpot) FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
+func (s *OKXSpot) FetchMyTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error) {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+	limit := 100
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+	since := time.Time{}
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
 	return s.order.FetchMyTrades(ctx, symbol, since, limit)
 }
 

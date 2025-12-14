@@ -2,9 +2,9 @@ package exchange
 
 import (
 	"context"
-	"time"
 
 	"github.com/lemconn/exlink/model"
+	"github.com/lemconn/exlink/option"
 	"github.com/lemconn/exlink/types"
 )
 
@@ -35,7 +35,7 @@ type SpotExchange interface {
 	// TODO: 添加 OrderBook 类型到 types 包后启用
 
 	// FetchOHLCVs 获取K线数据
-	FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error)
+	FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error)
 
 	// ========== 账户信息 ==========
 
@@ -45,7 +45,7 @@ type SpotExchange interface {
 	// ========== 订单操作 ==========
 
 	// CreateOrder 创建订单
-	CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...model.OrderOption) (*model.Order, error)
+	CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...option.ArgsOption) (*model.Order, error)
 
 	// CancelOrder 取消订单
 	CancelOrder(ctx context.Context, orderID, symbol string) error
@@ -56,8 +56,8 @@ type SpotExchange interface {
 	// ========== 交易记录 ==========
 
 	// FetchTrades 获取交易记录（公共）
-	FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error)
+	FetchTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error)
 
 	// FetchMyTrades 获取我的交易记录
-	FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error)
+	FetchMyTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error)
 }

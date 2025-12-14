@@ -90,11 +90,16 @@ func main() {
 ### Using API Keys
 
 ```go
+import (
+    "github.com/lemconn/exlink"
+    "github.com/lemconn/exlink/option"
+)
+
 // Create authenticated exchange instance
 ex, err := exlink.NewExchange(
     exlink.ExchangeBinance,
-    exlink.WithAPIKey("your-api-key"),
-    exlink.WithSecretKey("your-secret-key"),
+    option.WithAPIKey("your-api-key"),
+    option.WithSecretKey("your-secret-key"),
 )
 if err != nil {
     log.Fatal(err)
@@ -123,26 +128,26 @@ fmt.Printf("BTC Balance: %.8f\n", btcBalance.Free)
 ```go
 import (
     "github.com/lemconn/exlink"
-    "github.com/lemconn/exlink/model"
+    "github.com/lemconn/exlink/option"
 )
 
 // Create exchange with options
 ex, err := exlink.NewExchange(
     exlink.ExchangeBinance,
-    exlink.WithAPIKey("your-api-key"),
-    exlink.WithSecretKey("your-secret-key"),
-    exlink.WithSandbox(true),                              // Enable sandbox mode
-    exlink.WithProxy("http://proxy.example.com:8080"),    // Set proxy
+    option.WithAPIKey("your-api-key"),
+    option.WithSecretKey("your-secret-key"),
+    option.WithSandbox(true),                              // Enable sandbox mode
+    option.WithProxy("http://proxy.example.com:8080"),    // Set proxy
 )
 
 // OKX requires password for authenticated requests
 ex, err := exlink.NewExchange(
     exlink.ExchangeOKX,
-    exlink.WithAPIKey("your-api-key"),
-    exlink.WithSecretKey("your-secret-key"),
-    exlink.WithPassword("your-password"),                  // Required for OKX
-    exlink.WithSandbox(true),                              // Enable sandbox mode
-    exlink.WithProxy("http://proxy.example.com:8080"),    // Set proxy
+    option.WithAPIKey("your-api-key"),
+    option.WithSecretKey("your-secret-key"),
+    option.WithPassword("your-password"),                  // Required for OKX
+    option.WithSandbox(true),                              // Enable sandbox mode
+    option.WithProxy("http://proxy.example.com:8080"),    // Set proxy
 )
 ```
 
@@ -169,14 +174,18 @@ ticker, err := perp.FetchTicker(ctx, "BTC/USDT:USDT")
 ```go
 import (
     "github.com/lemconn/exlink"
-    "github.com/lemconn/exlink/types"
+    "github.com/lemconn/exlink/model"
+    "github.com/lemconn/exlink/option"
 )
 
 // Get spot interface
 spot := ex.Spot()
 
 // Create a limit order (with price option, it becomes a limit order)
-order, err := spot.CreateOrder(ctx, "BTC/USDT", types.OrderSideBuy, "0.001", types.WithPrice("50000"))
+order, err := spot.CreateOrder(ctx, "BTC/USDT", model.OrderSideBuy,
+    option.WithPrice("50000"),
+    option.WithAmount("0.001"),
+)
 if err != nil {
     log.Fatal(err)
 }
@@ -202,19 +211,26 @@ if err != nil {
 import (
     "time"
     "github.com/lemconn/exlink"
+    "github.com/lemconn/exlink/option"
 )
 
 // Get spot interface
 spot := ex.Spot()
 
 // Fetch public trades
-trades, err := spot.FetchTrades(ctx, "BTC/USDT", time.Time{}, 100)
+trades, err := spot.FetchTrades(ctx, "BTC/USDT",
+    option.WithLimit(100),
+    option.WithSince(time.Time{}),
+)
 if err != nil {
     log.Fatal(err)
 }
 
 // Fetch my trades (requires authentication)
-myTrades, err := spot.FetchMyTrades(ctx, "BTC/USDT", time.Time{}, 100)
+myTrades, err := spot.FetchMyTrades(ctx, "BTC/USDT",
+    option.WithLimit(100),
+    option.WithSince(time.Time{}),
+)
 if err != nil {
     log.Fatal(err)
 }
@@ -223,13 +239,18 @@ if err != nil {
 ### Contract Trading
 
 ```go
-import "github.com/lemconn/exlink"
+import (
+    "github.com/lemconn/exlink"
+    "github.com/lemconn/exlink/option"
+)
 
 // Get perp interface
 perp := ex.Perp()
 
 // Fetch positions
-positions, err := perp.FetchPositions(ctx, "BTC/USDT:USDT")
+positions, err := perp.FetchPositions(ctx,
+    option.WithSymbols("BTC/USDT:USDT"),
+)
 if err != nil {
     log.Fatal(err)
 }

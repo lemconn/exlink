@@ -1,250 +1,300 @@
-# 现货与永续合约拆分方案评估报告
+# 使用 ArgsOption 替换可变参数的变更评估报告
 
-## 一、方案概述
+## 一、需要修改的方法签名
 
-### 当前架构
-- 所有交易所实现统一的 `base.Exchange` 接口
-- 每个交易所在单个文件中同时处理现货和永续合约
-- 通过 `market.Contract` 和 `market.Linear` 字段区分市场类型
-- 方法内部通过判断市场类型选择不同的 API 端点
+### 1. 接口定义层（2个文件）
 
-### 目标架构
-```
-exlink/
-  exchange/
-    exchange.go    # 主接口，提供 Spot() 和 Perp() 方法
-    spot.go        # 现货接口定义
-    perp.go        # 永续合约接口定义
-  binance/
-    client.go      # 共享的客户端和签名逻辑
-    signer.go      # 签名工具
-    spot/
-      market.go    # 现货市场相关
-      order.go     # 现货订单相关
-      model.go     # 现货数据模型
-    perp/
-      market.go    # 永续合约市场相关
-      order.go     # 永续合约订单相关
-      model.go     # 永续合约数据模型
-```
+#### `exchange/spot.go`
+- `FetchOHLCVs`: `(ctx, symbol, timeframe, since, limit)` → `(ctx, symbol, timeframe, opts ...option.ArgsOption)`
+- `FetchTrades`: `(ctx, symbol, since, limit)` → `(ctx, symbol, opts ...option.ArgsOption)`
+- `FetchMyTrades`: `(ctx, symbol, since, limit)` → `(ctx, symbol, opts ...option.ArgsOption)`
+- `CreateOrder`: `(ctx, symbol, side, opts ...model.OrderOption)` → `(ctx, symbol, side, opts ...option.ArgsOption)`
 
-## 二、可行性评估
+#### `exchange/perp.go`
+- `FetchOHLCVs`: `(ctx, symbol, timeframe, since, limit)` → `(ctx, symbol, timeframe, opts ...option.ArgsOption)`
+- `FetchTrades`: `(ctx, symbol, since, limit)` → `(ctx, symbol, opts ...option.ArgsOption)`
+- `FetchMyTrades`: `(ctx, symbol, since, limit)` → `(ctx, symbol, opts ...option.ArgsOption)`
+- `FetchPositions`: `(ctx, symbols ...string)` → `(ctx, opts ...option.ArgsOption)`
+- `CreateOrder`: `(ctx, symbol, side, amount, opts ...types.OrderOption)` → `(ctx, symbol, side, amount, opts ...option.ArgsOption)`
 
-### ✅ 高度可行
+### 2. 实现层（8个文件）
 
-**优势：**
-1. **清晰的职责分离**：现货和永续合约逻辑完全分离，代码更易维护
-2. **类型安全**：编译时就能确保不会在现货接口上调用合约方法
-3. **更好的可扩展性**：未来添加其他市场类型（如交割合约）更容易
-4. **API 设计更直观**：`exchange.Spot().CreateOrder()` 比通过 symbol 判断更明确
+每个交易所的 Spot 和 Perp 实现都需要修改：
 
-**技术可行性：**
-- Go 接口系统完全支持这种设计
-- 可以保持向后兼容（通过适配器模式）
-- 代码结构更符合单一职责原则
+#### Binance
+- `binance/binance_spot.go`: 4个方法（FetchOHLCVs, FetchTrades, FetchMyTrades, CreateOrder）
+- `binance/binance_perp.go`: 5个方法（FetchOHLCVs, FetchTrades, FetchMyTrades, FetchPositions, CreateOrder）
 
-## 三、改造难度评估
+#### Bybit
+- `bybit/bybit_spot.go`: 4个方法
+- `bybit/bybit_perp.go`: 5个方法
 
-### 🔶 中等偏高（7/10）
+#### OKX
+- `okx/okx_spot.go`: 4个方法
+- `okx/okx_perp.go`: 5个方法
 
-### 主要改造工作
+#### Gate
+- `gate/gate_spot.go`: 4个方法
+- `gate/gate_perp.go`: 5个方法
 
-#### 1. 接口层重构（难度：中等）
-- [ ] 创建 `exchange.Spot` 和 `exchange.Perp` 接口
-- [ ] 定义 `SpotExchange` 和 `PerpExchange` 接口
-- [ ] 修改主 `Exchange` 接口，添加 `Spot()` 和 `Perp()` 方法
-- [ ] 创建适配器以保持向后兼容
+### 3. 内部实现层（每个实现文件内部）
 
-**工作量：** 2-3 天
+每个实现文件内部还有对应的内部实现方法需要修改：
+- `*SpotMarket.FetchOHLCVs` - 内部实现
+- `*SpotOrder.FetchTrades` - 内部实现
+- `*SpotOrder.FetchMyTrades` - 内部实现
+- `*SpotOrder.CreateOrder` - 内部实现
+- `*PerpMarket.FetchOHLCVs` - 内部实现
+- `*PerpOrder.FetchTrades` - 内部实现
+- `*PerpOrder.FetchMyTrades` - 内部实现
+- `*PerpOrder.FetchPositions` - 内部实现
+- `*PerpOrder.CreateOrder` - 内部实现
 
-#### 2. Binance 交易所重构（难度：高）
-- [ ] 拆分 `binance.go`（1573 行）为多个文件
-- [ ] 提取共享逻辑到 `client.go` 和 `signer.go`
-- [ ] 创建 `spot/` 目录，迁移现货相关方法：
-  - `loadSpotMarkets()` → `spot/market.go`
-  - `FetchTicker()`（现货部分）→ `spot/market.go`
-  - `FetchOHLCV()`（现货部分）→ `spot/market.go`
-  - `CreateOrder()`（现货部分）→ `spot/order.go`
-  - `CancelOrder()`（现货部分）→ `spot/order.go`
-  - `FetchOrder()`（现货部分）→ `spot/order.go`
-  - `FetchBalance()` → `spot/order.go`（现货余额）
-- [ ] 创建 `perp/` 目录，迁移永续合约相关方法：
-  - `loadSwapMarkets()` → `perp/market.go`
-  - `FetchTicker()`（合约部分）→ `perp/market.go`
-  - `FetchOHLCV()`（合约部分）→ `perp/market.go`
-  - `CreateOrder()`（合约部分）→ `perp/order.go`
-  - `CancelOrder()`（合约部分）→ `perp/order.go`
-  - `FetchOrder()`（合约部分）→ `perp/order.go`
-  - `FetchPositions()` → `perp/order.go`
-  - `SetLeverage()` → `perp/order.go`
-  - `SetMarginMode()` → `perp/order.go`
+## 二、文件变更统计
 
-**工作量：** 5-7 天
+### 核心接口文件（2个）
+1. `exchange/spot.go` - 4个方法签名修改
+2. `exchange/perp.go` - 5个方法签名修改
 
-#### 3. 其他交易所重构（难度：中等）
-- [ ] Bybit 交易所（类似 Binance）
-- [ ] OKX 交易所
-- [ ] Gate 交易所
+### 实现文件（8个）
+1. `binance/binance_spot.go` - 4个接口方法 + 4个内部实现方法 = 8处修改
+2. `binance/binance_perp.go` - 5个接口方法 + 5个内部实现方法 = 10处修改
+3. `bybit/bybit_spot.go` - 4个接口方法 + 4个内部实现方法 = 8处修改
+4. `bybit/bybit_perp.go` - 5个接口方法 + 5个内部实现方法 = 10处修改
+5. `okx/okx_spot.go` - 4个接口方法 + 4个内部实现方法 = 8处修改
+6. `okx/okx_perp.go` - 5个接口方法 + 5个内部实现方法 = 10处修改
+7. `gate/gate_spot.go` - 4个接口方法 + 4个内部实现方法 = 8处修改
+8. `gate/gate_perp.go` - 5个接口方法 + 5个内部实现方法 = 10处修改
 
-**工作量：** 每个交易所 3-5 天，总计 9-15 天
+### 测试文件（8个）
+1. `binance/binance_spot_test.go` - 需要更新测试用例
+2. `binance/binance_perp_test.go` - 需要更新测试用例
+3. `bybit/bybit_spot_test.go` - 需要更新测试用例
+4. `bybit/bybit_perp_test.go` - 需要更新测试用例
+5. `okx/okx_spot_test.go` - 需要更新测试用例
+6. `okx/okx_perp_test.go` - 需要更新测试用例
+7. `gate/gate_spot_test.go` - 需要更新测试用例
+8. `gate/gate_perp_test.go` - 需要更新测试用例
 
-#### 4. 共享资源处理（难度：中等）
-需要处理的问题：
-- **HTTP 客户端共享**：Binance 有 `client` 和 `fapiClient`，需要合理分配
-- **API Key/Secret 共享**：所有接口都需要认证信息
-- **市场数据共享**：`BaseExchange.markets` 需要按类型分离或共享
-- **配置选项共享**：sandbox、proxy、debug 等配置
+### 示例文件（2个）
+1. `examples/spot/main.go` - 需要更新调用方式
+2. `examples/perp/main.go` - 需要更新调用方式
 
-**解决方案：**
+## 三、具体变更内容
+
+### 变更类型 1: FetchOHLCVs
+**原签名:**
 ```go
-type Binance struct {
-    *base.BaseExchange
-    client     *common.HTTPClient  // 现货客户端
-    fapiClient *common.HTTPClient  // 合约客户端
-    apiKey     string
-    secretKey  string
+FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error)
+```
+
+**新签名:**
+```go
+FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error)
+```
+
+**调用方式变更:**
+```go
+// 原方式
+ohlcvs, err := spot.FetchOHLCVs(ctx, "BTC/USDT", "1h", time.Time{}, 100)
+
+// 新方式
+ohlcvs, err := spot.FetchOHLCVs(ctx, "BTC/USDT", "1h",
+    option.WithLimit(100),
+    option.WithSince(time.Time{}),
+)
+```
+
+### 变更类型 2: FetchTrades / FetchMyTrades
+**原签名:**
+```go
+FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error)
+```
+
+**新签名:**
+```go
+FetchTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error)
+```
+
+**调用方式变更:**
+```go
+// 原方式
+trades, err := spot.FetchTrades(ctx, "BTC/USDT", time.Time{}, 100)
+
+// 新方式
+trades, err := spot.FetchTrades(ctx, "BTC/USDT",
+    option.WithLimit(100),
+    option.WithSince(time.Time{}),
+)
+```
+
+### 变更类型 3: FetchPositions
+**原签名:**
+```go
+FetchPositions(ctx context.Context, symbols ...string) (model.Positions, error)
+```
+
+**新签名:**
+```go
+FetchPositions(ctx context.Context, opts ...option.ArgsOption) (model.Positions, error)
+```
+
+**调用方式变更:**
+```go
+// 原方式
+positions, err := perp.FetchPositions(ctx, "BTC/USDT:USDT", "ETH/USDT:USDT")
+
+// 新方式
+positions, err := perp.FetchPositions(ctx,
+    option.WithSymbols("BTC/USDT:USDT", "ETH/USDT:USDT"),
+)
+```
+
+### 变更类型 4: CreateOrder (Spot)
+**原签名:**
+```go
+CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...model.OrderOption) (*model.Order, error)
+```
+
+**新签名:**
+```go
+CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...option.ArgsOption) (*model.Order, error)
+```
+
+**调用方式变更:**
+```go
+// 原方式
+orderOpts := []model.OrderOption{
+    model.WithPrice("50000"),
+    model.WithAmount("0.1"),
+    model.WithClientOrderID("my-order-123"),
+}
+order, err := spot.CreateOrder(ctx, "BTC/USDT", model.OrderSideBuy, orderOpts...)
+
+// 新方式
+order, err := spot.CreateOrder(ctx, "BTC/USDT", model.OrderSideBuy,
+    option.WithPrice("50000"),
+    option.WithAmount("0.1"),
+    option.WithClientOrderID("my-order-123"),
+)
+```
+
+### 变更类型 5: CreateOrder (Perp)
+**原签名:**
+```go
+CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error)
+```
+
+**新签名:**
+```go
+CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error)
+```
+
+**调用方式变更:**
+```go
+// 原方式
+orderOpts := []types.OrderOption{
+    types.WithPrice("50000"),
+    types.WithPositionSide(types.PositionSideLong),
+    types.WithClientOrderID("my-order-123"),
+}
+order, err := perp.CreateOrder(ctx, "BTC/USDT:USDT", types.OrderSideBuy, "0.1", orderOpts...)
+
+// 新方式
+order, err := perp.CreateOrder(ctx, "BTC/USDT:USDT", types.OrderSideBuy, "0.1",
+    option.WithPrice("50000"),
+    option.WithPositionSide("long"),
+    option.WithClientOrderID("my-order-123"),
+)
+```
+
+## 四、实现细节变更
+
+### 在方法内部需要添加参数解析逻辑
+
+每个方法内部需要添加类似这样的代码：
+
+```go
+func (s *BinanceSpot) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
+    // 解析参数
+    args := &option.ExchangeArgsOptions{}
+    for _, opt := range opts {
+        opt(args)
+    }
     
-    spot *BinanceSpot   // 现货实现
-    perp *BinancePerp   // 永续合约实现
-}
-
-func (b *Binance) Spot() exchange.SpotExchange {
-    return b.spot
-}
-
-func (b *Binance) Perp() exchange.PerpExchange {
-    return b.perp
+    // 获取参数值（带默认值）
+    limit := 100 // 默认值
+    if args.Limit != nil {
+        limit = *args.Limit
+    }
+    
+    since := time.Time{} // 默认值
+    if args.Since != nil {
+        since = *args.Since
+    }
+    
+    // 调用内部实现
+    return s.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 }
 ```
 
-**工作量：** 2-3 天
+### CreateOrder 需要处理订单参数转换
 
-#### 5. 测试用例更新（难度：中等）
-- [ ] 更新所有测试用例以使用新接口
-- [ ] 确保测试覆盖率不降低
-- [ ] 添加新的接口测试
+由于原来使用 `model.OrderOption` 和 `types.OrderOption`，现在需要从 `ArgsOption` 中提取参数并转换为内部使用的格式。
 
-**工作量：** 3-4 天
+## 五、变更统计汇总
 
-#### 6. 文档和示例更新（难度：低）
-- [ ] 更新 README
-- [ ] 更新示例代码
-- [ ] 更新 API 文档
-
-**工作量：** 1-2 天
-
-### 总工作量估算
-- **最小估算**：22 天（约 1 个月）
-- **最大估算**：34 天（约 1.5 个月）
-- **推荐估算**：28 天（约 1.2 个月）
-
-## 四、关键挑战
-
-### 1. 向后兼容性
-**挑战：** 现有代码使用 `exchange.CreateOrder()`，需要保持兼容
-
-**解决方案：**
-- 方案 A：保留原接口，内部调用 `Spot()` 或 `Perp()`
-- 方案 B：提供迁移指南，逐步废弃旧接口
-- 方案 C：同时支持两种方式，标记旧接口为 deprecated
-
-**推荐：** 方案 C（渐进式迁移）
-
-### 2. 市场数据管理
-**挑战：** `BaseExchange.markets` 包含所有市场类型，拆分后如何管理？
-
-**解决方案：**
-```go
-type BaseExchange struct {
-    spotMarkets map[string]*types.Market
-    perpMarkets map[string]*types.Market
-}
-
-// 或者保持统一管理，但按类型过滤
-func (e *BaseExchange) GetSpotMarkets() map[string]*types.Market
-func (e *BaseExchange) GetPerpMarkets() map[string]*types.Market
-```
-
-### 3. 共享方法处理
-**挑战：** 某些方法（如 `FetchTicker`）需要根据 symbol 判断类型
-
-**解决方案：**
-- 在 `Spot()` 和 `Perp()` 接口中分别实现
-- 调用时明确指定类型：`exchange.Spot().FetchTicker("BTC/USDT")`
-- 如果传入错误类型，返回明确的错误信息
-
-### 4. 代码重复
-**挑战：** 现货和合约的某些逻辑可能相似，如何避免重复？
-
-**解决方案：**
-- 提取公共逻辑到 `client.go` 或 `common.go`
-- 使用组合而非继承
-- 创建辅助函数处理通用逻辑
-
-## 五、实施建议
-
-### 阶段一：接口设计（1 周）
-1. 设计新的接口结构
-2. 创建接口定义文件
-3. 编写接口文档和示例
-
-### 阶段二：Binance 试点（2 周）
-1. 重构 Binance 交易所作为试点
-2. 验证架构设计的合理性
-3. 收集问题和改进建议
-
-### 阶段三：全面重构（2-3 周）
-1. 基于 Binance 的经验重构其他交易所
-2. 更新测试用例
-3. 更新文档
-
-### 阶段四：测试和优化（1 周）
-1. 全面测试
-2. 性能优化
-3. 修复问题
+| 类别 | 文件数 | 方法数（估算） | 说明 |
+|------|--------|---------------|------|
+| 接口定义 | 2 | 9 | exchange/spot.go (4) + exchange/perp.go (5) |
+| 实现层接口方法 | 8 | 36 | 每个交易所 Spot(4) + Perp(5) |
+| 实现层内部方法 | 8 | 36 | 对应的内部实现方法 |
+| 测试文件 | 8 | ~24 | 每个测试文件约3个测试用例 |
+| 示例文件 | 2 | 3 | examples/spot/main.go (2) + examples/perp/main.go (1) |
+| **总计** | **28** | **~108** | |
 
 ## 六、风险评估
 
-### 高风险项
-1. **破坏性变更**：可能影响现有用户代码
-   - **缓解措施**：保持向后兼容，提供迁移指南
+### 高风险点
+1. **CreateOrder 参数转换**: 需要将 `ArgsOption` 中的参数转换为原来 `OrderOption` 的格式，确保兼容性
+2. **类型转换**: `PositionSide` 从 `types.PositionSide` 类型改为 `string`，需要确保转换正确
+3. **默认值处理**: 需要确保所有方法的默认值与原来一致
 
-2. **测试覆盖不足**：重构可能导致回归问题
-   - **缓解措施**：确保测试覆盖率，添加集成测试
+### 中风险点
+1. **测试覆盖**: 需要更新所有测试用例，确保测试通过
+2. **示例代码**: 需要更新示例代码，确保示例可运行
 
-3. **开发周期长**：可能影响其他功能开发
-   - **缓解措施**：分阶段实施，不影响紧急功能
+### 低风险点
+1. **接口签名变更**: 由于是新版本，不需要考虑向后兼容
+2. **参数解析逻辑**: 逻辑相对简单，主要是参数提取和默认值处理
 
-### 中风险项
-1. **代码审查复杂**：大量文件变更
-   - **缓解措施**：分批次提交，详细说明变更
+## 七、实施建议
 
-2. **学习曲线**：团队需要适应新架构
-   - **缓解措施**：提供培训和文档
+### 阶段一：接口定义更新
+1. 更新 `exchange/spot.go`
+2. 更新 `exchange/perp.go`
 
-## 七、结论
+### 阶段二：实现层更新（按交易所逐个进行）
+1. Binance (先验证一个交易所)
+2. Bybit
+3. OKX
+4. Gate
 
-### 可行性：✅ 高度可行
-该方案在技术上是完全可行的，且能带来显著的架构改进。
+### 阶段三：测试和示例更新
+1. 更新所有测试文件
+2. 更新示例代码
 
-### 改造难度：🔶 中等偏高（7/10）
-需要大量的重构工作，但难度可控，主要是工作量问题。
+### 阶段四：验证
+1. 运行所有测试
+2. 验证示例代码可运行
+3. 代码审查
 
-### 推荐决策
-**建议实施**，但需要注意：
-1. 分阶段实施，先做 Binance 试点
-2. 保持向后兼容，避免破坏性变更
-3. 充分测试，确保质量
-4. 提供详细的迁移文档
+## 八、注意事项
 
-### 预期收益
-- ✅ 代码结构更清晰，维护性提升 30-40%
-- ✅ 类型安全，减少运行时错误
-- ✅ API 更直观，用户体验更好
-- ✅ 为未来扩展（如交割合约）打下基础
-
-### 预期成本
-- ⏱️ 开发时间：约 1-1.5 个月
-- 👥 人力：1-2 名开发人员
-- 🧪 测试：需要全面回归测试
-
+1. **导入包**: 所有实现文件需要导入 `exlink` 包以使用 `ArgsOption`
+2. **参数转换**: CreateOrder 需要将 `ArgsOption` 转换为原来的 `OrderOption` 格式，或者直接修改内部实现使用 `ArgsOption`
+3. **默认值**: 确保所有默认值与原来一致：
+   - `Limit`: 100
+   - `Since`: `time.Time{}`
+   - `Symbols`: `[]string{}`
+4. **类型转换**: `PositionSide` 从枚举类型改为字符串，需要确保转换正确

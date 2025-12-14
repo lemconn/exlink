@@ -11,6 +11,7 @@ import (
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/exchange"
 	"github.com/lemconn/exlink/model"
+	"github.com/lemconn/exlink/option"
 	"github.com/lemconn/exlink/types"
 	"github.com/shopspring/decimal"
 )
@@ -64,7 +65,24 @@ func (s *BinanceSpot) FetchTickers(ctx context.Context) (map[string]*model.Ticke
 }
 
 // FetchOHLCVs 获取K线数据
-func (s *BinanceSpot) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+func (s *BinanceSpot) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 获取参数值（带默认值）
+	limit := 100 // 默认值
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+
+	since := time.Time{} // 默认值
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
+
 	return s.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
 }
 
@@ -74,8 +92,32 @@ func (s *BinanceSpot) FetchBalance(ctx context.Context) (model.Balances, error) 
 }
 
 // CreateOrder 创建订单
-func (s *BinanceSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...model.OrderOption) (*model.Order, error) {
-	return s.order.CreateOrder(ctx, symbol, side, opts...)
+func (s *BinanceSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...option.ArgsOption) (*model.Order, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 转换为 model.OrderOption
+	orderOpts := []model.OrderOption{}
+	if argsOpts.Price != nil {
+		orderOpts = append(orderOpts, model.WithPrice(*argsOpts.Price))
+	}
+	if argsOpts.Amount != nil {
+		orderOpts = append(orderOpts, model.WithAmount(*argsOpts.Amount))
+	}
+	if argsOpts.Size != nil {
+		orderOpts = append(orderOpts, model.WithSize(*argsOpts.Size))
+	}
+	if argsOpts.ClientOrderID != nil {
+		orderOpts = append(orderOpts, model.WithClientOrderID(*argsOpts.ClientOrderID))
+	}
+	if argsOpts.TimeInForce != nil {
+		orderOpts = append(orderOpts, model.WithTimeInForce(model.OrderTimeInForce(*argsOpts.TimeInForce)))
+	}
+
+	return s.order.CreateOrder(ctx, symbol, side, orderOpts...)
 }
 
 // CancelOrder 取消订单
@@ -89,12 +131,46 @@ func (s *BinanceSpot) FetchOrder(ctx context.Context, orderID, symbol string) (*
 }
 
 // FetchTrades 获取交易记录（公共）
-func (s *BinanceSpot) FetchTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
+func (s *BinanceSpot) FetchTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 获取参数值（带默认值）
+	limit := 100 // 默认值
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+
+	since := time.Time{} // 默认值
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
+
 	return s.order.FetchTrades(ctx, symbol, since, limit)
 }
 
 // FetchMyTrades 获取我的交易记录
-func (s *BinanceSpot) FetchMyTrades(ctx context.Context, symbol string, since time.Time, limit int) ([]*types.Trade, error) {
+func (s *BinanceSpot) FetchMyTrades(ctx context.Context, symbol string, opts ...option.ArgsOption) ([]*types.Trade, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 获取参数值（带默认值）
+	limit := 100 // 默认值
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+
+	since := time.Time{} // 默认值
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
+
 	return s.order.FetchMyTrades(ctx, symbol, since, limit)
 }
 

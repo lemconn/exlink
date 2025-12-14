@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/lemconn/exlink/option"
 	"github.com/shopspring/decimal"
 )
 
@@ -32,7 +33,10 @@ func TestGatePerp_FetchOHLCVs(t *testing.T) {
 	since := time.Time{} // 不指定开始时间，获取最新数据
 	limit := 10
 
-	ohlcvs, err := perp.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
+	ohlcvs, err := perp.FetchOHLCVs(ctx, symbol, timeframe,
+		option.WithLimit(limit),
+		option.WithSince(since),
+	)
 	if err != nil {
 		t.Fatalf("Failed to fetch OHLCV: %v", err)
 	}
