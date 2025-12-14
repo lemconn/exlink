@@ -18,19 +18,17 @@ import (
 
 // OKXPerp OKX 永续合约实现
 type OKXPerp struct {
-	okx       *OKX
-	market    *okxPerpMarket
-	order     *okxPerpOrder
-	hedgeMode bool
+	okx    *OKX
+	market *okxPerpMarket
+	order  *okxPerpOrder
 }
 
 // NewOKXPerp 创建 OKX 永续合约实例
 func NewOKXPerp(o *OKX) *OKXPerp {
 	return &OKXPerp{
-		okx:       o,
-		market:    &okxPerpMarket{okx: o},
-		order:     &okxPerpOrder{okx: o},
-		hedgeMode: false,
+		okx:    o,
+		market: &okxPerpMarket{okx: o},
+		order:  &okxPerpOrder{okx: o},
 	}
 }
 
@@ -106,7 +104,14 @@ func (p *OKXPerp) CreateOrder(ctx context.Context, symbol string, side types.Ord
 	if argsOpts.TimeInForce != nil {
 		orderOpts = append(orderOpts, types.WithTimeInForce(types.OrderTimeInForceType(*argsOpts.TimeInForce)))
 	}
-	return p.order.CreateOrder(ctx, symbol, side, amount, orderOpts...)
+
+	// 传递 HedgeMode 选项
+	var hedgeMode *bool
+	if argsOpts.HedgeMode != nil {
+		hedgeMode = argsOpts.HedgeMode
+	}
+
+	return p.order.CreateOrder(ctx, symbol, side, amount, hedgeMode, orderOpts...)
 }
 
 func (p *OKXPerp) CancelOrder(ctx context.Context, orderID, symbol string) error {
@@ -123,14 +128,6 @@ func (p *OKXPerp) SetLeverage(ctx context.Context, symbol string, leverage int) 
 
 func (p *OKXPerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
 	return p.order.SetMarginMode(ctx, symbol, mode)
-}
-
-func (p *OKXPerp) SetHedgeMode(hedgeMode bool) {
-	p.hedgeMode = hedgeMode
-}
-
-func (p *OKXPerp) IsHedgeMode() bool {
-	return p.hedgeMode
 }
 
 var _ exchange.PerpExchange = (*OKXPerp)(nil)
@@ -653,7 +650,7 @@ func (o *okxPerpOrder) FetchPositions(ctx context.Context, symbols ...string) (m
 	return positions, nil
 }
 
-func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
+func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, hedgeMode *bool, opts ...types.OrderOption) (*types.Order, error) {
 	// 解析选项
 	options := types.ApplyOrderOptions(opts...)
 
@@ -728,10 +725,20 @@ func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side type
 		return nil, fmt.Errorf("contract order requires PositionSide (long/short)")
 	}
 
-	// 获取持仓模式
-	posMode, err := o.getPositionMode(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("get position mode: %w", err)
+	// 获取持仓模式：如果提供了 hedgeMode 选项，使用它；否则查询 API
+	var posMode string
+	if hedgeMode != nil {
+		if *hedgeMode {
+			posMode = "long_short_mode"
+		} else {
+			posMode = "net_mode"
+		}
+	} else {
+		var err error
+		posMode, err = o.getPositionMode(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("get position mode: %w", err)
+		}
 	}
 
 	if posMode == "long_short_mode" {

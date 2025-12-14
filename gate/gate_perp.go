@@ -19,19 +19,17 @@ import (
 
 // GatePerp Gate 永续合约实现
 type GatePerp struct {
-	gate      *Gate
-	market    *gatePerpMarket
-	order     *gatePerpOrder
-	hedgeMode bool
+	gate   *Gate
+	market *gatePerpMarket
+	order  *gatePerpOrder
 }
 
 // NewGatePerp 创建 Gate 永续合约实例
 func NewGatePerp(g *Gate) *GatePerp {
 	return &GatePerp{
-		gate:      g,
-		market:    &gatePerpMarket{gate: g},
-		order:     &gatePerpOrder{gate: g},
-		hedgeMode: false,
+		gate:   g,
+		market: &gatePerpMarket{gate: g},
+		order:  &gatePerpOrder{gate: g},
 	}
 }
 
@@ -124,14 +122,6 @@ func (p *GatePerp) SetLeverage(ctx context.Context, symbol string, leverage int)
 
 func (p *GatePerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
 	return p.order.SetMarginMode(ctx, symbol, mode)
-}
-
-func (p *GatePerp) SetHedgeMode(hedgeMode bool) {
-	p.hedgeMode = hedgeMode
-}
-
-func (p *GatePerp) IsHedgeMode() bool {
-	return p.hedgeMode
 }
 
 var _ exchange.PerpExchange = (*GatePerp)(nil)

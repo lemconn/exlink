@@ -51,6 +51,8 @@ type ExchangeArgsOptions struct {
 	TimeInForce *string
 	// ReduceOnly 是否只减仓（合约订单）
 	ReduceOnly *bool
+	// HedgeMode 是否为双向持仓模式（合约订单）
+	HedgeMode *bool
 }
 
 // ArgsOption 方法调用参数选项函数类型
@@ -127,5 +129,12 @@ func WithTimeInForce(timeInForce string) ArgsOption {
 func WithReduceOnly(reduceOnly bool) ArgsOption {
 	return func(opts *ExchangeArgsOptions) {
 		opts.ReduceOnly = &reduceOnly
+	}
+}
+
+// WithHedgeMode 设置是否为双向持仓模式（合约订单）
+func WithHedgeMode(hedgeMode bool) ArgsOption {
+	return func(opts *ExchangeArgsOptions) {
+		opts.HedgeMode = &hedgeMode
 	}
 }

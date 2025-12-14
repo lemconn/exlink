@@ -18,19 +18,17 @@ import (
 
 // BinancePerp Binance 永续合约实现
 type BinancePerp struct {
-	binance   *Binance
-	market    *binancePerpMarket
-	order     *binancePerpOrder
-	hedgeMode bool
+	binance *Binance
+	market  *binancePerpMarket
+	order   *binancePerpOrder
 }
 
 // NewBinancePerp 创建 Binance 永续合约实例
 func NewBinancePerp(b *Binance) *BinancePerp {
 	return &BinancePerp{
-		binance:   b,
-		market:    &binancePerpMarket{binance: b},
-		order:     &binancePerpOrder{binance: b},
-		hedgeMode: false,
+		binance: b,
+		market:  &binancePerpMarket{binance: b},
+		order:   &binancePerpOrder{binance: b},
 	}
 }
 
@@ -128,7 +126,13 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side types
 		orderOpts = append(orderOpts, types.WithTimeInForce(types.OrderTimeInForceType(*argsOpts.TimeInForce)))
 	}
 
-	return p.order.CreateOrder(ctx, symbol, side, amount, orderOpts...)
+	// 传递 HedgeMode 选项
+	var hedgeMode *bool
+	if argsOpts.HedgeMode != nil {
+		hedgeMode = argsOpts.HedgeMode
+	}
+
+	return p.order.CreateOrder(ctx, symbol, side, amount, hedgeMode, orderOpts...)
 }
 
 // CancelOrder 取消订单
@@ -149,16 +153,6 @@ func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage i
 // SetMarginMode 设置保证金模式
 func (p *BinancePerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
 	return p.order.SetMarginMode(ctx, symbol, mode)
-}
-
-// SetHedgeMode 设置双向持仓模式
-func (p *BinancePerp) SetHedgeMode(hedgeMode bool) {
-	p.hedgeMode = hedgeMode
-}
-
-// IsHedgeMode 是否为双向持仓模式
-func (p *BinancePerp) IsHedgeMode() bool {
-	return p.hedgeMode
 }
 
 // 确保 BinancePerp 实现了 exchange.PerpExchange 接口
@@ -582,7 +576,7 @@ func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string
 }
 
 // CreateOrder 创建订单
-func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
+func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, hedgeMode *bool, opts ...types.OrderOption) (*types.Order, error) {
 	if o.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
@@ -679,10 +673,16 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 		return nil, fmt.Errorf("contract order requires PositionSide (long/short)")
 	}
 
-	// 获取持仓模式
-	isDualMode, err := o.getPositionMode(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("get position mode: %w", err)
+	// 获取持仓模式：如果提供了 hedgeMode 选项，使用它；否则查询 API
+	var isDualMode bool
+	if hedgeMode != nil {
+		isDualMode = *hedgeMode
+	} else {
+		var err error
+		isDualMode, err = o.getPositionMode(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("get position mode: %w", err)
+		}
 	}
 
 	if isDualMode {
