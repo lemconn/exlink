@@ -41,3 +41,56 @@ type bybitPerpKlineResponse struct {
 	RetExtInfo map[string]interface{} `json:"retExtInfo"`
 	Time       types.ExTimestamp      `json:"time"`
 }
+
+// bybitPerpPositionResponse Bybit 永续合约持仓响应
+type bybitPerpPositionResponse struct {
+	RetCode int                     `json:"retCode"`
+	RetMsg  string                  `json:"retMsg"`
+	Result  bybitPerpPositionResult `json:"result"`
+	Time    types.ExTimestamp       `json:"time"`
+}
+
+// bybitPerpPositionResult Bybit 永续合约持仓结果
+type bybitPerpPositionResult struct {
+	Category string              `json:"category"`
+	List     []bybitPerpPosition `json:"list"`
+}
+
+// bybitPerpPosition Bybit 永续合约持仓信息
+type bybitPerpPosition struct {
+	Symbol                 string            `json:"symbol"`
+	Leverage               types.ExDecimal   `json:"leverage"`
+	AutoAddMargin          int               `json:"autoAddMargin"`
+	AvgPrice               types.ExDecimal   `json:"avgPrice"`
+	LiqPrice               types.ExDecimal   `json:"liqPrice"`
+	RiskLimitValue         types.ExDecimal   `json:"riskLimitValue"`
+	TakeProfit             types.ExDecimal   `json:"takeProfit"`
+	PositionValue          types.ExDecimal   `json:"positionValue"`
+	IsReduceOnly           bool              `json:"isReduceOnly"`
+	PositionIMByMp         types.ExDecimal   `json:"positionIMByMp"`
+	TpslMode               string            `json:"tpslMode"`
+	RiskId                 int               `json:"riskId"`
+	TrailingStop           types.ExDecimal   `json:"trailingStop"`
+	UnrealisedPnl          types.ExDecimal   `json:"unrealisedPnl"`
+	MarkPrice              types.ExDecimal   `json:"markPrice"`
+	AdlRankIndicator       int               `json:"adlRankIndicator"`
+	CumRealisedPnl         types.ExDecimal   `json:"cumRealisedPnl"`
+	PositionMM             types.ExDecimal   `json:"positionMM"`
+	CreatedTime            types.ExTimestamp `json:"createdTime"`
+	PositionIdx            int               `json:"positionIdx"`
+	PositionIM             types.ExDecimal   `json:"positionIM"`
+	PositionMMByMp         types.ExDecimal   `json:"positionMMByMp"`
+	Seq                    int64             `json:"seq"`
+	UpdatedTime            types.ExTimestamp `json:"updatedTime"`
+	Side                   string            `json:"side"`
+	BustPrice              types.ExDecimal   `json:"bustPrice"`
+	PositionBalance        types.ExDecimal   `json:"positionBalance"`
+	LeverageSysUpdatedTime types.ExTimestamp `json:"leverageSysUpdatedTime"`
+	CurRealisedPnl         types.ExDecimal   `json:"curRealisedPnl"`
+	Size                   types.ExDecimal   `json:"size"`
+	PositionStatus         string            `json:"positionStatus"`
+	MmrSysUpdatedTime      types.ExTimestamp `json:"mmrSysUpdatedTime"`
+	StopLoss               types.ExDecimal   `json:"stopLoss"`
+	TradeMode              int               `json:"tradeMode"`
+	SessionAvgPrice        types.ExDecimal   `json:"sessionAvgPrice"`
+}

@@ -58,3 +58,48 @@ type gatePerpKline struct {
 	High   types.ExDecimal   `json:"h"`   // Highest price
 	Sum    types.ExDecimal   `json:"sum"` // Trading volume (unit: Quote currency)
 }
+
+// gatePerpPositionResponse Gate 永续合约持仓响应（数组格式）
+type gatePerpPositionResponse []gatePerpPosition
+
+// gatePerpPosition Gate 永续合约持仓信息
+type gatePerpPosition struct {
+	Value                  types.ExDecimal   `json:"value"`
+	Leverage               types.ExDecimal   `json:"leverage"`
+	Mode                   string            `json:"mode"`
+	RealisedPoint          types.ExDecimal   `json:"realised_point"`
+	Contract               string            `json:"contract"`
+	EntryPrice             types.ExDecimal   `json:"entry_price"`
+	MarkPrice              types.ExDecimal   `json:"mark_price"`
+	HistoryPoint           types.ExDecimal   `json:"history_point"`
+	RealisedPnl            types.ExDecimal   `json:"realised_pnl"`
+	CloseOrder             interface{}       `json:"close_order"`
+	Size                   types.ExDecimal   `json:"size"`
+	CrossLeverageLimit     types.ExDecimal   `json:"cross_leverage_limit"`
+	PendingOrders          int               `json:"pending_orders"`
+	AdlRanking             int               `json:"adl_ranking"`
+	MaintenanceRate        types.ExDecimal   `json:"maintenance_rate"`
+	UnrealisedPnl          types.ExDecimal   `json:"unrealised_pnl"`
+	PnlPnl                 types.ExDecimal   `json:"pnl_pnl"`
+	PnlFee                 types.ExDecimal   `json:"pnl_fee"`
+	PnlFund                types.ExDecimal   `json:"pnl_fund"`
+	User                   int64             `json:"user"`
+	LeverageMax            types.ExDecimal   `json:"leverage_max"`
+	HistoryPnl             types.ExDecimal   `json:"history_pnl"`
+	RiskLimit              types.ExDecimal   `json:"risk_limit"`
+	Margin                 types.ExDecimal   `json:"margin"`
+	LastClosePnl           types.ExDecimal   `json:"last_close_pnl"`
+	LiqPrice               types.ExDecimal   `json:"liq_price"`
+	UpdateTime             types.ExTimestamp `json:"update_time"`
+	UpdateID               int64             `json:"update_id"`
+	InitialMargin          types.ExDecimal   `json:"initial_margin"`
+	MaintenanceMargin      types.ExDecimal   `json:"maintenance_margin"`
+	TradeLongSize          types.ExDecimal   `json:"trade_long_size"`
+	TradeShortSize         types.ExDecimal   `json:"trade_short_size"`
+	OpenTime               types.ExTimestamp `json:"open_time"`
+	RiskLimitTable         string            `json:"risk_limit_table"`
+	AverageMaintenanceRate types.ExDecimal   `json:"average_maintenance_rate"`
+	VoucherSize            types.ExDecimal   `json:"voucher_size"`
+	VoucherMargin          types.ExDecimal   `json:"voucher_margin"`
+	VoucherID              int               `json:"voucher_id"`
+}
