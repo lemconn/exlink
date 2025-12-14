@@ -78,9 +78,6 @@ func NewExchange(name string, opts ...option.Option) (exchange.Exchange, error) 
 	if options.Password != "" {
 		optionsMap["password"] = options.Password
 	}
-	if options.HedgeMode {
-		optionsMap["hedgeMode"] = options.HedgeMode
-	}
 	if options.Debug {
 		optionsMap["debug"] = options.Debug
 	}
