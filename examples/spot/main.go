@@ -63,9 +63,7 @@ func main() {
 	// 创建订单
 	symbol = "SOL/USDT"
 	side := model.OrderSideBuy
-	order, err := spot.CreateOrder(ctx, symbol, side,
-		option.WithAmount("0.1"), // 交易对数量
-		option.WithSize("0.1"),   // 张数量（针对 gate/okx 交易所）
+	order, err := spot.CreateOrder(ctx, symbol, side, "0.1",
 		option.WithPrice("130"),
 	)
 	if err != nil {
