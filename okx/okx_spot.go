@@ -78,7 +78,7 @@ func (s *OKXSpot) FetchBalance(ctx context.Context) (model.Balances, error) {
 	return s.order.FetchBalance(ctx)
 }
 
-func (s *OKXSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...option.ArgsOption) (*model.Order, error) {
+func (s *OKXSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...option.ArgsOption) (*model.Order, error) {
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
@@ -90,16 +90,13 @@ func (s *OKXSpot) CreateOrder(ctx context.Context, symbol string, side model.Ord
 	if argsOpts.Amount != nil {
 		orderOpts = append(orderOpts, model.WithAmount(*argsOpts.Amount))
 	}
-	if argsOpts.Size != nil {
-		orderOpts = append(orderOpts, model.WithSize(*argsOpts.Size))
-	}
 	if argsOpts.ClientOrderID != nil {
 		orderOpts = append(orderOpts, model.WithClientOrderID(*argsOpts.ClientOrderID))
 	}
 	if argsOpts.TimeInForce != nil {
 		orderOpts = append(orderOpts, model.WithTimeInForce(model.OrderTimeInForce(*argsOpts.TimeInForce)))
 	}
-	return s.order.CreateOrder(ctx, symbol, side, orderOpts...)
+	return s.order.CreateOrder(ctx, symbol, side, amount, orderOpts...)
 }
 
 func (s *OKXSpot) CancelOrder(ctx context.Context, orderID, symbol string) error {
@@ -468,15 +465,9 @@ func (o *okxSpotOrder) FetchBalance(ctx context.Context) (model.Balances, error)
 	return balances, nil
 }
 
-func (o *okxSpotOrder) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...model.OrderOption) (*model.Order, error) {
+func (o *okxSpotOrder) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...model.OrderOption) (*model.Order, error) {
 	// 解析选项
 	options := model.ApplyOrderOptions(opts...)
-
-	if options == nil || *options.Size == "" {
-		return nil, fmt.Errorf("size is required")
-	}
-
-	amount := *options.Size
 
 	// 判断订单类型
 	var orderType types.OrderType

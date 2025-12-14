@@ -92,7 +92,7 @@ func (s *BinanceSpot) FetchBalance(ctx context.Context) (model.Balances, error) 
 }
 
 // CreateOrder 创建订单
-func (s *BinanceSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...option.ArgsOption) (*model.Order, error) {
+func (s *BinanceSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...option.ArgsOption) (*model.Order, error) {
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
@@ -107,9 +107,6 @@ func (s *BinanceSpot) CreateOrder(ctx context.Context, symbol string, side model
 	if argsOpts.Amount != nil {
 		orderOpts = append(orderOpts, model.WithAmount(*argsOpts.Amount))
 	}
-	if argsOpts.Size != nil {
-		orderOpts = append(orderOpts, model.WithSize(*argsOpts.Size))
-	}
 	if argsOpts.ClientOrderID != nil {
 		orderOpts = append(orderOpts, model.WithClientOrderID(*argsOpts.ClientOrderID))
 	}
@@ -117,7 +114,7 @@ func (s *BinanceSpot) CreateOrder(ctx context.Context, symbol string, side model
 		orderOpts = append(orderOpts, model.WithTimeInForce(model.OrderTimeInForce(*argsOpts.TimeInForce)))
 	}
 
-	return s.order.CreateOrder(ctx, symbol, side, orderOpts...)
+	return s.order.CreateOrder(ctx, symbol, side, amount, orderOpts...)
 }
 
 // CancelOrder 取消订单
@@ -498,19 +495,13 @@ func (o *binanceSpotOrder) FetchBalance(ctx context.Context) (model.Balances, er
 }
 
 // CreateOrder 创建订单
-func (o *binanceSpotOrder) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, opts ...model.OrderOption) (*model.Order, error) {
+func (o *binanceSpotOrder) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...model.OrderOption) (*model.Order, error) {
 	if o.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
 
 	// 解析订单选项
 	options := model.ApplyOrderOptions(opts...)
-
-	if options == nil || *options.Amount == "" {
-		return nil, fmt.Errorf("amount is required")
-	}
-
-	amount := *options.Amount
 
 	// 获取市场信息
 	market, err := o.binance.spot.market.GetMarket(symbol)

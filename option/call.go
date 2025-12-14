@@ -41,8 +41,6 @@ type ExchangeArgsOptions struct {
 	Price *string
 	// Amount 订单数量（表示购买交易对真实数量）
 	Amount *string
-	// Size 订单张数（表示购买交易对张数数量，例如：Gate,OKX交易所使用张数）
-	Size *string
 	// ClientOrderID 客户端订单ID（所有交易所通用）
 	ClientOrderID *string
 	// PositionSide 持仓方向（合约订单: long/short）
@@ -92,13 +90,6 @@ func WithPrice(price string) ArgsOption {
 func WithAmount(amount string) ArgsOption {
 	return func(opts *ExchangeArgsOptions) {
 		opts.Amount = &amount
-	}
-}
-
-// WithSize 设置订单张数（表示购买交易对张数数量，例如：Gate,OKX交易所使用张数）
-func WithSize(size string) ArgsOption {
-	return func(opts *ExchangeArgsOptions) {
-		opts.Size = &size
 	}
 }
 
