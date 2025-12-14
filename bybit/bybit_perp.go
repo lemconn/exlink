@@ -17,19 +17,17 @@ import (
 
 // BybitPerp Bybit 永续合约实现
 type BybitPerp struct {
-	bybit     *Bybit
-	market    *bybitPerpMarket
-	order     *bybitPerpOrder
-	hedgeMode bool
+	bybit  *Bybit
+	market *bybitPerpMarket
+	order  *bybitPerpOrder
 }
 
 // NewBybitPerp 创建 Bybit 永续合约实例
 func NewBybitPerp(b *Bybit) *BybitPerp {
 	return &BybitPerp{
-		bybit:     b,
-		market:    &bybitPerpMarket{bybit: b},
-		order:     &bybitPerpOrder{bybit: b},
-		hedgeMode: false,
+		bybit:  b,
+		market: &bybitPerpMarket{bybit: b},
+		order:  &bybitPerpOrder{bybit: b},
 	}
 }
 
@@ -105,7 +103,14 @@ func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side types.O
 	if argsOpts.TimeInForce != nil {
 		orderOpts = append(orderOpts, types.WithTimeInForce(types.OrderTimeInForceType(*argsOpts.TimeInForce)))
 	}
-	return p.order.CreateOrder(ctx, symbol, side, amount, orderOpts...)
+
+	// 传递 HedgeMode 选项
+	var hedgeMode *bool
+	if argsOpts.HedgeMode != nil {
+		hedgeMode = argsOpts.HedgeMode
+	}
+
+	return p.order.CreateOrder(ctx, symbol, side, amount, hedgeMode, orderOpts...)
 }
 
 func (p *BybitPerp) CancelOrder(ctx context.Context, orderID, symbol string) error {
@@ -122,14 +127,6 @@ func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int
 
 func (p *BybitPerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
 	return p.order.SetMarginMode(ctx, symbol, mode)
-}
-
-func (p *BybitPerp) SetHedgeMode(hedgeMode bool) {
-	p.hedgeMode = hedgeMode
-}
-
-func (p *BybitPerp) IsHedgeMode() bool {
-	return p.hedgeMode
 }
 
 var _ exchange.PerpExchange = (*BybitPerp)(nil)
@@ -540,7 +537,7 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 	return positions, nil
 }
 
-func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
+func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, hedgeMode *bool, opts ...types.OrderOption) (*types.Order, error) {
 	// 解析选项
 	options := types.ApplyOrderOptions(opts...)
 
@@ -619,10 +616,16 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side ty
 		return nil, fmt.Errorf("contract order requires PositionSide (long/short)")
 	}
 
-	// 获取持仓模式
-	isDualMode, err := o.getPositionMode(ctx, symbol)
-	if err != nil {
-		return nil, fmt.Errorf("get position mode: %w", err)
+	// 获取持仓模式：如果提供了 hedgeMode 选项，使用它；否则查询 API
+	var isDualMode bool
+	if hedgeMode != nil {
+		isDualMode = *hedgeMode
+	} else {
+		var err error
+		isDualMode, err = o.getPositionMode(ctx, symbol)
+		if err != nil {
+			return nil, fmt.Errorf("get position mode: %w", err)
+		}
 	}
 
 	if isDualMode {

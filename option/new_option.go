@@ -5,7 +5,6 @@ type ExchangeOptions struct {
 	APIKey    string
 	SecretKey string
 	Password  string // 密码（用于 OKX 等需要 password 的交易所）
-	HedgeMode bool   // 是否为双向持仓模式（用于合约下单时控制参数）
 	Sandbox   bool
 	Proxy     string
 	BaseURL   string
@@ -62,13 +61,6 @@ func WithBaseURL(baseURL string) Option {
 func WithDebug(debug bool) Option {
 	return func(opts *ExchangeOptions) {
 		opts.Debug = debug
-	}
-}
-
-// WithHedgeMode 设置是否为双向持仓模式（用于合约下单时控制参数）
-func WithHedgeMode(hedgeMode bool) Option {
-	return func(opts *ExchangeOptions) {
-		opts.HedgeMode = hedgeMode
 	}
 }
 

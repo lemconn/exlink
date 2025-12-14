@@ -60,10 +60,4 @@ type PerpExchange interface {
 
 	// SetMarginMode 设置保证金模式（isolated/cross）
 	SetMarginMode(ctx context.Context, symbol string, mode string) error
-
-	// SetHedgeMode 设置双向持仓模式
-	SetHedgeMode(hedgeMode bool)
-
-	// IsHedgeMode 是否为双向持仓模式
-	IsHedgeMode() bool
 }
