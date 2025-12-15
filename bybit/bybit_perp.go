@@ -90,25 +90,7 @@ func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side option.
 	for _, opt := range opts {
 		opt(argsOpts)
 	}
-	orderOpts := []types.OrderOption{}
-	if argsOpts.Price != nil {
-		orderOpts = append(orderOpts, types.WithPrice(*argsOpts.Price))
-	}
-	if argsOpts.ClientOrderID != nil {
-		orderOpts = append(orderOpts, types.WithClientOrderID(*argsOpts.ClientOrderID))
-	}
-	// PositionSide 从 PerpOrderSide 自动推断，不再需要手动传递
-	if argsOpts.TimeInForce != nil {
-		orderOpts = append(orderOpts, types.WithTimeInForce(types.OrderTimeInForceType(*argsOpts.TimeInForce)))
-	}
-
-	// 传递 HedgeMode 选项
-	var hedgeMode *bool
-	if argsOpts.HedgeMode != nil {
-		hedgeMode = argsOpts.HedgeMode
-	}
-
-	return p.order.CreateOrder(ctx, symbol, side, amount, hedgeMode, orderOpts...)
+	return p.order.CreateOrder(ctx, symbol, side, amount, opts...)
 }
 
 func (p *BybitPerp) CancelOrder(ctx context.Context, orderID, symbol string) error {
@@ -535,18 +517,33 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 	return positions, nil
 }
 
-func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, hedgeMode *bool, opts ...types.OrderOption) (*types.Order, error) {
+func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
 	// 解析选项
-	options := types.ApplyOrderOptions(opts...)
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
 
-	// 判断订单类型
-	var orderType types.OrderType
-	var priceStr string
-	if options.Price != nil && *options.Price != "" {
-		orderType = types.OrderTypeLimit
-		priceStr = *options.Price
+	// 判断订单类型：优先使用 argsOpts.OrderType，如果未设置则默认为 Market
+	var orderType option.OrderType
+	if argsOpts.OrderType != nil {
+		orderType = *argsOpts.OrderType
 	} else {
-		orderType = types.OrderTypeMarket
+		// 默认使用 Market
+		orderType = option.Market
+	}
+
+	// 如果订单类型为 Limit，必须设置价格
+	var priceStr string
+	if orderType == option.Limit {
+		if argsOpts.Price == nil || *argsOpts.Price == "" {
+			return nil, fmt.Errorf("limit order requires price")
+		}
+		priceStr = *argsOpts.Price
+	} else if argsOpts.Price != nil && *argsOpts.Price != "" {
+		// 市价单也可以设置价格（用于某些交易所的限价市价单）
+		priceStr = *argsOpts.Price
+	} else {
 		priceStr = ""
 	}
 
@@ -570,10 +567,11 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 		sideStr = strings.ToUpper(sideStr[:1]) + strings.ToLower(sideStr[1:])
 	}
 
-	reqBody := map[string]interface{}{
-		"category": "linear",
-		"symbol":   bybitSymbol,
-		"side":     sideStr,
+	// 构建请求结构体
+	req := bybitPerpCreateOrderRequest{
+		Category: "linear",
+		Symbol:   bybitSymbol,
+		Side:     sideStr,
 	}
 
 	// 格式化数量
@@ -585,10 +583,10 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 	if err != nil {
 		return nil, fmt.Errorf("invalid amount: %w", err)
 	}
-	reqBody["qty"] = strconv.FormatFloat(amountFloat, 'f', precision, 64)
+	req.Qty = strconv.FormatFloat(amountFloat, 'f', precision, 64)
 
-	if orderType == types.OrderTypeLimit {
-		reqBody["orderType"] = "Limit"
+	if orderType == option.Limit {
+		req.OrderType = "Limit"
 		priceFloat, err := strconv.ParseFloat(priceStr, 64)
 		if err != nil {
 			return nil, fmt.Errorf("invalid price: %w", err)
@@ -597,16 +595,16 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 		if pricePrecision <= 0 {
 			pricePrecision = 8
 		}
-		reqBody["price"] = strconv.FormatFloat(priceFloat, 'f', pricePrecision, 64)
+		req.Price = strconv.FormatFloat(priceFloat, 'f', pricePrecision, 64)
 
 		// 处理 timeInForce
-		if options.TimeInForce != nil {
-			reqBody["timeInForce"] = strings.ToUpper(string(*options.TimeInForce))
+		if argsOpts.TimeInForce != nil {
+			req.TimeInForce = argsOpts.TimeInForce.Upper()
 		} else {
-			reqBody["timeInForce"] = "GTC"
+			req.TimeInForce = "GTC"
 		}
 	} else {
-		reqBody["orderType"] = "Market"
+		req.OrderType = "Market"
 	}
 
 	// 从 PerpOrderSide 自动推断 PositionSide 和 reduceOnly
@@ -615,8 +613,8 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 
 	// 获取持仓模式：如果提供了 hedgeMode 选项，使用它；否则查询 API
 	var isDualMode bool
-	if hedgeMode != nil {
-		isDualMode = *hedgeMode
+	if argsOpts.HedgeMode != nil {
+		isDualMode = *argsOpts.HedgeMode
 	} else {
 		var err error
 		isDualMode, err = o.getPositionMode(ctx, symbol)
@@ -630,25 +628,35 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 		// 开多/平多: positionIdx=1
 		// 开空/平空: positionIdx=2
 		if positionSideStr == "LONG" {
-			reqBody["positionIdx"] = 1
+			req.PositionIdx = 1
 		} else {
-			reqBody["positionIdx"] = 2
+			req.PositionIdx = 2
 		}
 	} else {
 		// 单向持仓模式
-		reqBody["positionIdx"] = 0
+		req.PositionIdx = 0
 
 		// 如果是平仓操作，设置 reduceOnly
-		reqBody["reduceOnly"] = reduceOnly
+		req.ReduceOnly = reduceOnly
 	}
 
 	// 客户端订单ID
-	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
-		reqBody["orderLinkId"] = *options.ClientOrderID
+	if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		req.OrderLinkID = *argsOpts.ClientOrderID
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
 		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-		reqBody["orderLinkId"] = common.GenerateClientOrderID(o.bybit.Name(), orderSide)
+		req.OrderLinkID = common.GenerateClientOrderID(o.bybit.Name(), orderSide)
+	}
+
+	// 将结构体转换为 map
+	reqBytes, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+	var reqBody map[string]interface{}
+	if err := json.Unmarshal(reqBytes, &reqBody); err != nil {
+		return nil, fmt.Errorf("unmarshal request: %w", err)
 	}
 
 	resp, err := o.signAndRequest(ctx, "POST", "/v5/order/create", nil, reqBody)
@@ -685,7 +693,7 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 		ID:            result.Result.OrderID,
 		ClientOrderID: result.Result.OrderLinkID,
 		Symbol:        symbol,
-		Type:          orderType,
+		Type:          types.OrderType(orderType.Lower()),
 		Side:          orderSide,
 		Amount:        amountFloat,
 		Price:         priceFloat,

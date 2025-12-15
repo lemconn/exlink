@@ -94,3 +94,18 @@ type bybitPerpPosition struct {
 	TradeMode              int               `json:"tradeMode"`
 	SessionAvgPrice        types.ExDecimal   `json:"sessionAvgPrice"`
 }
+
+// bybitPerpCreateOrderRequest Bybit 永续合约创建订单请求
+type bybitPerpCreateOrderRequest struct {
+	Category    string `json:"category,omitempty"`    // "linear"
+	Symbol      string `json:"symbol,omitempty"`      // 交易对
+	Side        string `json:"side,omitempty"`        // "Buy" / "Sell"
+	OrderType   string `json:"orderType,omitempty"`   // "Limit" / "Market"
+	Qty         string `json:"qty,omitempty"`         // 数量
+	MarketUnit  string `json:"marketUnit,omitempty"`  // "baseCoin"
+	ReduceOnly  bool   `json:"reduceOnly,omitempty"` // 是否只减仓
+	TimeInForce string `json:"timeInForce,omitempty"` // 限价单不传（实际代码中限价单会传 GTC）
+	Price       string `json:"price,omitempty"`       // 限价单价格
+	PositionIdx int    `json:"positionIdx,omitempty"` // 单向持仓时不传，双向持仓时 开多/平多 → positionIdx 等于 1，开空/平空 → positionIdx 等于 2
+	OrderLinkID string `json:"orderLinkId,omitempty"` // 自定义 ID
+}

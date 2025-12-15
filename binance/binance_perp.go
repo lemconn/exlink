@@ -111,26 +111,7 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side optio
 		opt(argsOpts)
 	}
 
-	// 转换为 types.OrderOption
-	orderOpts := []types.OrderOption{}
-	if argsOpts.Price != nil {
-		orderOpts = append(orderOpts, types.WithPrice(*argsOpts.Price))
-	}
-	if argsOpts.ClientOrderID != nil {
-		orderOpts = append(orderOpts, types.WithClientOrderID(*argsOpts.ClientOrderID))
-	}
-	// PositionSide 从 PerpOrderSide 自动推断，不再需要手动传递
-	if argsOpts.TimeInForce != nil {
-		orderOpts = append(orderOpts, types.WithTimeInForce(types.OrderTimeInForceType(*argsOpts.TimeInForce)))
-	}
-
-	// 传递 HedgeMode 选项
-	var hedgeMode *bool
-	if argsOpts.HedgeMode != nil {
-		hedgeMode = argsOpts.HedgeMode
-	}
-
-	return p.order.CreateOrder(ctx, symbol, side, amount, hedgeMode, orderOpts...)
+	return p.order.CreateOrder(ctx, symbol, side, amount, opts...)
 }
 
 // CancelOrder 取消订单
@@ -574,13 +555,16 @@ func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string
 }
 
 // CreateOrder 创建订单
-func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, hedgeMode *bool, opts ...types.OrderOption) (*types.Order, error) {
+func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
 	if o.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
 
 	// 解析订单选项
-	options := types.ApplyOrderOptions(opts...)
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
 
 	// 获取市场信息
 	market, err := o.binance.perp.market.GetMarket(symbol)
@@ -598,14 +582,26 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 		}
 	}
 
-	// 判断订单类型：如果 options.Price 设置了且不为空，则为限价单，否则为市价单
-	var orderType types.OrderType
-	var priceStr string
-	if options.Price != nil && *options.Price != "" {
-		orderType = types.OrderTypeLimit
-		priceStr = *options.Price
+	// 判断订单类型：优先使用 argsOpts.OrderType，如果未设置则默认为 Market
+	var orderType option.OrderType
+	if argsOpts.OrderType != nil {
+		orderType = *argsOpts.OrderType
 	} else {
-		orderType = types.OrderTypeMarket
+		// 默认使用 Market
+		orderType = option.Market
+	}
+
+	// 如果订单类型为 Limit，必须设置价格
+	var priceStr string
+	if orderType == option.Limit {
+		if argsOpts.Price == nil || *argsOpts.Price == "" {
+			return nil, fmt.Errorf("limit order requires price")
+		}
+		priceStr = *argsOpts.Price
+	} else if argsOpts.Price != nil && *argsOpts.Price != "" {
+		// 市价单也可以设置价格（用于某些交易所的限价市价单）
+		priceStr = *argsOpts.Price
+	} else {
 		priceStr = ""
 	}
 
@@ -630,13 +626,12 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 		}
 	}
 
-	// 构建基础请求参数
+	// 构建请求结构体
 	reqTimestamp := common.GetTimestamp()
-	reqParams := map[string]interface{}{
-		"symbol":    binanceSymbol,
-		"side":      side.ToSide(),
-		"type":      orderType.Upper(),
-		"timestamp": reqTimestamp,
+	req := binancePerpCreateOrderRequest{
+		Symbol: binanceSymbol,
+		Side:   side.ToSide(),
+		Type:   orderType.Upper(),
 	}
 
 	// 格式化数量（合约订单使用更保守的精度策略）
@@ -647,21 +642,21 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 	} else {
 		amountPrecision = 1
 	}
-	reqParams["quantity"] = amountDecimal.StringFixed(int32(amountPrecision))
+	req.Quantity = amountDecimal.StringFixed(int32(amountPrecision))
 
 	// 处理限价单的价格和 timeInForce
-	if orderType == types.OrderTypeLimit {
+	if orderType == option.Limit {
 		pricePrecision := market.Precision.Price
 		if pricePrecision == 0 {
 			pricePrecision = 8 // 默认精度
 		}
-		reqParams["price"] = priceDecimal.StringFixed(int32(pricePrecision))
+		req.Price = priceDecimal.StringFixed(int32(pricePrecision))
 
 		// 处理 timeInForce：如果设置了则使用，否则使用默认值 GTC
-		if options.TimeInForce != nil {
-			reqParams["timeInForce"] = options.TimeInForce.Upper()
+		if argsOpts.TimeInForce != nil {
+			req.TimeInForce = argsOpts.TimeInForce.Upper()
 		} else {
-			reqParams["timeInForce"] = types.OrderTimeInForceGTC.Upper()
+			req.TimeInForce = option.GTC.Upper()
 		}
 	}
 
@@ -672,8 +667,8 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 
 	// 获取持仓模式：如果提供了 hedgeMode 选项，使用它；否则查询 API
 	var isDualMode bool
-	if hedgeMode != nil {
-		isDualMode = *hedgeMode
+	if argsOpts.HedgeMode != nil {
+		isDualMode = *argsOpts.HedgeMode
 	} else {
 		var err error
 		isDualMode, err = o.getPositionMode(ctx)
@@ -686,27 +681,38 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 		// 双向持仓模式
 		// 开多/平多: positionSide=LONG
 		// 开空/平空: positionSide=SHORT
-		reqParams["positionSide"] = positionSideStr
+		req.PositionSide = positionSideStr
 	} else {
 		// 单向持仓模式
-		reqParams["positionSide"] = "BOTH"
+		req.PositionSide = "BOTH"
 
 		// 如果是平仓操作，设置 reduceOnly
 		if reduceOnly {
-			reqParams["reduceOnly"] = "true"
+			req.ReduceOnly = "true"
 		}
 	}
 
 	// 生成客户端订单ID（如果未提供）
-	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
-		reqParams["newClientOrderId"] = *options.ClientOrderID
+	if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		req.NewClientOrderID = *argsOpts.ClientOrderID
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
 		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-		reqParams["newClientOrderId"] = common.GenerateClientOrderID(o.binance.Name(), orderSide)
+		req.NewClientOrderID = common.GenerateClientOrderID(o.binance.Name(), orderSide)
 	}
 
-	// 构建签名
+	// 将结构体转换为 map，以便添加 timestamp 和 signature
+	reqBytes, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+	var reqParams map[string]interface{}
+	if err := json.Unmarshal(reqBytes, &reqParams); err != nil {
+		return nil, fmt.Errorf("unmarshal request: %w", err)
+	}
+
+	// 添加 timestamp 和 signature
+	reqParams["timestamp"] = reqTimestamp
 	queryString := BuildQueryString(reqParams)
 	signature := o.binance.signer.Sign(queryString)
 	reqParams["signature"] = signature
@@ -740,7 +746,7 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 		ID:            strconv.FormatInt(respData.OrderID, 10),
 		ClientOrderID: respData.ClientOrderID,
 		Symbol:        symbol,
-		Type:          orderType,
+		Type:          types.OrderType(orderType.Lower()),
 		Side:          orderSide,
 		Amount:        origQty.InexactFloat64(),
 		Price:         orderPrice.InexactFloat64(),

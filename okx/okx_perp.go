@@ -91,25 +91,7 @@ func (p *OKXPerp) CreateOrder(ctx context.Context, symbol string, side option.Pe
 	for _, opt := range opts {
 		opt(argsOpts)
 	}
-	orderOpts := []types.OrderOption{}
-	if argsOpts.Price != nil {
-		orderOpts = append(orderOpts, types.WithPrice(*argsOpts.Price))
-	}
-	if argsOpts.ClientOrderID != nil {
-		orderOpts = append(orderOpts, types.WithClientOrderID(*argsOpts.ClientOrderID))
-	}
-	// PositionSide 从 PerpOrderSide 自动推断，不再需要手动传递
-	if argsOpts.TimeInForce != nil {
-		orderOpts = append(orderOpts, types.WithTimeInForce(types.OrderTimeInForceType(*argsOpts.TimeInForce)))
-	}
-
-	// 传递 HedgeMode 选项
-	var hedgeMode *bool
-	if argsOpts.HedgeMode != nil {
-		hedgeMode = argsOpts.HedgeMode
-	}
-
-	return p.order.CreateOrder(ctx, symbol, side, amount, hedgeMode, orderOpts...)
+	return p.order.CreateOrder(ctx, symbol, side, amount, opts...)
 }
 
 func (p *OKXPerp) CancelOrder(ctx context.Context, orderID, symbol string) error {
@@ -648,18 +630,33 @@ func (o *okxPerpOrder) FetchPositions(ctx context.Context, symbols ...string) (m
 	return positions, nil
 }
 
-func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, hedgeMode *bool, opts ...types.OrderOption) (*types.Order, error) {
+func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
 	// 解析选项
-	options := types.ApplyOrderOptions(opts...)
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
 
-	// 判断订单类型
-	var orderType types.OrderType
-	var priceStr string
-	if options.Price != nil && *options.Price != "" {
-		orderType = types.OrderTypeLimit
-		priceStr = *options.Price
+	// 判断订单类型：优先使用 argsOpts.OrderType，如果未设置则默认为 Market
+	var orderType option.OrderType
+	if argsOpts.OrderType != nil {
+		orderType = *argsOpts.OrderType
 	} else {
-		orderType = types.OrderTypeMarket
+		// 默认使用 Market
+		orderType = option.Market
+	}
+
+	// 如果订单类型为 Limit，必须设置价格
+	var priceStr string
+	if orderType == option.Limit {
+		if argsOpts.Price == nil || *argsOpts.Price == "" {
+			return nil, fmt.Errorf("limit order requires price")
+		}
+		priceStr = *argsOpts.Price
+	} else if argsOpts.Price != nil && *argsOpts.Price != "" {
+		// 市价单也可以设置价格（用于某些交易所的限价市价单）
+		priceStr = *argsOpts.Price
+	} else {
 		priceStr = ""
 	}
 
@@ -705,17 +702,18 @@ func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side opti
 		sz = contractSizeDecimal.StringFixed(int32(szPrecision))
 	}
 
-	reqBody := map[string]interface{}{
-		"instId":  okxSymbol,
-		"tdMode":  tdMode,
-		"side":    strings.ToLower(side.ToSide()),
-		"ordType": strings.ToLower(string(orderType)),
-		"sz":      sz,
+	// 构建请求结构体
+	req := okxPerpCreateOrderRequest{
+		InstID: okxSymbol,
+		TdMode: tdMode,
+		Side:   strings.ToLower(side.ToSide()),
+		OrdType: orderType.Lower(),
+		Sz:     sz,
 	}
 
 	// 限价单设置价格
-	if orderType == types.OrderTypeLimit {
-		reqBody["px"] = priceStr
+	if orderType == option.Limit {
+		req.Px = priceStr
 	}
 
 	// 从 PerpOrderSide 自动推断 PositionSide 和 reduceOnly
@@ -724,8 +722,8 @@ func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side opti
 
 	// 获取持仓模式：如果提供了 hedgeMode 选项，使用它；否则查询 API
 	var posMode string
-	if hedgeMode != nil {
-		if *hedgeMode {
+	if argsOpts.HedgeMode != nil {
+		if *argsOpts.HedgeMode {
 			posMode = "long_short_mode"
 		} else {
 			posMode = "net_mode"
@@ -742,24 +740,34 @@ func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side opti
 		// 双向持仓模式
 		// 开多/平多: posSide=long
 		// 开空/平空: posSide=short
-		reqBody["posSide"] = strings.ToLower(positionSideStr)
+		req.PosSide = strings.ToLower(positionSideStr)
 	} else {
 		// 单向持仓模式
-		reqBody["posSide"] = "net"
+		req.PosSide = "net"
 
 		// 如果是平仓操作，设置 reduceOnly
 		if reduceOnly {
-			reqBody["reduceOnly"] = true
+			req.ReduceOnly = true
 		}
 	}
 
 	// 客户端订单ID
-	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
-		reqBody["clOrdId"] = *options.ClientOrderID
+	if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		req.ClOrdID = *argsOpts.ClientOrderID
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
 		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-		reqBody["clOrdId"] = common.GenerateClientOrderID(o.okx.Name(), orderSide)
+		req.ClOrdID = common.GenerateClientOrderID(o.okx.Name(), orderSide)
+	}
+
+	// 将结构体转换为 map
+	reqBytes, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+	var reqBody map[string]interface{}
+	if err := json.Unmarshal(reqBytes, &reqBody); err != nil {
+		return nil, fmt.Errorf("unmarshal request: %w", err)
 	}
 
 	resp, err := o.signAndRequest(ctx, "POST", "/api/v5/trade/order", nil, reqBody)
@@ -816,7 +824,7 @@ func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side opti
 		ID:            data.OrdID,
 		ClientOrderID: data.ClOrdID,
 		Symbol:        symbol,
-		Type:          orderType,
+		Type:          types.OrderType(orderType.Lower()),
 		Side:          orderSide,
 		Amount:        amountFloat,
 		Price:         priceFloat,
