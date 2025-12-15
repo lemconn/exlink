@@ -85,7 +85,7 @@ func (p *BybitPerp) FetchPositions(ctx context.Context, opts ...option.ArgsOptio
 	return p.order.FetchPositions(ctx, symbols...)
 }
 
-func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
+func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
@@ -97,9 +97,7 @@ func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side types.O
 	if argsOpts.ClientOrderID != nil {
 		orderOpts = append(orderOpts, types.WithClientOrderID(*argsOpts.ClientOrderID))
 	}
-	if argsOpts.PositionSide != nil {
-		orderOpts = append(orderOpts, types.WithPositionSide(types.PositionSide(*argsOpts.PositionSide)))
-	}
+	// PositionSide 从 PerpOrderSide 自动推断，不再需要手动传递
 	if argsOpts.TimeInForce != nil {
 		orderOpts = append(orderOpts, types.WithTimeInForce(types.OrderTimeInForceType(*argsOpts.TimeInForce)))
 	}
@@ -537,7 +535,7 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 	return positions, nil
 }
 
-func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, hedgeMode *bool, opts ...types.OrderOption) (*types.Order, error) {
+func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, hedgeMode *bool, opts ...types.OrderOption) (*types.Order, error) {
 	// 解析选项
 	options := types.ApplyOrderOptions(opts...)
 
@@ -567,7 +565,7 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side ty
 	}
 
 	// Bybit API requires "Buy" or "Sell" (capitalized)
-	sideStr := string(side)
+	sideStr := side.ToSide()
 	if len(sideStr) > 0 {
 		sideStr = strings.ToUpper(sideStr[:1]) + strings.ToLower(sideStr[1:])
 	}
@@ -611,10 +609,9 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side ty
 		reqBody["orderType"] = "Market"
 	}
 
-	// 合约订单处理持仓方向
-	if options.PositionSide == nil {
-		return nil, fmt.Errorf("contract order requires PositionSide (long/short)")
-	}
+	// 从 PerpOrderSide 自动推断 PositionSide 和 reduceOnly
+	positionSideStr := side.ToPositionSide()
+	reduceOnly := side.ToReduceOnly()
 
 	// 获取持仓模式：如果提供了 hedgeMode 选项，使用它；否则查询 API
 	var isDualMode bool
@@ -632,7 +629,7 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side ty
 		// 双向持仓模式
 		// 开多/平多: positionIdx=1
 		// 开空/平空: positionIdx=2
-		if *options.PositionSide == types.PositionSideLong {
+		if positionSideStr == "LONG" {
 			reqBody["positionIdx"] = 1
 		} else {
 			reqBody["positionIdx"] = 2
@@ -641,22 +638,17 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side ty
 		// 单向持仓模式
 		reqBody["positionIdx"] = 0
 
-		// 判断是否为平仓操作
-		// 平多：PositionSideLong + SideSell -> reduceOnly = true
-		// 平空：PositionSideShort + SideBuy -> reduceOnly = true
-		if (*options.PositionSide == types.PositionSideLong && side == types.OrderSideSell) ||
-			(*options.PositionSide == types.PositionSideShort && side == types.OrderSideBuy) {
-			reqBody["reduceOnly"] = true
-		} else {
-			reqBody["reduceOnly"] = false
-		}
+		// 如果是平仓操作，设置 reduceOnly
+		reqBody["reduceOnly"] = reduceOnly
 	}
 
 	// 客户端订单ID
 	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
 		reqBody["orderLinkId"] = *options.ClientOrderID
 	} else {
-		reqBody["orderLinkId"] = common.GenerateClientOrderID(o.bybit.Name(), side)
+		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
+		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
+		reqBody["orderLinkId"] = common.GenerateClientOrderID(o.bybit.Name(), orderSide)
 	}
 
 	resp, err := o.signAndRequest(ctx, "POST", "/v5/order/create", nil, reqBody)
@@ -687,12 +679,14 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side ty
 		priceFloat, _ = strconv.ParseFloat(priceStr, 64)
 	}
 
+	// 将 PerpOrderSide 转换为 OrderSide
+	orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
 	order := &types.Order{
 		ID:            result.Result.OrderID,
 		ClientOrderID: result.Result.OrderLinkID,
 		Symbol:        symbol,
 		Type:          orderType,
-		Side:          side,
+		Side:          orderSide,
 		Amount:        amountFloat,
 		Price:         priceFloat,
 		Timestamp:     time.Now(),

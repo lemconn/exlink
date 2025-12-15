@@ -104,7 +104,7 @@ func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOpt
 }
 
 // CreateOrder 创建订单
-func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
+func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
@@ -119,9 +119,7 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side types
 	if argsOpts.ClientOrderID != nil {
 		orderOpts = append(orderOpts, types.WithClientOrderID(*argsOpts.ClientOrderID))
 	}
-	if argsOpts.PositionSide != nil {
-		orderOpts = append(orderOpts, types.WithPositionSide(types.PositionSide(*argsOpts.PositionSide)))
-	}
+	// PositionSide 从 PerpOrderSide 自动推断，不再需要手动传递
 	if argsOpts.TimeInForce != nil {
 		orderOpts = append(orderOpts, types.WithTimeInForce(types.OrderTimeInForceType(*argsOpts.TimeInForce)))
 	}
@@ -576,7 +574,7 @@ func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string
 }
 
 // CreateOrder 创建订单
-func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, hedgeMode *bool, opts ...types.OrderOption) (*types.Order, error) {
+func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, hedgeMode *bool, opts ...types.OrderOption) (*types.Order, error) {
 	if o.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
@@ -636,7 +634,7 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 	reqTimestamp := common.GetTimestamp()
 	reqParams := map[string]interface{}{
 		"symbol":    binanceSymbol,
-		"side":      side.Upper(),
+		"side":      side.ToSide(),
 		"type":      orderType.Upper(),
 		"timestamp": reqTimestamp,
 	}
@@ -668,10 +666,9 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 	}
 
 	// ========== 永续合约订单处理 ==========
-	// 合约下单必须指定 PositionSide
-	if options.PositionSide == nil {
-		return nil, fmt.Errorf("contract order requires PositionSide (long/short)")
-	}
+	// 从 PerpOrderSide 自动推断 PositionSide 和 reduceOnly
+	positionSideStr := side.ToPositionSide()
+	reduceOnly := side.ToReduceOnly()
 
 	// 获取持仓模式：如果提供了 hedgeMode 选项，使用它；否则查询 API
 	var isDualMode bool
@@ -689,22 +686,13 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 		// 双向持仓模式
 		// 开多/平多: positionSide=LONG
 		// 开空/平空: positionSide=SHORT
-		if *options.PositionSide == types.PositionSideLong {
-			reqParams["positionSide"] = "LONG"
-		} else {
-			reqParams["positionSide"] = "SHORT"
-		}
+		reqParams["positionSide"] = positionSideStr
 	} else {
 		// 单向持仓模式
 		reqParams["positionSide"] = "BOTH"
 
-		// 判断是否为平仓操作
-		// 平多：PositionSideLong + SideSell -> reduceOnly = true
-		// 平空：PositionSideShort + SideBuy -> reduceOnly = true
-		// 开多：PositionSideLong + SideBuy -> 不设置 reduceOnly
-		// 开空：PositionSideShort + SideSell -> 不设置 reduceOnly
-		if (*options.PositionSide == types.PositionSideLong && side == types.OrderSideSell) ||
-			(*options.PositionSide == types.PositionSideShort && side == types.OrderSideBuy) {
+		// 如果是平仓操作，设置 reduceOnly
+		if reduceOnly {
 			reqParams["reduceOnly"] = "true"
 		}
 	}
@@ -713,7 +701,9 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
 		reqParams["newClientOrderId"] = *options.ClientOrderID
 	} else {
-		reqParams["newClientOrderId"] = common.GenerateClientOrderID(o.binance.Name(), side)
+		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
+		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
+		reqParams["newClientOrderId"] = common.GenerateClientOrderID(o.binance.Name(), orderSide)
 	}
 
 	// 构建签名
@@ -744,12 +734,14 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 	cumQuote, _ := decimal.NewFromString(respData.CumQuote)
 
 	// 构建订单对象
+	// 将 PerpOrderSide 转换为 OrderSide
+	orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
 	order := &types.Order{
 		ID:            strconv.FormatInt(respData.OrderID, 10),
 		ClientOrderID: respData.ClientOrderID,
 		Symbol:        symbol,
 		Type:          orderType,
-		Side:          side,
+		Side:          orderSide,
 		Amount:        origQty.InexactFloat64(),
 		Price:         orderPrice.InexactFloat64(),
 		Filled:        executedQty.InexactFloat64(),

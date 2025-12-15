@@ -87,7 +87,7 @@ func (p *GatePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption
 	return p.order.FetchPositions(ctx, symbols...)
 }
 
-func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
+func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
@@ -99,9 +99,7 @@ func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side types.Or
 	if argsOpts.ClientOrderID != nil {
 		orderOpts = append(orderOpts, types.WithClientOrderID(*argsOpts.ClientOrderID))
 	}
-	if argsOpts.PositionSide != nil {
-		orderOpts = append(orderOpts, types.WithPositionSide(types.PositionSide(*argsOpts.PositionSide)))
-	}
+	// PositionSide 从 PerpOrderSide 自动推断，不再需要手动传递
 	if argsOpts.TimeInForce != nil {
 		orderOpts = append(orderOpts, types.WithTimeInForce(types.OrderTimeInForceType(*argsOpts.TimeInForce)))
 	}
@@ -511,7 +509,7 @@ func (o *gatePerpOrder) FetchPositions(ctx context.Context, symbols ...string) (
 	return positions, nil
 }
 
-func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side types.OrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
+func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
 	// 解析选项
 	options := types.ApplyOrderOptions(opts...)
 
@@ -559,10 +557,8 @@ func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side typ
 		"contract": gateSymbol,
 	}
 
-	// 合约下单必须指定 PositionSide
-	if options.PositionSide == nil {
-		return nil, fmt.Errorf("contract order requires PositionSide (long/short)")
-	}
+	// 从 PerpOrderSide 自动推断 PositionSide 和 reduceOnly
+	reduceOnly := side.ToReduceOnly()
 
 	// 计算 size（张数）: 张数 = 币的个数 / quanto_multiplier
 	var size int64
@@ -582,32 +578,22 @@ func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side typ
 		}
 	}
 
-	// 根据 side + PositionSide 确定 size 符号 和 reduce_only
-	// 开多: PositionSideLong + SideBuy -> size正数, reduce_only=false
-	// 平多: PositionSideLong + SideSell -> size负数, reduce_only=true
-	// 开空: PositionSideShort + SideSell -> size负数, reduce_only=false
-	// 平空: PositionSideShort + SideBuy -> size正数, reduce_only=true
-	var reduceOnly bool
-	if *options.PositionSide == types.PositionSideLong {
-		if side == types.OrderSideBuy {
-			// 开多
-			reqBody["size"] = size
-			reduceOnly = false
-		} else {
-			// 平多
-			reqBody["size"] = -size
-			reduceOnly = true
-		}
-	} else { // PositionSideShort
-		if side == types.OrderSideSell {
-			// 开空
-			reqBody["size"] = -size
-			reduceOnly = false
-		} else {
-			// 平空
-			reqBody["size"] = size
-			reduceOnly = true
-		}
+	// 根据 PerpOrderSide 确定 size 符号
+	// 开多: OpenLong -> size正数
+	// 平多: CloseLong -> size负数
+	// 开空: OpenShort -> size负数
+	// 平空: CloseShort -> size正数
+	switch side {
+	case option.OpenLong:
+		reqBody["size"] = size
+	case option.CloseLong:
+		reqBody["size"] = -size
+	case option.OpenShort:
+		reqBody["size"] = -size
+	case option.CloseShort:
+		reqBody["size"] = size
+	default:
+		return nil, fmt.Errorf("invalid PerpOrderSide: %s", side)
 	}
 
 	// 设置 reduce_only
@@ -635,7 +621,9 @@ func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side typ
 	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
 		reqBody["text"] = *options.ClientOrderID
 	} else {
-		reqBody["text"] = common.GenerateClientOrderID(o.gate.Name(), side)
+		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
+		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
+		reqBody["text"] = common.GenerateClientOrderID(o.gate.Name(), orderSide)
 	}
 
 	resp, err := o.signAndRequest(ctx, "POST", path, nil, reqBody)
@@ -648,11 +636,13 @@ func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side typ
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
+	// 将 PerpOrderSide 转换为 OrderSide
+	orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
 	order := &types.Order{
 		ID:        getString(data, "id"),
 		Symbol:    symbol,
 		Type:      orderType,
-		Side:      side,
+		Side:      orderSide,
 		Amount:    amountFloat,
 		Price:     priceFloat,
 		Timestamp: time.Now(),
