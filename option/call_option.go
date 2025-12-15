@@ -15,18 +15,16 @@ type ExchangeArgsOptions struct {
 	Symbols []string
 
 	// ========== 订单相关参数 ==========
+	// OrderType 订单类型（MARKET/LIMIT）
+	OrderType *OrderType
 	// Price 订单价格（限价单必填，如果设置则为限价单，未设置则为市价单）
 	Price *string
 	// Amount 订单数量（表示购买交易对真实数量）
 	Amount *string
 	// ClientOrderID 客户端订单ID（所有交易所通用）
 	ClientOrderID *string
-	// PositionSide 持仓方向（合约订单: long/short）
-	PositionSide *string
-	// TimeInForce 订单有效期（gtc/ioc/fok，所有交易所通用）
-	TimeInForce *string
-	// ReduceOnly 是否只减仓（合约订单）
-	ReduceOnly *bool
+	// TimeInForce 订单有效期（GTC/IOC/FOK，所有交易所通用）
+	TimeInForce *TimeInForce
 	// HedgeMode 是否为双向持仓模式（合约订单）
 	HedgeMode *bool
 }
@@ -59,6 +57,13 @@ func WithSymbols(symbols ...string) ArgsOption {
 
 // ========== 订单相关参数选项 ==========
 
+// WithOrderType 设置订单类型（MARKET/LIMIT）
+func WithOrderType(orderType OrderType) ArgsOption {
+	return func(opts *ExchangeArgsOptions) {
+		opts.OrderType = &orderType
+	}
+}
+
 // WithPrice 设置订单价格（限价单必填，如果设置则为限价单，未设置则为市价单）
 func WithPrice(price string) ArgsOption {
 	return func(opts *ExchangeArgsOptions) {
@@ -80,24 +85,10 @@ func WithClientOrderID(clientOrderID string) ArgsOption {
 	}
 }
 
-// WithPositionSide 设置持仓方向（合约订单: long/short）
-func WithPositionSide(positionSide string) ArgsOption {
-	return func(opts *ExchangeArgsOptions) {
-		opts.PositionSide = &positionSide
-	}
-}
-
-// WithTimeInForce 设置订单有效期（gtc/ioc/fok，所有交易所通用）
-func WithTimeInForce(timeInForce string) ArgsOption {
+// WithTimeInForce 设置订单有效期（GTC/IOC/FOK，所有交易所通用）
+func WithTimeInForce(timeInForce TimeInForce) ArgsOption {
 	return func(opts *ExchangeArgsOptions) {
 		opts.TimeInForce = &timeInForce
-	}
-}
-
-// WithReduceOnly 设置是否只减仓（合约订单）
-func WithReduceOnly(reduceOnly bool) ArgsOption {
-	return func(opts *ExchangeArgsOptions) {
-		opts.ReduceOnly = &reduceOnly
 	}
 }
 

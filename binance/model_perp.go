@@ -73,3 +73,16 @@ type binancePerpPosition struct {
 	Isolated         bool              `json:"isolated"`
 	AdlQuantile      int               `json:"adlQuantile"`
 }
+
+// binancePerpCreateOrderRequest Binance 永续合约创建订单请求
+type binancePerpCreateOrderRequest struct {
+	NewClientOrderID string `json:"newClientOrderId,omitempty"` // 自定义 ID
+	PositionSide     string `json:"positionSide,omitempty"`     // 单向持仓时不传，双向持仓时传 LONG / SHORT
+	Price            string `json:"price,omitempty"`            // 限价单价格
+	Quantity         string `json:"quantity,omitempty"`         // 数量
+	Side             string `json:"side,omitempty"`             // BUY / SELL
+	ReduceOnly       string `json:"reduceOnly,omitempty"`       // "true" / "false"
+	Symbol           string `json:"symbol,omitempty"`           // 交易对
+	TimeInForce      string `json:"timeInForce,omitempty"`      // 限价单不传（实际代码中限价单会传 GTC）
+	Type             string `json:"type,omitempty"`            // LIMIT / MARKET
+}

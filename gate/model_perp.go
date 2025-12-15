@@ -103,3 +103,13 @@ type gatePerpPosition struct {
 	VoucherMargin          types.ExDecimal   `json:"voucher_margin"`
 	VoucherID              int               `json:"voucher_id"`
 }
+
+// gatePerpCreateOrderRequest Gate 永续合约创建订单请求
+type gatePerpCreateOrderRequest struct {
+	Contract   string `json:"contract,omitempty"`    // 交易对，如 "DOGE_USDT"
+	Size       int64  `json:"size,omitempty"`        // 合约张数，正数为买、负数为卖
+	Price      string `json:"price,omitempty"`       // 价格
+	Tif        string `json:"tif,omitempty"`         // 市价单只能设置为 "ioc"，限价单为 "gtc"
+	ReduceOnly bool   `json:"reduce_only,omitempty"` // 是否只减仓
+	Text       string `json:"text,omitempty"`        // 自定义 ID
+}

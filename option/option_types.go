@@ -1,10 +1,14 @@
 package option
 
+import (
+	"strings"
+)
+
 type SpotOrderSide string
 
 const (
 	// Buy 买入
-	Buy  SpotOrderSide = "BUY"	
+	Buy SpotOrderSide = "BUY"
 	// Sell 卖出
 	Sell SpotOrderSide = "SELL"
 )
@@ -68,4 +72,90 @@ func (o PerpOrderSide) ToReduceOnly() bool {
 		return true
 	}
 	return false
+}
+
+// OrderType 订单类型
+type OrderType string
+
+const (
+	// Market 市价单
+	Market OrderType = "MARKET"
+	// Limit 限价单
+	Limit OrderType = "LIMIT"
+)
+
+// String 返回字符串表示
+func (t OrderType) String() string {
+	return string(t)
+}
+
+// Upper 返回大写字符串
+func (t OrderType) Upper() string {
+	return string(t)
+}
+
+// Lower 返回小写字符串
+func (t OrderType) Lower() string {
+	return strings.ToLower(string(t))
+}
+
+// Capitalize 返回首字母大写的字符串
+func (t OrderType) Capitalize() string {
+	s := strings.ToLower(string(t))
+	if len(s) == 0 {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
+
+// IsMarket 判断是否为市价单
+func (t OrderType) IsMarket() bool {
+	return t == Market
+}
+
+// IsLimit 判断是否为限价单
+func (t OrderType) IsLimit() bool {
+	return t == Limit
+}
+
+// TimeInForce 订单有效期类型
+type TimeInForce string
+
+const (
+	// GTC Good Till Cancel 成交为止（下单后仅有1年有效期，1年后自动取消）
+	GTC TimeInForce = "GTC"
+	// IOC Immediate or Cancel 无法立即成交(吃单)的部分就撤销
+	IOC TimeInForce = "IOC"
+	// FOK Fill or Kill 无法全部立即成交就撤销
+	FOK TimeInForce = "FOK"
+)
+
+// String 返回字符串表示
+func (t TimeInForce) String() string {
+	return string(t)
+}
+
+// Upper 返回大写字符串
+func (t TimeInForce) Upper() string {
+	return string(t)
+}
+
+// Lower 返回小写字符串
+func (t TimeInForce) Lower() string {
+	return strings.ToLower(string(t))
+}
+
+// IsGTC 判断是否为 GTC（成交为止）
+func (t TimeInForce) IsGTC() bool {
+	return t == GTC
+}
+
+// IsIOC 判断是否为 IOC（无法立即成交的部分就撤销）
+func (t TimeInForce) IsIOC() bool {
+	return t == IOC
+}
+
+// IsFOK 判断是否为 FOK（无法全部立即成交就撤销）
+func (t TimeInForce) IsFOK() bool {
+	return t == FOK
 }

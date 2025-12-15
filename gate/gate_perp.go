@@ -92,18 +92,7 @@ func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side option.P
 	for _, opt := range opts {
 		opt(argsOpts)
 	}
-	orderOpts := []types.OrderOption{}
-	if argsOpts.Price != nil {
-		orderOpts = append(orderOpts, types.WithPrice(*argsOpts.Price))
-	}
-	if argsOpts.ClientOrderID != nil {
-		orderOpts = append(orderOpts, types.WithClientOrderID(*argsOpts.ClientOrderID))
-	}
-	// PositionSide 从 PerpOrderSide 自动推断，不再需要手动传递
-	if argsOpts.TimeInForce != nil {
-		orderOpts = append(orderOpts, types.WithTimeInForce(types.OrderTimeInForceType(*argsOpts.TimeInForce)))
-	}
-	return p.order.CreateOrder(ctx, symbol, side, amount, orderOpts...)
+	return p.order.CreateOrder(ctx, symbol, side, amount, opts...)
 }
 
 func (p *GatePerp) CancelOrder(ctx context.Context, orderID, symbol string) error {
@@ -509,18 +498,33 @@ func (o *gatePerpOrder) FetchPositions(ctx context.Context, symbols ...string) (
 	return positions, nil
 }
 
-func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...types.OrderOption) (*types.Order, error) {
+func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
 	// 解析选项
-	options := types.ApplyOrderOptions(opts...)
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
 
-	// 判断订单类型
-	var orderType types.OrderType
-	var priceStr string
-	if options.Price != nil && *options.Price != "" {
-		orderType = types.OrderTypeLimit
-		priceStr = *options.Price
+	// 判断订单类型：优先使用 argsOpts.OrderType，如果未设置则默认为 Market
+	var orderType option.OrderType
+	if argsOpts.OrderType != nil {
+		orderType = *argsOpts.OrderType
 	} else {
-		orderType = types.OrderTypeMarket
+		// 默认使用 Market
+		orderType = option.Market
+	}
+
+	// 如果订单类型为 Limit，必须设置价格
+	var priceStr string
+	if orderType == option.Limit {
+		if argsOpts.Price == nil || *argsOpts.Price == "" {
+			return nil, fmt.Errorf("limit order requires price")
+		}
+		priceStr = *argsOpts.Price
+	} else if argsOpts.Price != nil && *argsOpts.Price != "" {
+		// 市价单也可以设置价格（用于某些交易所的限价市价单）
+		priceStr = *argsOpts.Price
+	} else {
 		priceStr = ""
 	}
 
@@ -553,8 +557,10 @@ func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side opt
 
 	settle := strings.ToLower(market.Settle)
 	path := fmt.Sprintf("/api/v4/futures/%s/orders", settle)
-	reqBody := map[string]interface{}{
-		"contract": gateSymbol,
+
+	// 构建请求结构体
+	req := gatePerpCreateOrderRequest{
+		Contract: gateSymbol,
 	}
 
 	// 从 PerpOrderSide 自动推断 PositionSide 和 reduceOnly
@@ -585,45 +591,55 @@ func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side opt
 	// 平空: CloseShort -> size正数
 	switch side {
 	case option.OpenLong:
-		reqBody["size"] = size
+		req.Size = size
 	case option.CloseLong:
-		reqBody["size"] = -size
+		req.Size = -size
 	case option.OpenShort:
-		reqBody["size"] = -size
+		req.Size = -size
 	case option.CloseShort:
-		reqBody["size"] = size
+		req.Size = size
 	default:
 		return nil, fmt.Errorf("invalid PerpOrderSide: %s", side)
 	}
 
 	// 设置 reduce_only
 	if reduceOnly {
-		reqBody["reduce_only"] = true
+		req.ReduceOnly = true
 	}
 
 	// 价格设置
-	if orderType == types.OrderTypeMarket {
-		reqBody["price"] = "0"
+	if orderType == option.Market {
+		req.Price = "0"
 	} else {
-		reqBody["price"] = strconv.FormatFloat(priceFloat, 'f', -1, 64)
+		req.Price = strconv.FormatFloat(priceFloat, 'f', -1, 64)
 	}
 
 	// TimeInForce 设置
-	if options.TimeInForce != nil {
-		reqBody["tif"] = strings.ToLower(string(*options.TimeInForce))
-	} else if orderType == types.OrderTypeMarket {
-		reqBody["tif"] = "ioc" // 市价单固定 ioc
+	if argsOpts.TimeInForce != nil {
+		req.Tif = argsOpts.TimeInForce.Lower()
+	} else if orderType == option.Market {
+		req.Tif = option.IOC.Lower() // 市价单固定 ioc
 	} else {
-		reqBody["tif"] = "gtc" // 限价单默认 gtc
+		req.Tif = option.GTC.Lower() // 限价单默认 gtc
 	}
 
 	// 客户端订单ID
-	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
-		reqBody["text"] = *options.ClientOrderID
+	if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		req.Text = *argsOpts.ClientOrderID
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
 		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-		reqBody["text"] = common.GenerateClientOrderID(o.gate.Name(), orderSide)
+		req.Text = common.GenerateClientOrderID(o.gate.Name(), orderSide)
+	}
+
+	// 将结构体转换为 map
+	reqBytes, err := json.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("marshal request: %w", err)
+	}
+	var reqBody map[string]interface{}
+	if err := json.Unmarshal(reqBytes, &reqBody); err != nil {
+		return nil, fmt.Errorf("unmarshal request: %w", err)
 	}
 
 	resp, err := o.signAndRequest(ctx, "POST", path, nil, reqBody)
@@ -641,7 +657,7 @@ func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side opt
 	order := &types.Order{
 		ID:        getString(data, "id"),
 		Symbol:    symbol,
-		Type:      orderType,
+		Type:      types.OrderType(orderType.Lower()),
 		Side:      orderSide,
 		Amount:    amountFloat,
 		Price:     priceFloat,

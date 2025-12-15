@@ -120,3 +120,16 @@ type okxPerpPosition struct {
 	VegaBS                 types.ExDecimal   `json:"vegaBS"`
 	VegaPA                 types.ExDecimal   `json:"vegaPA"`
 }
+
+// okxPerpCreateOrderRequest OKX 永续合约创建订单请求
+type okxPerpCreateOrderRequest struct {
+	InstID     string `json:"instId,omitempty"`     // 交易对，如 "DOGE-USDT-SWAP"
+	TdMode     string `json:"tdMode,omitempty"`     // 逐仓/全仓，如 "isolated" / "cross"
+	Side       string `json:"side,omitempty"`       // "buy" / "sell"
+	PosSide    string `json:"posSide,omitempty"`    // 单向持仓时不传，双向持仓时传 "long" / "short"
+	OrdType    string `json:"ordType,omitempty"`    // "limit" / "market"
+	Sz         string `json:"sz,omitempty"`         // 数量
+	Px         string `json:"px,omitempty"`         // 限价单价格
+	ReduceOnly bool   `json:"reduceOnly,omitempty"` // 是否只减仓
+	ClOrdID    string `json:"clOrdId,omitempty"`    // 自定义 ID
+}
