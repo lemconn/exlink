@@ -98,7 +98,7 @@ func (p *OKXPerp) CancelOrder(ctx context.Context, orderID, symbol string) error
 	return p.order.CancelOrder(ctx, orderID, symbol)
 }
 
-func (p *OKXPerp) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
+func (p *OKXPerp) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
 	return p.order.FetchOrder(ctx, orderID, symbol)
 }
 
@@ -704,11 +704,11 @@ func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side opti
 
 	// 构建请求结构体
 	req := okxPerpCreateOrderRequest{
-		InstID: okxSymbol,
-		TdMode: tdMode,
-		Side:   strings.ToLower(side.ToSide()),
+		InstID:  okxSymbol,
+		TdMode:  tdMode,
+		Side:    strings.ToLower(side.ToSide()),
 		OrdType: orderType.Lower(),
-		Sz:     sz,
+		Sz:      sz,
 	}
 
 	// 限价单设置价格
@@ -806,54 +806,27 @@ func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side opti
 }
 
 // parseOrder 解析订单数据（合约版本）
-func (o *okxPerpOrder) parseOrder(item struct {
-	InstID    string `json:"instId"`
-	OrdID     string `json:"ordId"`
-	ClOrdID   string `json:"clOrdId"`
-	State     string `json:"state"`
-	Side      string `json:"side"`
-	OrdType   string `json:"ordType"`
-	Px        string `json:"px"`
-	Sz        string `json:"sz"`
-	AccFillSz string `json:"accFillSz"`
-	UTime     string `json:"uTime"`
-}, symbol string) *types.Order {
-	order := &types.Order{
-		ID:            item.OrdID,
-		ClientOrderID: item.ClOrdID,
-		Symbol:        symbol,
-		Timestamp:     time.Now(),
-	}
+// parsePerpOrder 将 OKX 响应转换为 model.PerpOrder
+func (o *okxPerpOrder) parsePerpOrder(item okxPerpFetchOrderItem, symbol string) *model.PerpOrder {
+	// 转换 reduceOnly 字符串为 bool
+	reduceOnly := strings.ToLower(item.ReduceOnly) == "true"
 
-	order.Price, _ = strconv.ParseFloat(item.Px, 64)
-	order.Amount, _ = strconv.ParseFloat(item.Sz, 64)
-	order.Filled, _ = strconv.ParseFloat(item.AccFillSz, 64)
-	order.Remaining = order.Amount - order.Filled
-
-	if strings.ToLower(item.Side) == "buy" {
-		order.Side = types.OrderSideBuy
-	} else {
-		order.Side = types.OrderSideSell
-	}
-
-	if strings.ToLower(item.OrdType) == "market" {
-		order.Type = types.OrderTypeMarket
-	} else {
-		order.Type = types.OrderTypeLimit
-	}
-
-	// 转换状态
-	switch item.State {
-	case "live":
-		order.Status = types.OrderStatusOpen
-	case "partially_filled":
-		order.Status = types.OrderStatusPartiallyFilled
-	case "filled":
-		order.Status = types.OrderStatusFilled
-	case "canceled":
-		order.Status = types.OrderStatusCanceled
-	default:
-		order.Status = types.OrderStatusNew
+	order := &model.PerpOrder{
+		ID:               item.OrdID,
+		ClientID:         item.ClOrdID,
+		Type:             item.OrdType,
+		Side:             item.Side,
+		PositionSide:     item.PosSide,
+		Symbol:           symbol,
+		Price:            item.Px,
+		AvgPrice:         item.AvgPx,
+		Quantity:         item.Sz,
+		ExecutedQuantity: item.AccFillSz,
+		Status:           item.State,
+		TimeInForce:      "", // OKX 响应中没有 timeInForce 字段
+		ReduceOnly:       reduceOnly,
+		CreateTime:       item.CTime,
+		UpdateTime:       item.UTime,
 	}
 
 	return order
@@ -885,7 +858,7 @@ func (o *okxPerpOrder) CancelOrder(ctx context.Context, orderID, symbol string) 
 	return err
 }
 
-func (o *okxPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
+func (o *okxPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
 	// 获取市场信息
 	market, err := o.okx.perp.market.GetMarket(symbol)
 	if err != nil {
@@ -913,22 +886,7 @@ func (o *okxPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
 
-	var result struct {
-		Code string `json:"code"`
-		Msg  string `json:"msg"`
-		Data []struct {
-			InstID    string `json:"instId"`
-			OrdID     string `json:"ordId"`
-			ClOrdID   string `json:"clOrdId"`
-			State     string `json:"state"`
-			Side      string `json:"side"`
-			OrdType   string `json:"ordType"`
-			Px        string `json:"px"`
-			Sz        string `json:"sz"`
-			AccFillSz string `json:"accFillSz"`
-			UTime     string `json:"uTime"`
-		} `json:"data"`
-	}
+	var result okxPerpFetchOrderResponse
 
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
@@ -938,7 +896,7 @@ func (o *okxPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (
 		return nil, fmt.Errorf("okx api error: %s", result.Msg)
 	}
 
-	return o.parseOrder(result.Data[0], symbol), nil
+	return o.parsePerpOrder(result.Data[0], symbol), nil
 }
 
 func (o *okxPerpOrder) SetLeverage(ctx context.Context, symbol string, leverage int) error {

@@ -120,7 +120,7 @@ func (p *BinancePerp) CancelOrder(ctx context.Context, orderID, symbol string) e
 }
 
 // FetchOrder 查询订单
-func (p *BinancePerp) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
+func (p *BinancePerp) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
 	return p.order.FetchOrder(ctx, orderID, symbol)
 }
 
@@ -778,7 +778,7 @@ func (o *binancePerpOrder) CancelOrder(ctx context.Context, orderID, symbol stri
 }
 
 // FetchOrder 查询订单
-func (o *binancePerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
+func (o *binancePerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
 	if o.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
@@ -817,94 +817,40 @@ func (o *binancePerpOrder) FetchOrder(ctx context.Context, orderID, symbol strin
 	}
 
 	// 解析响应
-	var data map[string]interface{}
+	var data binancePerpFetchOrderResponse
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
-	// 检查是否有错误码
-	if code, ok := data["code"].(float64); ok && code != 0 {
-		return nil, fmt.Errorf("fetch order error: %v", data["msg"])
+	// 检查是否有错误码（通过检查 orderId 是否为 0）
+	if data.OrderID == 0 {
+		return nil, fmt.Errorf("order not found")
 	}
 
-	// 提取订单ID
-	var orderIDInt int64
-	if id, ok := data["orderId"].(float64); ok {
-		orderIDInt = int64(id)
-	} else {
-		return nil, fmt.Errorf("missing orderId in response")
+	return o.parsePerpOrder(data, symbol), nil
+}
+
+// parsePerpOrder 将 Binance 响应转换为 model.PerpOrder
+func (o *binancePerpOrder) parsePerpOrder(data binancePerpFetchOrderResponse, symbol string) *model.PerpOrder {
+	order := &model.PerpOrder{
+		ID:               strconv.FormatInt(data.OrderID, 10),
+		ClientID:         data.ClientOrderID,
+		Type:             data.Type,
+		Side:             data.Side,
+		PositionSide:     data.PositionSide,
+		Symbol:           symbol, // 使用标准化格式
+		Price:            data.Price,
+		AvgPrice:         data.AvgPrice,
+		Quantity:         data.OrigQty,
+		ExecutedQuantity: data.ExecutedQty,
+		Status:           data.Status,
+		TimeInForce:      data.TimeInForce,
+		ReduceOnly:       data.ReduceOnly,
+		CreateTime:       data.Time,
+		UpdateTime:       data.UpdateTime,
 	}
 
-	// 提取时间戳（合约使用 updateTime）
-	var timestampInt int64
-	if t, ok := data["updateTime"].(float64); ok {
-		timestampInt = int64(t)
-	} else if t, ok := data["time"].(float64); ok {
-		timestampInt = int64(t)
-	} else if t, ok := data["transactTime"].(float64); ok {
-		timestampInt = int64(t)
-	} else {
-		return nil, fmt.Errorf("missing timestamp in response")
-	}
-
-	// 提取数量
-	origQtyStr := getString(data, "origQty", "quantity")
-	executedQtyStr := getString(data, "executedQty", "cumQty")
-	priceStr := getString(data, "price", "avgPrice")
-
-	// 解析数值
-	origQty, _ := strconv.ParseFloat(origQtyStr, 64)
-	executedQty, _ := strconv.ParseFloat(executedQtyStr, 64)
-	orderPrice, _ := strconv.ParseFloat(priceStr, 64)
-
-	// 构建订单对象
-	order := &types.Order{
-		ID:            strconv.FormatInt(orderIDInt, 10),
-		ClientOrderID: getString(data, "clientOrderId", "newClientStrategyId"),
-		Symbol:        symbol, // 使用标准化格式
-		Amount:        origQty,
-		Price:         orderPrice,
-		Filled:        executedQty,
-		Remaining:     origQty - executedQty,
-		Timestamp:     time.UnixMilli(timestampInt),
-	}
-
-	// 转换方向
-	sideStr := getString(data, "side")
-	if strings.ToUpper(sideStr) == "BUY" {
-		order.Side = types.OrderSideBuy
-	} else {
-		order.Side = types.OrderSideSell
-	}
-
-	// 转换类型
-	typeStr := getString(data, "type")
-	if strings.ToUpper(typeStr) == "MARKET" {
-		order.Type = types.OrderTypeMarket
-	} else {
-		order.Type = types.OrderTypeLimit
-	}
-
-	// 转换状态
-	statusStr := getString(data, "status", "strategyStatus")
-	switch statusStr {
-	case "NEW":
-		order.Status = types.OrderStatusNew
-	case "PARTIALLY_FILLED":
-		order.Status = types.OrderStatusPartiallyFilled
-	case "FILLED":
-		order.Status = types.OrderStatusFilled
-	case "CANCELED", "CANCELLED":
-		order.Status = types.OrderStatusCanceled
-	case "EXPIRED":
-		order.Status = types.OrderStatusExpired
-	case "REJECTED":
-		order.Status = types.OrderStatusRejected
-	default:
-		order.Status = types.OrderStatusNew
-	}
-
-	return order, nil
+	return order
 }
 
 // SetLeverage 设置杠杆

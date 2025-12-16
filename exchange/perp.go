@@ -5,7 +5,6 @@ import (
 
 	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/option"
-	"github.com/lemconn/exlink/types"
 )
 
 // PerpExchange 永续合约交易接口
@@ -51,7 +50,7 @@ type PerpExchange interface {
 	CancelOrder(ctx context.Context, orderID, symbol string) error
 
 	// FetchOrder 查询订单
-	FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error)
+	FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error)
 
 	// ========== 合约特有功能 ==========
 

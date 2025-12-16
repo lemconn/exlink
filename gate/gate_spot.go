@@ -401,11 +401,12 @@ func (o *gateSpotOrder) signAndRequest(ctx context.Context, method, path string,
 	o.gate.client.HTTPClient.SetHeader("X-Gate-Channel-Id", "api")
 
 	// 发送请求
-	if method == "GET" {
+	switch method {
+	case "GET":
 		return o.gate.client.HTTPClient.Get(ctx, path, params)
-	} else if method == "DELETE" {
+	case "DELETE":
 		return o.gate.client.HTTPClient.Delete(ctx, path, params, body)
-	} else {
+	default:
 		return o.gate.client.HTTPClient.Post(ctx, path, body)
 	}
 }

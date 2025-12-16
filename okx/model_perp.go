@@ -138,9 +138,34 @@ type okxPerpCreateOrderRequest struct {
 type okxPerpCreateOrderResponse struct {
 	Code string `json:"code"` // 返回码，"0" 表示成功
 	Data []struct {
-		ClOrdID string           `json:"clOrdId"` // 客户端订单ID
-		OrdID   string           `json:"ordId"`   // 系统订单号
-		TS      types.ExTimestamp `json:"ts"`       // 时间戳（毫秒）
+		ClOrdID string            `json:"clOrdId"` // 客户端订单ID
+		OrdID   string            `json:"ordId"`   // 系统订单号
+		TS      types.ExTimestamp `json:"ts"`      // 时间戳（毫秒）
 	} `json:"data"` // 订单数据数组
 	Msg string `json:"msg,omitempty"` // 返回消息
+}
+
+// okxPerpFetchOrderResponse OKX 永续合约查询订单响应
+type okxPerpFetchOrderResponse struct {
+	Code string                  `json:"code"`
+	Msg  string                  `json:"msg"`
+	Data []okxPerpFetchOrderItem `json:"data"`
+}
+
+// okxPerpFetchOrderItem OKX 永续合约查询订单项
+type okxPerpFetchOrderItem struct {
+	OrdID      string            `json:"ordId"`      // 订单ID
+	ClOrdID    string            `json:"clOrdId"`    // 客户端自定义订单ID
+	InstID     string            `json:"instId"`     // 合约标的
+	Px         types.ExDecimal   `json:"px"`         // 下单价格（市价单为空）
+	AvgPx      types.ExDecimal   `json:"avgPx"`      // 成交均价
+	Sz         types.ExDecimal   `json:"sz"`         // 下单数量
+	AccFillSz  types.ExDecimal   `json:"accFillSz"`  // 实际成交数量
+	State      string            `json:"state"`      // 订单状态
+	ReduceOnly string            `json:"reduceOnly"` // 是否只减仓（字符串 "true"/"false"）
+	OrdType    string            `json:"ordType"`    // 订单类型
+	Side       string            `json:"side"`       // 订单方向
+	PosSide    string            `json:"posSide"`    // 单向持仓 net, 双向持仓 long / short
+	CTime      types.ExTimestamp `json:"cTime"`      // 创建时间（毫秒）
+	UTime      types.ExTimestamp `json:"uTime"`      // 更新时间（毫秒）
 }
