@@ -90,6 +90,11 @@ func (c *HTTPClient) Post(ctx context.Context, path string, data interface{}) ([
 	return c.Request(ctx, http.MethodPost, path, nil, data)
 }
 
+// Delete 发送DELETE请求
+func (c *HTTPClient) Delete(ctx context.Context, path string, params map[string]interface{}, body interface{}) ([]byte, error) {
+	return c.Request(ctx, http.MethodDelete, path, params, body)
+}
+
 // Request 发送HTTP请求
 func (c *HTTPClient) Request(ctx context.Context, method, path string, params map[string]interface{}, body interface{}) ([]byte, error) {
 	url := c.baseURL + path

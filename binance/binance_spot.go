@@ -724,7 +724,7 @@ func (o *binanceSpotOrder) CancelOrder(ctx context.Context, orderID, symbol stri
 	signature := o.binance.signer.Sign(queryString)
 	params["signature"] = signature
 
-	_, err = o.binance.client.SpotClient.Post(ctx, "/api/v3/order", params)
+	_, err = o.binance.client.SpotClient.Delete(ctx, "/api/v3/order", params, nil)
 	return err
 }
 

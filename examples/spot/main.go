@@ -15,8 +15,8 @@ func main() {
 	ctx := context.Background()
 
 	// 从环境变量获取 API 密钥
-	apiKey := os.Getenv("OKX_API_KEY")
-	secretKey := os.Getenv("OKX_SECRET_KEY")
+	apiKey := os.Getenv("BINANCE_API_KEY")
+	secretKey := os.Getenv("BINANCE_SECRET_KEY")
 
 	// 创建 Binance 交易所实例
 	opts := []option.Option{
@@ -61,10 +61,10 @@ func main() {
 	}
 
 	// 创建订单
-	symbol = "SOL/USDT"
+	symbol = "DOGE/USDT"
 	side := model.OrderSideBuy
-	order, err := spot.CreateOrder(ctx, symbol, side, "0.1",
-		option.WithPrice("130"),
+	order, err := spot.CreateOrder(ctx, symbol, side, "50",
+		option.WithPrice("0.11"),
 	)
 	if err != nil {
 		fmt.Printf("下单失败: %v\n", err)
@@ -73,7 +73,17 @@ func main() {
 
 	// 打印结果
 	fmt.Printf("下单成功，打印结果:\n")
-	fmt.Printf("ID:%s, 订单ID：%s, 交易对：%s, 订单类型：%s, 方向：%s, 数量：%s, 价格：%s, 状态：%s",
+	fmt.Printf("ID:%s, 订单ID：%s, 交易对：%s, 订单类型：%s, 方向：%s, 数量：%s, 价格：%s, 状态：%s\n",
 		order.ID, order.ClientOrderID, order.Symbol, order.Type, order.Side, order.Amount, order.Price, order.Status)
+
+	// 取消订单
+	err = spot.CancelOrder(ctx, order.ID, symbol)
+	if err != nil {
+		fmt.Printf("订单（%s）取消失败: %v\n", order.ID, err)
+		return
+	}
+
+	// 打印结果
+	fmt.Printf("订单取消成功: %s\n", order.ID)
 
 }

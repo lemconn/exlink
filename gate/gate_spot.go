@@ -401,8 +401,10 @@ func (o *gateSpotOrder) signAndRequest(ctx context.Context, method, path string,
 	o.gate.client.HTTPClient.SetHeader("X-Gate-Channel-Id", "api")
 
 	// 发送请求
-	if method == "GET" || method == "DELETE" {
+	if method == "GET" {
 		return o.gate.client.HTTPClient.Get(ctx, path, params)
+	} else if method == "DELETE" {
+		return o.gate.client.HTTPClient.Delete(ctx, path, params, body)
 	} else {
 		return o.gate.client.HTTPClient.Post(ctx, path, body)
 	}
@@ -439,7 +441,7 @@ func (o *gateSpotOrder) FetchBalance(ctx context.Context) (model.Balances, error
 func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...model.OrderOption) (*model.Order, error) {
 	// 解析选项
 	options := model.ApplyOrderOptions(opts...)
-	
+
 	// 判断订单类型
 	var orderType types.OrderType
 	var priceStr string
@@ -478,7 +480,6 @@ func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side mod
 		}
 	}
 
-	path := "/api/v4/spot/orders"
 	reqBody := map[string]interface{}{
 		"currency_pair": gateSymbol,
 		"side":          strings.ToLower(string(side)),
@@ -526,7 +527,7 @@ func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side mod
 		reqBody["text"] = common.GenerateClientOrderID(o.gate.Name(), types.OrderSide(side))
 	}
 
-	resp, err := o.signAndRequest(ctx, "POST", path, nil, reqBody)
+	resp, err := o.signAndRequest(ctx, "POST", "/api/v4/spot/orders", nil, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("create order: %w", err)
 	}
@@ -609,10 +610,9 @@ func (o *gateSpotOrder) CancelOrder(ctx context.Context, orderID, symbol string)
 
 	reqBody := map[string]interface{}{
 		"currency_pair": gateSymbol,
-		"order_id":      orderID,
 	}
 
-	_, err = o.signAndRequest(ctx, "DELETE", "/api/v4/spot/orders/"+orderID, nil, reqBody)
+	_, err = o.signAndRequest(ctx, "DELETE", "/api/v4/spot/orders/"+orderID, reqBody, nil)
 	return err
 }
 
