@@ -85,7 +85,7 @@ func (p *BybitPerp) FetchPositions(ctx context.Context, opts ...option.ArgsOptio
 	return p.order.FetchPositions(ctx, symbols...)
 }
 
-func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
+func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
@@ -517,7 +517,7 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 	return positions, nil
 }
 
-func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
+func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	// 解析选项
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
@@ -664,15 +664,7 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 		return nil, fmt.Errorf("create order: %w", err)
 	}
 
-	var result struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-		Result  struct {
-			OrderID     string `json:"orderId"`
-			OrderLinkID string `json:"orderLinkId"`
-		} `json:"result"`
-	}
-
+	var result bybitPerpCreateOrderResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
@@ -681,27 +673,15 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
 	}
 
-	amountFloat, _ = strconv.ParseFloat(amount, 64)
-	var priceFloat float64
-	if priceStr != "" {
-		priceFloat, _ = strconv.ParseFloat(priceStr, 64)
-	}
-
-	// 将 PerpOrderSide 转换为 OrderSide
-	orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-	order := &types.Order{
-		ID:            result.Result.OrderID,
-		ClientOrderID: result.Result.OrderLinkID,
+	// 构建 NewOrder 对象
+	perpOrder := &model.NewOrder{
 		Symbol:        symbol,
-		Type:          types.OrderType(orderType.Lower()),
-		Side:          orderSide,
-		Amount:        amountFloat,
-		Price:         priceFloat,
-		Timestamp:     time.Now(),
-		Status:        types.OrderStatusNew,
+		OrderId:       result.Result.OrderID,
+		ClientOrderID: result.Result.OrderLinkID,
+		Timestamp:     result.Time,
 	}
 
-	return order, nil
+	return perpOrder, nil
 }
 
 // parseOrder 解析订单数据（合约版本）

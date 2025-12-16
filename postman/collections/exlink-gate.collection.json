@@ -881,10 +881,132 @@
 						}
 					]
 				},
-				"description": "Get contract order details by order ID. Returns order information including status, filled amount, remaining amount, price, side, and position side."
-			}
-		},
-		{
+			"description": "Get contract order details by order ID. Returns order information including status, filled amount, remaining amount, price, side, and position side."
+		}
+	},
+	{
+		"name": "Perp - Get Order",
+		"request": {
+			"method": "GET",
+			"header": [
+				{
+					"key": "Content-Type",
+					"value": "application/json",
+					"type": "text"
+				},
+				{
+					"key": "KEY",
+					"value": "",
+					"description": "API Key",
+					"disabled": false
+				},
+				{
+					"key": "Timestamp",
+					"value": "",
+					"description": "Unix timestamp in seconds (automatically generated)",
+					"disabled": false
+				},
+				{
+					"key": "SIGN",
+					"value": "",
+					"description": "HMAC-SHA512 signature (automatically generated)",
+					"disabled": false
+				}
+			],
+			"url": {
+				"raw": "{{gate_base_url}}/api/v4/futures/:settle/orders/:order_id",
+				"host": [
+					"{{gate_base_url}}"
+				],
+				"path": [
+					"api",
+					"v4",
+					"futures",
+					":settle",
+					"orders",
+					":order_id"
+				],
+				"variable": [
+					{
+						"key": "settle",
+						"value": "usdt",
+						"description": "Settle currency"
+					},
+					{
+						"key": "order_id",
+						"value": "",
+						"description": "Order ID returned, or user custom ID(i.e., text field). Operations based on custom ID can only be checked when the order is in orderbook. finished, it can be checked within 60 seconds after the end of the order. After that, only order ID is accepted."
+					}
+				]
+			},
+			"description": "Get a specific order by order ID or user custom ID. Zero-fill order cannot be retrieved for 10 minutes after cancellation. Historical orders, by default, only data within the past 6 months is supported. Operations based on custom ID can only be checked when the order is in orderbook. finished, it can be checked within 60 seconds after the end of the order. After that, only order ID is accepted."
+		}
+	},
+	{
+		"name": "Perp - Cancel Order",
+		"request": {
+			"method": "DELETE",
+			"header": [
+				{
+					"key": "Content-Type",
+					"value": "application/json",
+					"type": "text"
+				},
+				{
+					"key": "KEY",
+					"value": "",
+					"description": "API Key",
+					"disabled": false
+				},
+				{
+					"key": "Timestamp",
+					"value": "",
+					"description": "Unix timestamp in seconds (automatically generated)",
+					"disabled": false
+				},
+				{
+					"key": "SIGN",
+					"value": "",
+					"description": "HMAC-SHA512 signature (automatically generated)",
+					"disabled": false
+				},
+				{
+					"key": "x-gate-exptime",
+					"value": "",
+					"description": "Specify the expiration time (milliseconds); if the GATE receives the request time greater than the expiration time, the request will be rejected",
+					"disabled": true
+				}
+			],
+			"url": {
+				"raw": "{{gate_base_url}}/api/v4/futures/:settle/orders/:order_id",
+				"host": [
+					"{{gate_base_url}}"
+				],
+				"path": [
+					"api",
+					"v4",
+					"futures",
+					":settle",
+					"orders",
+					":order_id"
+				],
+				"variable": [
+					{
+						"key": "settle",
+						"value": "usdt",
+						"description": "Settle currency"
+					},
+					{
+						"key": "order_id",
+						"value": "",
+						"description": "Order ID returned, or user custom ID(i.e., text field). Operations based on custom ID can only be checked when the order is in orderbook. finished, it can be checked within 60 seconds after the end of the order. After that, only order ID is accepted."
+					}
+				]
+			},
+			"description": "Cancel a specific order by order ID or user custom ID. Operations based on custom ID can only be checked when the order is in orderbook. finished, it can be checked within 60 seconds after the end of the order. After that, only order ID is accepted."
+		}
+	},
+	{
 			"name": "Perp - Get Ticker",
 			"request": {
 				"method": "GET",

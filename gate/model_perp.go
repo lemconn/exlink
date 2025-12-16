@@ -113,3 +113,10 @@ type gatePerpCreateOrderRequest struct {
 	ReduceOnly bool   `json:"reduce_only,omitempty"` // 是否只减仓
 	Text       string `json:"text,omitempty"`        // 自定义 ID
 }
+
+// gatePerpCreateOrderResponse Gate 永续合约创建订单响应
+type gatePerpCreateOrderResponse struct {
+	ID         string           `json:"id"`         // 系统订单号
+	Text       string           `json:"text"`      // 客户端订单ID
+	UpdateTime types.ExTimestamp `json:"update_time"` // 更新时间（秒级时间戳，带小数）
+}

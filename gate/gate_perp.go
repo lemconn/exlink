@@ -87,7 +87,7 @@ func (p *GatePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption
 	return p.order.FetchPositions(ctx, symbols...)
 }
 
-func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
+func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
@@ -498,7 +498,7 @@ func (o *gatePerpOrder) FetchPositions(ctx context.Context, symbols ...string) (
 	return positions, nil
 }
 
-func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
+func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	// 解析选项
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
@@ -647,37 +647,23 @@ func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side opt
 		return nil, fmt.Errorf("create order: %w", err)
 	}
 
-	var data map[string]interface{}
-	if err := json.Unmarshal(resp, &data); err != nil {
+	var respData gatePerpCreateOrderResponse
+	if err := json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
-	// 将 PerpOrderSide 转换为 OrderSide
-	orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-	order := &types.Order{
-		ID:        getString(data, "id"),
-		Symbol:    symbol,
-		Type:      types.OrderType(orderType.Lower()),
-		Side:      orderSide,
-		Amount:    amountFloat,
-		Price:     priceFloat,
-		Timestamp: time.Now(),
-		Status:    types.OrderStatusNew,
+	// 构建 NewOrder 对象
+	// Gate 的 text 字段可能包含 "t-" 前缀，需要去除
+	clientOrderID := strings.TrimPrefix(respData.Text, "t-")
+
+	perpOrder := &model.NewOrder{
+		Symbol:        symbol,
+		OrderId:       respData.ID,
+		ClientOrderID: clientOrderID,
+		Timestamp:     respData.UpdateTime,
 	}
 
-	// 解析状态
-	if statusStr := getString(data, "status"); statusStr != "" {
-		switch statusStr {
-		case "open":
-			order.Status = types.OrderStatusOpen
-		case "closed":
-			order.Status = types.OrderStatusFilled
-		case "cancelled":
-			order.Status = types.OrderStatusCanceled
-		}
-	}
-
-	return order, nil
+	return perpOrder, nil
 }
 
 // parseOrder 解析订单数据（合约版本）
