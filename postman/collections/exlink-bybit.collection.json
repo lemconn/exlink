@@ -337,6 +337,64 @@
 			}
 		},
 		{
+			"name": "Spot - Cancel Order",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "X-BAPI-API-KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-TIMESTAMP",
+						"value": "",
+						"description": "Timestamp in milliseconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-RECV-WINDOW",
+						"value": "5000",
+						"description": "Receive window in milliseconds (default: 5000)",
+						"disabled": false
+					},
+					{
+						"key": "X-BAPI-SIGN",
+						"value": "",
+						"description": "HMAC-SHA256 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"category\": \"spot\",\n    \"symbol\": \"BTCUSDT\",\n    \"orderId\": \"\",\n    \"orderLinkId\": \"\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{bybit_base_url}}/v5/order/cancel",
+					"host": [
+						"{{bybit_base_url}}"
+					],
+					"path": [
+						"v5",
+						"order",
+						"cancel"
+					]
+				},
+				"description": "取消现货订单。category=spot 表示现货交易。orderId 或 orderLinkId 至少需要提供一个。"
+			}
+		},
+		{
 			"name": "Spot - Get Ticker",
 			"request": {
 				"method": "GET",

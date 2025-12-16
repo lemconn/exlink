@@ -282,6 +282,66 @@
 			}
 		},
 		{
+			"name": "Spot - Cancel Order",
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": "application/json",
+						"type": "text"
+					},
+					{
+						"key": "KEY",
+						"value": "",
+						"description": "API Key",
+						"disabled": false
+					},
+					{
+						"key": "Timestamp",
+						"value": "",
+						"description": "Unix timestamp in seconds (automatically generated)",
+						"disabled": false
+					},
+					{
+						"key": "SIGN",
+						"value": "",
+						"description": "HMAC-SHA512 signature (automatically generated)",
+						"disabled": false
+					}
+				],
+				"url": {
+					"raw": "{{gate_base_url}}/api/v4/spot/orders/:order_id?currency_pair=BTC_USDT",
+					"host": [
+						"{{gate_base_url}}"
+					],
+					"path": [
+						"api",
+						"v4",
+						"spot",
+						"orders",
+						":order_id"
+					],
+					"query": [
+						{
+							"key": "currency_pair",
+							"value": "BTC_USDT",
+							"description": "交易对，例如 BTC_USDT",
+							"disabled": false
+						}
+					],
+					"variable": [
+						{
+							"key": "order_id",
+							"value": "",
+							"description": "要取消的订单 ID"
+						}
+					]
+				},
+				"description": "取消现货订单。需要在 URL 路径中提供 order_id，并在查询参数中提供 currency_pair（交易对）。"
+			}
+		},
+		{
 			"name": "Spot - Get Ticker",
 			"request": {
 				"method": "GET",
