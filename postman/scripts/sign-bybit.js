@@ -18,7 +18,7 @@ const method = pm.request.method.toUpperCase();
 const timestamp = Date.now().toString();
 const recvWindow = '5000';
 
-// Build query string for GET requests
+// Build query string for GET requests (NO encode)
 let queryString = '';
 if (method === 'GET' || method === 'DELETE') {
     const queryParams = {};
@@ -29,13 +29,9 @@ if (method === 'GET' || method === 'DELETE') {
     });
     
     if (Object.keys(queryParams).length > 0) {
-        // Sort keys and build query string with URL encoding (equivalent to url.QueryEscape in Go)
-        const sortedKeys = Object.keys(queryParams).sort();
-        const queryParts = sortedKeys.map(key => {
-            const value = queryParams[key];
-            // URL encode the value (equivalent to url.QueryEscape in Go)
-            return `${key}=${encodeURIComponent(String(value))}`;
-        });
+        const queryParts = Object.keys(queryParams).map(key => 
+            `${key}=${encodeURIComponent(queryParams[key])}`
+        );
         queryString = queryParts.join('&');
     }
 }

@@ -86,3 +86,10 @@ type binancePerpCreateOrderRequest struct {
 	TimeInForce      string `json:"timeInForce,omitempty"`      // 限价单不传（实际代码中限价单会传 GTC）
 	Type             string `json:"type,omitempty"`            // LIMIT / MARKET
 }
+
+// binancePerpCreateOrderResponse Binance 永续合约创建订单响应
+type binancePerpCreateOrderResponse struct {
+	OrderID       string           `json:"orderId"`       // 系统订单号
+	ClientOrderID string           `json:"clientOrderId"` // 客户端订单ID
+	UpdateTime    types.ExTimestamp `json:"updateTime"`    // 更新时间（毫秒时间戳）
+}

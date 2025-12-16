@@ -204,3 +204,10 @@ func ApplyOrderOptions(opts ...OrderOption) *orderOptions {
 	}
 	return options
 }
+
+type NewOrder struct {
+	Symbol        string
+	OrderId       string
+	ClientOrderID string
+	Timestamp     types.ExTimestamp
+}

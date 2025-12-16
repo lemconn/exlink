@@ -104,7 +104,7 @@ func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOpt
 }
 
 // CreateOrder 创建订单
-func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
+func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
@@ -555,7 +555,7 @@ func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string
 }
 
 // CreateOrder 创建订单
-func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
+func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	if o.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
@@ -724,58 +724,20 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 	}
 
 	// 解析响应（合约订单响应）
-	var respData types.BinanceContractOrderResponse
+	var respData binancePerpCreateOrderResponse
 	if err := json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal contract order response: %w", err)
 	}
 
-	// 解析数量
-	origQty, _ := decimal.NewFromString(respData.OrigQty)
-	executedQty, _ := decimal.NewFromString(respData.ExecutedQty)
-	if origQty.IsZero() {
-		origQty = amountDecimal
-	}
-	orderPrice, _ := decimal.NewFromString(respData.Price)
-	avgPrice, _ := decimal.NewFromString(respData.AvgPrice)
-	cumQuote, _ := decimal.NewFromString(respData.CumQuote)
-
-	// 构建订单对象
-	// 将 PerpOrderSide 转换为 OrderSide
-	orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-	order := &types.Order{
-		ID:            strconv.FormatInt(respData.OrderID, 10),
-		ClientOrderID: respData.ClientOrderID,
+	// 构建 NewOrder 对象
+	perpOrder := &model.NewOrder{
 		Symbol:        symbol,
-		Type:          types.OrderType(orderType.Lower()),
-		Side:          orderSide,
-		Amount:        origQty.InexactFloat64(),
-		Price:         orderPrice.InexactFloat64(),
-		Filled:        executedQty.InexactFloat64(),
-		Remaining:     origQty.Sub(executedQty).InexactFloat64(),
-		Cost:          cumQuote.InexactFloat64(),
-		Average:       avgPrice.InexactFloat64(),
-		Timestamp:     time.UnixMilli(respData.UpdateTime),
+		OrderId:       respData.OrderID,
+		ClientOrderID: respData.ClientOrderID,
+		Timestamp:     respData.UpdateTime,
 	}
 
-	// 转换状态
-	switch respData.Status {
-	case "NEW":
-		order.Status = types.OrderStatusNew
-	case "PARTIALLY_FILLED":
-		order.Status = types.OrderStatusPartiallyFilled
-	case "FILLED":
-		order.Status = types.OrderStatusFilled
-	case "CANCELED", "CANCELLED":
-		order.Status = types.OrderStatusCanceled
-	case "EXPIRED":
-		order.Status = types.OrderStatusExpired
-	case "REJECTED":
-		order.Status = types.OrderStatusRejected
-	default:
-		order.Status = types.OrderStatusNew
-	}
-
-	return order, nil
+	return perpOrder, nil
 }
 
 // CancelOrder 取消订单

@@ -86,7 +86,7 @@ func (p *OKXPerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption)
 	return p.order.FetchPositions(ctx, symbols...)
 }
 
-func (p *OKXPerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
+func (p *OKXPerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
@@ -630,7 +630,7 @@ func (o *okxPerpOrder) FetchPositions(ctx context.Context, symbols ...string) (m
 	return positions, nil
 }
 
-func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*types.Order, error) {
+func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	// 解析选项
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
@@ -775,26 +775,15 @@ func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side opti
 		return nil, fmt.Errorf("create order: %w", err)
 	}
 
-	var result struct {
-		Code string `json:"code"`
-		Msg  string `json:"msg"`
-		Data []struct {
-			OrdID   string `json:"ordId"`
-			ClOrdID string `json:"clOrdId"`
-			Tag     string `json:"tag"`
-			SCode   string `json:"sCode"`
-			SMsg    string `json:"sMsg"`
-		} `json:"data"`
-	}
-
+	var result okxPerpCreateOrderResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
 	if result.Code != "0" {
 		errMsg := result.Msg
-		if len(result.Data) > 0 && result.Data[0].SMsg != "" {
-			errMsg = fmt.Sprintf("%s: %s", result.Msg, result.Data[0].SMsg)
+		if len(result.Data) > 0 {
+			errMsg = result.Msg
 		}
 		return nil, fmt.Errorf("okx api error: %s", errMsg)
 	}
@@ -804,35 +793,16 @@ func (o *okxPerpOrder) CreateOrder(ctx context.Context, symbol string, side opti
 	}
 
 	data := result.Data[0]
-	if data.SCode != "" && data.SCode != "0" {
-		errMsg := data.SMsg
-		if errMsg == "" {
-			errMsg = result.Msg
-		}
-		return nil, fmt.Errorf("okx api error: %s (code: %s)", errMsg, data.SCode)
-	}
 
-	amountFloat, _ := strconv.ParseFloat(amount, 64)
-	var priceFloat float64
-	if priceStr != "" {
-		priceFloat, _ = strconv.ParseFloat(priceStr, 64)
-	}
-
-	// 将 PerpOrderSide 转换为 OrderSide
-	orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-	order := &types.Order{
-		ID:            data.OrdID,
-		ClientOrderID: data.ClOrdID,
+	// 构建 NewOrder 对象
+	perpOrder := &model.NewOrder{
 		Symbol:        symbol,
-		Type:          types.OrderType(orderType.Lower()),
-		Side:          orderSide,
-		Amount:        amountFloat,
-		Price:         priceFloat,
-		Timestamp:     time.Now(),
-		Status:        types.OrderStatusNew,
+		OrderId:       data.OrdID,
+		ClientOrderID: data.ClOrdID,
+		Timestamp:     data.TS,
 	}
 
-	return order, nil
+	return perpOrder, nil
 }
 
 // parseOrder 解析订单数据（合约版本）

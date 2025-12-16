@@ -109,3 +109,15 @@ type bybitPerpCreateOrderRequest struct {
 	PositionIdx int    `json:"positionIdx,omitempty"` // 单向持仓时不传，双向持仓时 开多/平多 → positionIdx 等于 1，开空/平空 → positionIdx 等于 2
 	OrderLinkID string `json:"orderLinkId,omitempty"` // 自定义 ID
 }
+
+// bybitPerpCreateOrderResponse Bybit 永续合约创建订单响应
+type bybitPerpCreateOrderResponse struct {
+	RetCode    int    `json:"retCode"`    // 返回码，0 表示成功
+	RetMsg     string `json:"retMsg"`     // 返回消息
+	Result     struct {
+		OrderID     string `json:"orderId"`     // 系统订单号
+		OrderLinkID string `json:"orderLinkId"` // 客户端订单ID
+	} `json:"result"`     // 订单结果
+	RetExtInfo map[string]interface{} `json:"retExtInfo"` // 扩展信息
+	Time       types.ExTimestamp       `json:"time"`      // 时间戳（毫秒）
+}

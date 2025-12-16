@@ -159,3 +159,38 @@ func (t TimeInForce) IsIOC() bool {
 func (t TimeInForce) IsFOK() bool {
 	return t == FOK
 }
+
+// MarginType 保证金类型
+type MarginType string
+
+const (
+	// ISOLATED 逐仓保证金
+	ISOLATED MarginType = "ISOLATED"
+	// CROSSED 全仓保证金
+	CROSSED MarginType = "CROSSED"
+)
+
+// String 返回字符串表示
+func (m MarginType) String() string {
+	return string(m)
+}
+
+// Upper 返回大写字符串
+func (m MarginType) Upper() string {
+	return string(m)
+}
+
+// Lower 返回小写字符串
+func (m MarginType) Lower() string {
+	return strings.ToLower(string(m))
+}
+
+// IsIsolated 判断是否为逐仓保证金
+func (m MarginType) IsIsolated() bool {
+	return m == ISOLATED
+}
+
+// IsCrossed 判断是否为全仓保证金
+func (m MarginType) IsCrossed() bool {
+	return m == CROSSED
+}

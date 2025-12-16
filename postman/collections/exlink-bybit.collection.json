@@ -31,7 +31,7 @@
 					"const timestamp = Date.now().toString();",
 					"const recvWindow = '5000';",
 					"",
-					"// Build query string for GET requests",
+					"// Build query string for GET requests (NO encode)",
 					"let queryString = '';",
 					"if (method === 'GET' || method === 'DELETE') {",
 					"    const queryParams = {};",
@@ -42,13 +42,9 @@
 					"    });",
 					"    ",
 					"    if (Object.keys(queryParams).length > 0) {",
-					"        // Sort keys and build query string with URL encoding (equivalent to url.QueryEscape in Go)",
-					"        const sortedKeys = Object.keys(queryParams).sort();",
-					"        const queryParts = sortedKeys.map(key => {",
-					"            const value = queryParams[key];",
-					"            // URL encode the value (equivalent to url.QueryEscape in Go)",
-					"            return `${key}=${encodeURIComponent(String(value))}`;",
-					"        });",
+					"        const queryParts = Object.keys(queryParams).map(key => ",
+					"            `${key}=${encodeURIComponent(queryParams[key])}`",
+					"        );",
 					"        queryString = queryParts.join('&');",
 					"    }",
 					"}",
@@ -1028,11 +1024,180 @@
 						}
 					]
 				},
-				"description": "Get contract order details by order ID or client order ID. Returns order information including status, filled amount, remaining amount, price, side, and position side. First tries to fetch from realtime orders, then falls back to history if not found."
-			}
-		},
-		{
-			"name": "Perp - Get Ticker",
+			"description": "Get contract order details by order ID or client order ID. Returns order information including status, filled amount, remaining amount, price, side, and position side. First tries to fetch from realtime orders, then falls back to history if not found."
+		}
+	},
+	{
+		"name": "Perp - Get Order",
+		"request": {
+			"method": "GET",
+			"header": [
+				{
+					"key": "Content-Type",
+					"value": "application/json",
+					"type": "text"
+				},
+				{
+					"key": "X-BAPI-API-KEY",
+					"value": "",
+					"description": "API Key",
+					"disabled": false
+				},
+				{
+					"key": "X-BAPI-TIMESTAMP",
+					"value": "",
+					"description": "Timestamp in milliseconds (automatically generated)",
+					"disabled": false
+				},
+				{
+					"key": "X-BAPI-RECV-WINDOW",
+					"value": "5000",
+					"description": "Receive window in milliseconds (default: 5000)",
+					"disabled": false
+				},
+				{
+					"key": "X-BAPI-SIGN",
+					"value": "",
+					"description": "HMAC-SHA256 signature (automatically generated)",
+					"disabled": false
+				}
+			],
+			"url": {
+				"raw": "{{bybit_base_url}}/v5/order/realtime?category=linear&symbol=BTCUSDT",
+				"host": [
+					"{{bybit_base_url}}"
+				],
+				"path": [
+					"v5",
+					"order",
+					"realtime"
+				],
+				"query": [
+					{
+						"key": "category",
+						"value": "linear",
+						"description": "Product type: linear, inverse, spot, option",
+						"disabled": false
+					},
+					{
+						"key": "symbol",
+						"value": "BTCUSDT",
+						"description": "Symbol name, like BTCUSDT, uppercase only. For linear, either symbol, baseCoin, settleCoin is required",
+						"disabled": false
+					},
+					{
+						"key": "baseCoin",
+						"value": "",
+						"description": "Base coin, uppercase only. Supports linear, inverse & option",
+						"disabled": true
+					},
+					{
+						"key": "settleCoin",
+						"value": "",
+						"description": "Settle coin, uppercase only. linear: either symbol, baseCoin or settleCoin is required",
+						"disabled": true
+					},
+					{
+						"key": "orderId",
+						"value": "",
+						"description": "Order ID",
+						"disabled": true
+					},
+					{
+						"key": "orderLinkId",
+						"value": "",
+						"description": "User customised order ID",
+						"disabled": true
+					},
+					{
+						"key": "openOnly",
+						"value": "0",
+						"description": "0(default): query open status orders only. 1: Query a maximum of recent 500 closed status records. openOnly param will be ignored when query by orderId or orderLinkId",
+						"disabled": true
+					},
+					{
+						"key": "orderFilter",
+						"value": "",
+						"description": "Order: active order, StopOrder: conditional order, tpslOrder: spot TP/SL order, OcoOrder: Spot oco order, BidirectionalTpslOrder: Spot bidirectional TPSL order. all kinds of orders by default",
+						"disabled": true
+					},
+					{
+						"key": "limit",
+						"value": "20",
+						"description": "Limit for data size per page. [1, 50]. Default: 20",
+						"disabled": true
+					},
+					{
+						"key": "cursor",
+						"value": "",
+						"description": "Cursor. Use the nextPageCursor token from the response to retrieve the next page of the result set",
+						"disabled": true
+					}
+				]
+			},
+			"description": "Query realtime order information. For linear, either symbol, baseCoin, or settleCoin is required. openOnly param will be ignored when query by orderId or orderLinkId."
+		}
+	},
+	{
+		"name": "Perp - Cancel Order",
+		"request": {
+			"method": "POST",
+			"header": [
+				{
+					"key": "Content-Type",
+					"value": "application/json",
+					"type": "text"
+				},
+				{
+					"key": "X-BAPI-API-KEY",
+					"value": "",
+					"description": "API Key",
+					"disabled": false
+				},
+				{
+					"key": "X-BAPI-TIMESTAMP",
+					"value": "",
+					"description": "Timestamp in milliseconds (automatically generated)",
+					"disabled": false
+				},
+				{
+					"key": "X-BAPI-RECV-WINDOW",
+					"value": "5000",
+					"description": "Receive window in milliseconds (default: 5000)",
+					"disabled": false
+				},
+				{
+					"key": "X-BAPI-SIGN",
+					"value": "",
+					"description": "HMAC-SHA256 signature (automatically generated)",
+					"disabled": false
+				}
+			],
+			"body": {
+				"mode": "raw",
+				"raw": "{\n    \"category\": \"linear\",\n    \"symbol\": \"BTCUSDT\",\n    \"orderId\": \"\",\n    \"orderLinkId\": \"\",\n    \"orderFilter\": \"\"\n}",
+				"options": {
+					"raw": {
+						"language": "json"
+					}
+				}
+			},
+			"url": {
+				"raw": "{{bybit_base_url}}/v5/order/cancel",
+				"host": [
+					"{{bybit_base_url}}"
+				],
+				"path": [
+					"v5",
+					"order",
+					"cancel"
+				]
+			},
+			"description": "Cancel an active order. category=linear for USDT perpetual. Either orderId or orderLinkId is required. orderFilter: Spot trading only - Order, tpslOrder, StopOrder. If not passed, Order by default."
+		}
+	},
+	{
+		"name": "Perp - Get Ticker",
 			"request": {
 				"method": "GET",
 				"header": [

@@ -133,3 +133,14 @@ type okxPerpCreateOrderRequest struct {
 	ReduceOnly bool   `json:"reduceOnly,omitempty"` // 是否只减仓
 	ClOrdID    string `json:"clOrdId,omitempty"`    // 自定义 ID
 }
+
+// okxPerpCreateOrderResponse OKX 永续合约创建订单响应
+type okxPerpCreateOrderResponse struct {
+	Code string `json:"code"` // 返回码，"0" 表示成功
+	Data []struct {
+		ClOrdID string           `json:"clOrdId"` // 客户端订单ID
+		OrdID   string           `json:"ordId"`   // 系统订单号
+		TS      types.ExTimestamp `json:"ts"`       // 时间戳（毫秒）
+	} `json:"data"` // 订单数据数组
+	Msg string `json:"msg,omitempty"` // 返回消息
+}

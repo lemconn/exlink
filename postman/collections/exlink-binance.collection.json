@@ -1644,11 +1644,169 @@
 						}
 					]
 				},
-				"description": "Get contract order details by order ID or client order ID. Returns order information including status, filled amount, remaining amount, price, side, and position side."
-			}
-		},
-		{
-			"name": "Perp - Set Account Position Mode",
+			"description": "Get contract order details by order ID or client order ID. Returns order information including status, filled amount, remaining amount, price, side, and position side."
+		}
+	},
+	{
+		"name": "Perp - Get Order",
+		"request": {
+			"method": "GET",
+			"header": [
+				{
+					"key": "X-MBX-APIKEY",
+					"value": "",
+					"description": "API KEY",
+					"disabled": false
+				},
+				{
+					"key": "Accept",
+					"value": "application/json",
+					"description": "",
+					"disabled": false
+				}
+			],
+			"body": {
+				"mode": "raw",
+				"raw": "",
+				"options": {
+					"raw": {
+						"language": "json"
+					}
+				}
+			},
+			"url": {
+				"raw": "{{binance_fapi_base_url}}/fapi/v1/order?symbol=BTCUSDT&orderId=",
+				"host": [
+					"{{binance_fapi_base_url}}"
+				],
+				"path": [
+					"fapi",
+					"v1",
+					"order"
+				],
+				"query": [
+					{
+						"key": "symbol",
+						"value": "BTCUSDT",
+						"description": "Trading pair symbol, e.g., BTCUSDT",
+						"disabled": false
+					},
+					{
+						"key": "orderId",
+						"value": "",
+						"description": "Order ID to query. Either orderId or origClientOrderId must be sent.",
+						"disabled": true
+					},
+					{
+						"key": "origClientOrderId",
+						"value": "",
+						"description": "Client Order ID to query. Either orderId or origClientOrderId must be sent.",
+						"disabled": true
+					},
+					{
+						"key": "recvWindow",
+						"value": "5000",
+						"description": "Optional. The value cannot be greater than 60000.",
+						"disabled": true
+					},
+					{
+						"key": "timestamp",
+						"value": "",
+						"description": "UTC timestamp in ms",
+						"disabled": false
+					},
+					{
+						"key": "signature",
+						"value": "",
+						"description": "Signature",
+						"disabled": false
+					}
+				]
+			},
+			"description": "Get a specific order by order ID or client order ID. Either orderId or origClientOrderId must be sent. orderId is self-increment for each specific symbol."
+		}
+	},
+	{
+		"name": "Perp - Cancel Order",
+		"request": {
+			"method": "DELETE",
+			"header": [
+				{
+					"key": "X-MBX-APIKEY",
+					"value": "",
+					"description": "API KEY",
+					"disabled": false
+				},
+				{
+					"key": "Accept",
+					"value": "application/json",
+					"description": "",
+					"disabled": false
+				}
+			],
+			"body": {
+				"mode": "raw",
+				"raw": "",
+				"options": {
+					"raw": {
+						"language": "json"
+					}
+				}
+			},
+			"url": {
+				"raw": "{{binance_fapi_base_url}}/fapi/v1/order?symbol=BTCUSDT&orderId=",
+				"host": [
+					"{{binance_fapi_base_url}}"
+				],
+				"path": [
+					"fapi",
+					"v1",
+					"order"
+				],
+				"query": [
+					{
+						"key": "symbol",
+						"value": "BTCUSDT",
+						"description": "Trading pair symbol, e.g., BTCUSDT",
+						"disabled": false
+					},
+					{
+						"key": "orderId",
+						"value": "",
+						"description": "Order ID to cancel. Either orderId or origClientOrderId must be sent.",
+						"disabled": true
+					},
+					{
+						"key": "origClientOrderId",
+						"value": "",
+						"description": "Client Order ID to cancel. Either orderId or origClientOrderId must be sent.",
+						"disabled": true
+					},
+					{
+						"key": "recvWindow",
+						"value": "5000",
+						"description": "Optional. The value cannot be greater than 60000.",
+						"disabled": true
+					},
+					{
+						"key": "timestamp",
+						"value": "",
+						"description": "UTC timestamp in ms",
+						"disabled": false
+					},
+					{
+						"key": "signature",
+						"value": "",
+						"description": "Signature",
+						"disabled": false
+					}
+				]
+			},
+			"description": "Cancel a specific order by order ID or client order ID. Either orderId or origClientOrderId must be sent."
+		}
+	},
+	{
+		"name": "Perp - Set Account Position Mode",
 			"request": {
 				"method": "POST",
 				"header": [
