@@ -99,7 +99,7 @@ func (p *GatePerp) CancelOrder(ctx context.Context, orderID, symbol string) erro
 	return p.order.CancelOrder(ctx, orderID, symbol)
 }
 
-func (p *GatePerp) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
+func (p *GatePerp) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
 	return p.order.FetchOrder(ctx, orderID, symbol)
 }
 
@@ -667,44 +667,54 @@ func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side opt
 }
 
 // parseOrder 解析订单数据（合约版本）
-func (o *gatePerpOrder) parseOrder(data map[string]interface{}, symbol string) *types.Order {
-	order := &types.Order{
-		ID:        getString(data, "id"),
-		Symbol:    symbol,
-		Timestamp: time.Now(),
-	}
-
-	order.Price, _ = strconv.ParseFloat(getString(data, "price"), 64)
-	order.Amount, _ = strconv.ParseFloat(getString(data, "size"), 64)
-	if left := getString(data, "left"); left != "" {
-		leftFloat, _ := strconv.ParseFloat(left, 64)
-		order.Remaining = leftFloat
-		order.Filled = order.Amount - leftFloat
-	}
-
-	if strings.ToLower(getString(data, "side")) == "buy" {
-		order.Side = types.OrderSideBuy
+// parsePerpOrder 将 Gate 响应转换为 model.PerpOrder
+func (o *gatePerpOrder) parsePerpOrder(data gatePerpFetchOrderResponse, symbol string) *model.PerpOrder {
+	// 计算实际成交数量（size - left）
+	//nolint:staticcheck // QF1008: need to access Decimal field for Sub method
+	executedQtyDecimal := data.Size.Decimal.Sub(data.Left.Decimal)
+	var executedQty types.ExDecimal
+	if executedQtyDecimal.IsNegative() {
+		executedQty = types.ExDecimal{Decimal: decimal.Zero}
 	} else {
-		order.Side = types.OrderSideSell
+		executedQty = types.ExDecimal{Decimal: executedQtyDecimal}
 	}
 
-	if strings.ToLower(getString(data, "type")) == "market" {
-		order.Type = types.OrderTypeMarket
+	// 确定订单方向和类型（Gate 的 size 正负表示方向）
+	var side string
+	if data.Size.IsPositive() {
+		side = "buy"
 	} else {
-		order.Type = types.OrderTypeLimit
+		side = "sell"
 	}
 
-	// 转换状态
-	statusStr := getString(data, "status")
-	switch statusStr {
-	case "open":
-		order.Status = types.OrderStatusOpen
-	case "closed":
-		order.Status = types.OrderStatusFilled
-	case "cancelled":
-		order.Status = types.OrderStatusCanceled
-	default:
-		order.Status = types.OrderStatusNew
+	// 确定订单类型（Gate 的 tif 为 ioc 时通常是市价单）
+	var orderType string
+	if strings.ToLower(data.Tif) == "ioc" && data.Price.IsZero() {
+		orderType = "market"
+	} else {
+		orderType = "limit"
+	}
+
+	// 确定 positionSide（Gate 没有明确的 positionSide，使用 BOTH）
+	positionSide := "BOTH"
+
+	order := &model.PerpOrder{
+		ID:           strconv.FormatInt(data.ID, 10),
+		ClientID:     data.Text,
+		Type:         orderType,
+		Side:         side,
+		PositionSide: positionSide,
+		Symbol:       symbol,
+		Price:        data.Price,
+		AvgPrice:     data.FillPrice,
+		//nolint:staticcheck // QF1008: need to access Decimal field for Abs method
+		Quantity:         types.ExDecimal{Decimal: data.Size.Decimal.Abs()}, // 使用绝对值作为数量
+		ExecutedQuantity: executedQty,
+		Status:           data.Status,
+		TimeInForce:      strings.ToUpper(data.Tif),
+		ReduceOnly:       data.IsReduceOnly,
+		CreateTime:       data.CreateTime,
+		UpdateTime:       data.UpdateTime,
 	}
 
 	return order
@@ -724,7 +734,7 @@ func (o *gatePerpOrder) CancelOrder(ctx context.Context, orderID, symbol string)
 	return err
 }
 
-func (o *gatePerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
+func (o *gatePerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
 	// 获取市场信息（用于获取 settle）
 	market, err := o.gate.perp.market.GetMarket(symbol)
 	if err != nil {
@@ -739,12 +749,12 @@ func (o *gatePerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) 
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
 
-	var data map[string]interface{}
+	var data gatePerpFetchOrderResponse
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
-	return o.parseOrder(data, symbol), nil
+	return o.parsePerpOrder(data, symbol), nil
 }
 
 func (o *gatePerpOrder) SetLeverage(ctx context.Context, symbol string, leverage int) error {

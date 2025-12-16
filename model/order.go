@@ -211,3 +211,22 @@ type NewOrder struct {
 	ClientOrderID string
 	Timestamp     types.ExTimestamp
 }
+
+// PerpOrder 永续合约订单信息
+type PerpOrder struct {
+	ID               string            `json:"id"`                // ID 交易所订单唯一 ID
+	ClientID         string            `json:"client_id"`         // ClientID 客户端自定义订单 ID
+	Type             string            `json:"type"`              // Type 订单类型
+	Side             string            `json:"side"`              // Side 订单方向
+	PositionSide     string            `json:"position_side"`     // PositionSide 持仓方向
+	Symbol           string            `json:"symbol"`            // Symbol 交易对 / 合约标的
+	Price            types.ExDecimal   `json:"price"`             // Price 下单价格（市价单通常为 0 / 空）
+	AvgPrice         types.ExDecimal   `json:"avg_price"`         // AvgPrice 实际成交均价
+	Quantity         types.ExDecimal   `json:"quantity"`          // Quantity 下单数量
+	ExecutedQuantity types.ExDecimal   `json:"executed_quantity"` // ExecutedQuantity 实际成交数量
+	Status           string            `json:"status"`            // Status 订单最终状态
+	TimeInForce      string            `json:"time_in_force"`     // TimeInForce 订单有效方式（GTC / IOC 等）
+	ReduceOnly       bool              `json:"reduce_only"`       // ReduceOnly 是否只减仓
+	CreateTime       types.ExTimestamp `json:"create_time"`       // CreateTime 订单创建时间
+	UpdateTime       types.ExTimestamp `json:"update_time"`       // UpdateTime 订单更新时间
+}

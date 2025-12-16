@@ -116,7 +116,23 @@ type gatePerpCreateOrderRequest struct {
 
 // gatePerpCreateOrderResponse Gate 永续合约创建订单响应
 type gatePerpCreateOrderResponse struct {
-	ID         string           `json:"id"`         // 系统订单号
-	Text       string           `json:"text"`      // 客户端订单ID
+	ID         string            `json:"id"`          // 系统订单号
+	Text       string            `json:"text"`        // 客户端订单ID
 	UpdateTime types.ExTimestamp `json:"update_time"` // 更新时间（秒级时间戳，带小数）
+}
+
+// gatePerpFetchOrderResponse Gate 永续合约查询订单响应
+type gatePerpFetchOrderResponse struct {
+	ID           int64             `json:"id"`             // 订单ID
+	Text         string            `json:"text"`           // 客户端自定义订单ID
+	Contract     string            `json:"contract"`       // 合约标的
+	Price        types.ExDecimal   `json:"price"`          // 下单价格（市价单价格为0，tif为ioc）
+	FillPrice    types.ExDecimal   `json:"fill_price"`     // 成交均价
+	Size         types.ExDecimal   `json:"size"`           // 下单数量（正数为买入，负数为卖出，可以表示订单方向，单向持仓模式时通过 size + reduceOnly 识别 开多/开空/平多/平空）
+	Left         types.ExDecimal   `json:"left"`           // 剩余未成交数量（size - left 等于实际成交数量）
+	Status       string            `json:"status"`         // 订单状态
+	Tif          string            `json:"tif"`            // 订单有效方式
+	IsReduceOnly bool              `json:"is_reduce_only"` // 是否只减仓
+	CreateTime   types.ExTimestamp `json:"create_time"`    // 创建时间（秒）
+	UpdateTime   types.ExTimestamp `json:"update_time"`    // 更新时间（秒）
 }

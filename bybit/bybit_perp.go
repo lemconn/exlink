@@ -97,7 +97,7 @@ func (p *BybitPerp) CancelOrder(ctx context.Context, orderID, symbol string) err
 	return p.order.CancelOrder(ctx, orderID, symbol)
 }
 
-func (p *BybitPerp) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
+func (p *BybitPerp) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
 	return p.order.FetchOrder(ctx, orderID, symbol)
 }
 
@@ -685,53 +685,35 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 }
 
 // parseOrder 解析订单数据（合约版本）
-func (o *bybitPerpOrder) parseOrder(item struct {
-	OrderID     string `json:"orderId"`
-	OrderLinkID string `json:"orderLinkId"`
-	OrderStatus string `json:"orderStatus"`
-	Side        string `json:"side"`
-	OrderType   string `json:"orderType"`
-	Price       string `json:"price"`
-	Qty         string `json:"qty"`
-	CumExecQty  string `json:"cumExecQty"`
-	CreatedTime string `json:"createdTime"`
-}, symbol string) *types.Order {
-	order := &types.Order{
-		ID:            item.OrderID,
-		ClientOrderID: item.OrderLinkID,
-		Symbol:        symbol,
-		Timestamp:     time.Now(),
-	}
-
-	order.Price, _ = strconv.ParseFloat(item.Price, 64)
-	order.Amount, _ = strconv.ParseFloat(item.Qty, 64)
-	order.Filled, _ = strconv.ParseFloat(item.CumExecQty, 64)
-	order.Remaining = order.Amount - order.Filled
-
-	if strings.ToUpper(item.Side) == "BUY" {
-		order.Side = types.OrderSideBuy
-	} else {
-		order.Side = types.OrderSideSell
-	}
-
-	if strings.ToUpper(item.OrderType) == "MARKET" {
-		order.Type = types.OrderTypeMarket
-	} else {
-		order.Type = types.OrderTypeLimit
-	}
-
-	// 转换状态
-	switch item.OrderStatus {
-	case "New":
-		order.Status = types.OrderStatusNew
-	case "PartiallyFilled":
-		order.Status = types.OrderStatusPartiallyFilled
-	case "Filled":
-		order.Status = types.OrderStatusFilled
-	case "Cancelled":
-		order.Status = types.OrderStatusCanceled
+// parsePerpOrder 将 Bybit 响应转换为 model.PerpOrder
+func (o *bybitPerpOrder) parsePerpOrder(item bybitPerpFetchOrderItem, symbol string) *model.PerpOrder {
+	// 确定 positionSide
+	var positionSide string
+	switch item.PositionIdx {
+	case 1:
+		positionSide = "LONG"
+	case 2:
+		positionSide = "SHORT"
 	default:
-		order.Status = types.OrderStatusNew
+		positionSide = "BOTH"
+	}
+
+	order := &model.PerpOrder{
+		ID:               item.OrderID,
+		ClientID:         item.OrderLinkID,
+		Type:             item.OrderType,
+		Side:             item.Side,
+		PositionSide:     positionSide,
+		Symbol:           symbol,
+		Price:            item.Price,
+		AvgPrice:         item.AvgPrice,
+		Quantity:         item.Qty,
+		ExecutedQuantity: item.CumExecQty,
+		Status:           item.OrderStatus,
+		TimeInForce:      item.TimeInForce,
+		ReduceOnly:       item.ReduceOnly,
+		CreateTime:       item.CreatedTime,
+		UpdateTime:       item.UpdatedTime,
 	}
 
 	return order
@@ -764,7 +746,7 @@ func (o *bybitPerpOrder) CancelOrder(ctx context.Context, orderID, symbol string
 	return err
 }
 
-func (o *bybitPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
+func (o *bybitPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
 	// 获取市场信息
 	market, err := o.bybit.perp.market.GetMarket(symbol)
 	if err != nil {
@@ -790,28 +772,12 @@ func (o *bybitPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string)
 	// First try to fetch from open orders (realtime)
 	resp, err := o.signAndRequest(ctx, "GET", "/v5/order/realtime", params, nil)
 	if err == nil {
-		var realtimeResult struct {
-			RetCode int    `json:"retCode"`
-			RetMsg  string `json:"retMsg"`
-			Result  struct {
-				List []struct {
-					OrderID     string `json:"orderId"`
-					OrderLinkID string `json:"orderLinkId"`
-					OrderStatus string `json:"orderStatus"`
-					Side        string `json:"side"`
-					OrderType   string `json:"orderType"`
-					Price       string `json:"price"`
-					Qty         string `json:"qty"`
-					CumExecQty  string `json:"cumExecQty"`
-					CreatedTime string `json:"createdTime"`
-				} `json:"list"`
-			} `json:"result"`
-		}
+		var realtimeResult bybitPerpFetchOrderResponse
 
 		if err := json.Unmarshal(resp, &realtimeResult); err == nil && realtimeResult.RetCode == 0 {
 			for _, item := range realtimeResult.Result.List {
 				if item.OrderID == orderID {
-					return o.parseOrder(item, symbol), nil
+					return o.parsePerpOrder(item, symbol), nil
 				}
 			}
 		}
@@ -823,23 +789,7 @@ func (o *bybitPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string)
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
 
-	var result struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-		Result  struct {
-			List []struct {
-				OrderID     string `json:"orderId"`
-				OrderLinkID string `json:"orderLinkId"`
-				OrderStatus string `json:"orderStatus"`
-				Side        string `json:"side"`
-				OrderType   string `json:"orderType"`
-				Price       string `json:"price"`
-				Qty         string `json:"qty"`
-				CumExecQty  string `json:"cumExecQty"`
-				CreatedTime string `json:"createdTime"`
-			} `json:"list"`
-		} `json:"result"`
-	}
+	var result bybitPerpFetchOrderResponse
 
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
@@ -856,7 +806,7 @@ func (o *bybitPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string)
 	// Find the order by ID
 	for _, item := range result.Result.List {
 		if item.OrderID == orderID {
-			return o.parseOrder(item, symbol), nil
+			return o.parsePerpOrder(item, symbol), nil
 		}
 	}
 

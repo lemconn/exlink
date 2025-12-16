@@ -103,7 +103,7 @@ type bybitPerpCreateOrderRequest struct {
 	OrderType   string `json:"orderType,omitempty"`   // "Limit" / "Market"
 	Qty         string `json:"qty,omitempty"`         // 数量
 	MarketUnit  string `json:"marketUnit,omitempty"`  // "baseCoin"
-	ReduceOnly  bool   `json:"reduceOnly,omitempty"` // 是否只减仓
+	ReduceOnly  bool   `json:"reduceOnly,omitempty"`  // 是否只减仓
 	TimeInForce string `json:"timeInForce,omitempty"` // 限价单不传（实际代码中限价单会传 GTC）
 	Price       string `json:"price,omitempty"`       // 限价单价格
 	PositionIdx int    `json:"positionIdx,omitempty"` // 单向持仓时不传，双向持仓时 开多/平多 → positionIdx 等于 1，开空/平空 → positionIdx 等于 2
@@ -112,12 +112,40 @@ type bybitPerpCreateOrderRequest struct {
 
 // bybitPerpCreateOrderResponse Bybit 永续合约创建订单响应
 type bybitPerpCreateOrderResponse struct {
-	RetCode    int    `json:"retCode"`    // 返回码，0 表示成功
-	RetMsg     string `json:"retMsg"`     // 返回消息
-	Result     struct {
+	RetCode int    `json:"retCode"` // 返回码，0 表示成功
+	RetMsg  string `json:"retMsg"`  // 返回消息
+	Result  struct {
 		OrderID     string `json:"orderId"`     // 系统订单号
 		OrderLinkID string `json:"orderLinkId"` // 客户端订单ID
-	} `json:"result"`     // 订单结果
+	} `json:"result"` // 订单结果
 	RetExtInfo map[string]interface{} `json:"retExtInfo"` // 扩展信息
-	Time       types.ExTimestamp       `json:"time"`      // 时间戳（毫秒）
+	Time       types.ExTimestamp      `json:"time"`       // 时间戳（毫秒）
+}
+
+// bybitPerpFetchOrderResponse Bybit 永续合约查询订单响应
+type bybitPerpFetchOrderResponse struct {
+	RetCode int    `json:"retCode"`
+	RetMsg  string `json:"retMsg"`
+	Result  struct {
+		List []bybitPerpFetchOrderItem `json:"list"`
+	} `json:"result"`
+}
+
+// bybitPerpFetchOrderItem Bybit 永续合约查询订单项
+type bybitPerpFetchOrderItem struct {
+	OrderID     string            `json:"orderId"`     // 订单ID
+	OrderLinkID string            `json:"orderLinkId"` // 客户端自定义订单ID
+	Symbol      string            `json:"symbol"`      // 交易对 / 合约标的
+	Price       types.ExDecimal   `json:"price"`       // 下单价格
+	AvgPrice    types.ExDecimal   `json:"avgPrice"`    // 成交均价
+	Qty         types.ExDecimal   `json:"qty"`         // 下单数量
+	CumExecQty  types.ExDecimal   `json:"cumExecQty"`  // 实际成交数量
+	OrderStatus string            `json:"orderStatus"` // 订单状态
+	TimeInForce string            `json:"timeInForce"` // 订单有效方式
+	ReduceOnly  bool              `json:"reduceOnly"`  // 是否只减仓
+	OrderType   string            `json:"orderType"`   // 订单类型
+	Side        string            `json:"side"`        // 订单方向
+	PositionIdx int               `json:"positionIdx"` // 单向持仓 positionIdx 等于 0，双向持仓 开多/平多 → positionIdx 等于 1，开空/平空 → positionIdx 等于 2
+	CreatedTime types.ExTimestamp `json:"createdTime"` // 创建时间（毫秒）
+	UpdatedTime types.ExTimestamp `json:"updatedTime"` // 更新时间（毫秒）
 }
