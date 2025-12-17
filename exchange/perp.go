@@ -47,10 +47,10 @@ type PerpExchange interface {
 	CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error)
 
 	// CancelOrder 取消订单
-	CancelOrder(ctx context.Context, orderID, symbol string) error
+	CancelOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) error
 
 	// FetchOrder 查询订单
-	FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error)
+	FetchOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) (*model.PerpOrder, error)
 
 	// ========== 合约特有功能 ==========
 
