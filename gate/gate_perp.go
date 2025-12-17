@@ -491,16 +491,11 @@ func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side option.P
 	return perpOrder, nil
 }
 
-func (p *GatePerp) CancelOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) error {
+func (p *GatePerp) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
-	}
-
-	// 判断 OrderId 或 ClientOrderId 必须存在一个
-	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
-		return fmt.Errorf("either OrderId or ClientOrderID must be provided")
 	}
 
 	// 获取市场信息（用于获取 settle）
@@ -514,8 +509,9 @@ func (p *GatePerp) CancelOrder(ctx context.Context, symbol string, opts ...optio
 	// Gate API 支持通过 order_id 或 text 参数（clientOrderId）
 	var path string
 	var params map[string]interface{}
-	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
-		path = fmt.Sprintf("/api/v4/futures/%s/orders/%s", settle, *argsOpts.OrderId)
+	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
+	if orderId != "" {
+		path = fmt.Sprintf("/api/v4/futures/%s/orders/%s", settle, orderId)
 		params = nil
 	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
 		// 使用 text 参数通过 clientOrderId 取消订单
@@ -523,22 +519,19 @@ func (p *GatePerp) CancelOrder(ctx context.Context, symbol string, opts ...optio
 		params = map[string]interface{}{
 			"text": *argsOpts.ClientOrderID,
 		}
+	} else {
+		return fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
 
 	_, err = p.signAndRequest(ctx, "DELETE", path, params, nil)
 	return err
 }
 
-func (p *GatePerp) FetchOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
+func (p *GatePerp) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
-	}
-
-	// 判断 OrderId 或 ClientOrderId 必须存在一个
-	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
-		return nil, fmt.Errorf("either OrderId or ClientOrderID must be provided")
 	}
 
 	// 获取市场信息（用于获取 settle）
@@ -552,8 +545,9 @@ func (p *GatePerp) FetchOrder(ctx context.Context, symbol string, opts ...option
 	// Gate API 支持通过 order_id 或 text 参数（clientOrderId）
 	var path string
 	var params map[string]interface{}
-	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
-		path = fmt.Sprintf("/api/v4/futures/%s/orders/%s", settle, *argsOpts.OrderId)
+	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
+	if orderId != "" {
+		path = fmt.Sprintf("/api/v4/futures/%s/orders/%s", settle, orderId)
 		params = nil
 	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
 		// 使用 text 参数通过 clientOrderId 查询订单
@@ -561,6 +555,8 @@ func (p *GatePerp) FetchOrder(ctx context.Context, symbol string, opts ...option
 		params = map[string]interface{}{
 			"text": *argsOpts.ClientOrderID,
 		}
+	} else {
+		return nil, fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
 
 	resp, err := p.signAndRequest(ctx, "GET", path, params, nil)

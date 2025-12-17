@@ -643,7 +643,7 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side optio
 }
 
 // CancelOrder 取消订单
-func (p *BinancePerp) CancelOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) error {
+func (p *BinancePerp) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
 	if p.binance.client.SecretKey == "" {
 		return fmt.Errorf("authentication required")
 	}
@@ -654,50 +654,35 @@ func (p *BinancePerp) CancelOrder(ctx context.Context, symbol string, opts ...op
 		opt(argsOpts)
 	}
 
-	// 判断 OrderId 或 ClientOrderId 必须存在一个
-	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
-		return fmt.Errorf("either OrderId or ClientOrderID must be provided")
-	}
+	req := types.NewExValues()
 
 	// 获取市场信息
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
 	}
+	req.Set("symbol", market.ID)
 
-	// 获取交易所格式的 symbol ID
-	binanceSymbol := market.ID
-	if binanceSymbol == "" {
-		var err error
-		binanceSymbol, err = ToBinanceSymbol(symbol, true)
-		if err != nil {
-			return fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	timestamp := common.GetTimestamp()
-	params := map[string]interface{}{
-		"symbol":    binanceSymbol,
-		"timestamp": timestamp,
-	}
-
-	// 优先使用 OrderId，如果没有则使用 ClientOrderID
-	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
-		params["orderId"] = *argsOpts.OrderId
+	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
+	if orderId != "" {
+		req.Set("orderId", orderId)
 	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
-		params["origClientOrderId"] = *argsOpts.ClientOrderID
+		req.Set("origClientOrderId", *argsOpts.ClientOrderID)
+	} else {
+		return fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
 
-	queryString := BuildQueryString(params)
-	signature := p.binance.signer.Sign(queryString)
-	params["signature"] = signature
+	// 设置 timestamp
+	req.Set("timestamp", strconv.FormatInt(common.GetTimestamp(), 10))
+	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
-	_, err = p.binance.client.PerpClient.Post(ctx, "/fapi/v1/order", params)
+	reqPath := req.JoinPath("/fapi/v1/order")
+	_, err = p.binance.client.PerpClient.Delete(ctx, reqPath, map[string]interface{}{}, nil)
 	return err
 }
 
 // FetchOrder 查询订单
-func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
+func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
 	if p.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
@@ -708,46 +693,29 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, opts ...opt
 		opt(argsOpts)
 	}
 
-	// 判断 OrderId 或 ClientOrderId 必须存在一个
-	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
-		return nil, fmt.Errorf("either OrderId or ClientOrderID must be provided")
-	}
+	req := types.NewExValues()
 
 	// 获取市场信息
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
+	req.Set("symbol", market.ID)
 
-	// 获取交易所格式的 symbol ID
-	binanceSymbol := market.ID
-	if binanceSymbol == "" {
-		var err error
-		binanceSymbol, err = ToBinanceSymbol(symbol, true)
-		if err != nil {
-			return nil, fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	timestamp := common.GetTimestamp()
-	params := map[string]interface{}{
-		"symbol":    binanceSymbol,
-		"timestamp": timestamp,
-	}
-
-	// 优先使用 OrderId，如果没有则使用 ClientOrderID
-	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
-		params["orderId"] = *argsOpts.OrderId
+	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
+	if orderId != "" {
+		req.Set("orderId", orderId)
 	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
-		params["origClientOrderId"] = *argsOpts.ClientOrderID
+		req.Set("origClientOrderId", *argsOpts.ClientOrderID)
+	} else {
+		return nil, fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
 
-	queryString := BuildQueryString(params)
-	signature := p.binance.signer.Sign(queryString)
-	params["signature"] = signature
+	req.Set("timestamp", strconv.FormatInt(common.GetTimestamp(), 10))
+	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
-	// 使用合约 API
-	resp, err := p.binance.client.PerpClient.Get(ctx, "/fapi/v1/order", params)
+	reqPath := req.JoinPath("/fapi/v1/order")
+	resp, err := p.binance.client.PerpClient.Get(ctx, reqPath, map[string]interface{}{})
 	if err != nil {
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
