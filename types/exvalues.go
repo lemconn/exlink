@@ -19,8 +19,8 @@ type ExValues struct {
 	values map[string][]string
 }
 
-// New creates a new ExValues instance.
-func New() *ExValues {
+// NewExValues creates a new ExValues instance.
+func NewExValues() *ExValues {
 	return &ExValues{
 		order:  make([]string, 0),
 		values: make(map[string][]string),

@@ -21,8 +21,6 @@ type ExchangeArgsOptions struct {
 	Price *string
 	// Amount 订单数量（表示购买交易对真实数量）
 	Amount *string
-	// OrderId 订单ID（交易所生成的订单ID）
-	OrderId *string
 	// ClientOrderID 客户端订单ID（所有交易所通用）
 	ClientOrderID *string
 	// TimeInForce 订单有效期（GTC/IOC/FOK，所有交易所通用）
@@ -77,13 +75,6 @@ func WithPrice(price string) ArgsOption {
 func WithAmount(amount string) ArgsOption {
 	return func(opts *ExchangeArgsOptions) {
 		opts.Amount = &amount
-	}
-}
-
-// WithOrderId 设置订单ID（交易所生成的订单ID）
-func WithOrderId(orderId string) ArgsOption {
-	return func(opts *ExchangeArgsOptions) {
-		opts.OrderId = &orderId
 	}
 }
 

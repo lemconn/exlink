@@ -548,16 +548,11 @@ func (p *OKXPerp) CreateOrder(ctx context.Context, symbol string, side option.Pe
 	return perpOrder, nil
 }
 
-func (p *OKXPerp) CancelOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) error {
+func (p *OKXPerp) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
-	}
-
-	// 判断 OrderId 或 ClientOrderId 必须存在一个
-	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
-		return fmt.Errorf("either OrderId or ClientOrderID must be provided")
 	}
 
 	// 获取市场信息
@@ -580,27 +575,24 @@ func (p *OKXPerp) CancelOrder(ctx context.Context, symbol string, opts ...option
 		"instId": okxSymbol,
 	}
 
-	// 优先使用 OrderId，如果没有则使用 ClientOrderID
-	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
-		reqBody["ordId"] = *argsOpts.OrderId
+	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
+	if orderId != "" {
+		reqBody["ordId"] = orderId
 	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
 		reqBody["clOrdId"] = *argsOpts.ClientOrderID
+	} else {
+		return fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
 
 	_, err = p.signAndRequest(ctx, "POST", "/api/v5/trade/cancel-order", nil, reqBody)
 	return err
 }
 
-func (p *OKXPerp) FetchOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
+func (p *OKXPerp) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
-	}
-
-	// 判断 OrderId 或 ClientOrderId 必须存在一个
-	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
-		return nil, fmt.Errorf("either OrderId or ClientOrderID must be provided")
 	}
 
 	// 获取市场信息
@@ -624,11 +616,13 @@ func (p *OKXPerp) FetchOrder(ctx context.Context, symbol string, opts ...option.
 		"instId":   okxSymbol,
 	}
 
-	// 优先使用 OrderId，如果没有则使用 ClientOrderID
-	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
-		params["ordId"] = *argsOpts.OrderId
+	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
+	if orderId != "" {
+		params["ordId"] = orderId
 	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
 		params["clOrdId"] = *argsOpts.ClientOrderID
+	} else {
+		return nil, fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
 
 	resp, err := p.signAndRequest(ctx, "GET", "/api/v5/trade/order", params, nil)

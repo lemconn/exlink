@@ -645,16 +645,11 @@ func (p *BybitPerp) parsePerpOrder(item bybitPerpFetchOrderItem, symbol string) 
 	return order
 }
 
-func (p *BybitPerp) CancelOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) error {
+func (p *BybitPerp) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
-	}
-
-	// 判断 OrderId 或 ClientOrderId 必须存在一个
-	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
-		return fmt.Errorf("either OrderId or ClientOrderID must be provided")
 	}
 
 	// 获取市场信息
@@ -678,27 +673,24 @@ func (p *BybitPerp) CancelOrder(ctx context.Context, symbol string, opts ...opti
 		"symbol":   bybitSymbol,
 	}
 
-	// 优先使用 OrderId，如果没有则使用 ClientOrderID
-	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
-		reqBody["orderId"] = *argsOpts.OrderId
+	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
+	if orderId != "" {
+		reqBody["orderId"] = orderId
 	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
 		reqBody["orderLinkId"] = *argsOpts.ClientOrderID
+	} else {
+		return fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
 
 	_, err = p.signAndRequest(ctx, "POST", "/v5/order/cancel", nil, reqBody)
 	return err
 }
 
-func (p *BybitPerp) FetchOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
+func (p *BybitPerp) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
-	}
-
-	// 判断 OrderId 或 ClientOrderId 必须存在一个
-	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
-		return nil, fmt.Errorf("either OrderId or ClientOrderID must be provided")
 	}
 
 	// 获取市场信息
@@ -722,20 +714,19 @@ func (p *BybitPerp) FetchOrder(ctx context.Context, symbol string, opts ...optio
 		"symbol":   bybitSymbol,
 	}
 
-	// 优先使用 OrderId，如果没有则使用 ClientOrderID
-	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
-		params["orderId"] = *argsOpts.OrderId
-	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
-		params["orderLinkId"] = *argsOpts.ClientOrderID
-	}
-
 	// 确定要匹配的 ID
 	var targetOrderID string
 	var targetOrderLinkID string
-	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
-		targetOrderID = *argsOpts.OrderId
+
+	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
+	if orderId != "" {
+		params["orderId"] = orderId
+		targetOrderID = orderId
 	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		params["orderLinkId"] = *argsOpts.ClientOrderID
 		targetOrderLinkID = *argsOpts.ClientOrderID
+	} else {
+		return nil, fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
 
 	// First try to fetch from open orders (realtime)
