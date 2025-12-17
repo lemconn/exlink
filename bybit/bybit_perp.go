@@ -17,117 +17,29 @@ import (
 
 // BybitPerp Bybit 永续合约实现
 type BybitPerp struct {
-	bybit  *Bybit
-	market *bybitPerpMarket
-	order  *bybitPerpOrder
+	bybit *Bybit
 }
 
 // NewBybitPerp 创建 Bybit 永续合约实例
 func NewBybitPerp(b *Bybit) *BybitPerp {
 	return &BybitPerp{
-		bybit:  b,
-		market: &bybitPerpMarket{bybit: b},
-		order:  &bybitPerpOrder{bybit: b},
+		bybit: b,
 	}
 }
 
 // ========== PerpExchange 接口实现 ==========
 
 func (p *BybitPerp) LoadMarkets(ctx context.Context, reload bool) error {
-	return p.market.LoadMarkets(ctx, reload)
-}
-
-func (p *BybitPerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
-	return p.market.FetchMarkets(ctx)
-}
-
-func (p *BybitPerp) GetMarket(symbol string) (*model.Market, error) {
-	return p.market.GetMarket(symbol)
-}
-
-func (p *BybitPerp) GetMarkets() ([]*model.Market, error) {
-	return p.market.GetMarkets()
-}
-
-func (p *BybitPerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
-	return p.market.FetchTicker(ctx, symbol)
-}
-
-func (p *BybitPerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
-	return p.market.FetchTickers(ctx)
-}
-
-func (p *BybitPerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-	limit := 100
-	if argsOpts.Limit != nil {
-		limit = *argsOpts.Limit
-	}
-	since := time.Time{}
-	if argsOpts.Since != nil {
-		since = *argsOpts.Since
-	}
-	return p.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
-}
-
-func (p *BybitPerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption) (model.Positions, error) {
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-	symbols := []string{}
-	if argsOpts.Symbols != nil {
-		symbols = argsOpts.Symbols
-	}
-	return p.order.FetchPositions(ctx, symbols...)
-}
-
-func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-	return p.order.CreateOrder(ctx, symbol, side, amount, opts...)
-}
-
-func (p *BybitPerp) CancelOrder(ctx context.Context, orderID, symbol string) error {
-	return p.order.CancelOrder(ctx, orderID, symbol)
-}
-
-func (p *BybitPerp) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
-	return p.order.FetchOrder(ctx, orderID, symbol)
-}
-
-func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
-	return p.order.SetLeverage(ctx, symbol, leverage)
-}
-
-func (p *BybitPerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
-	return p.order.SetMarginMode(ctx, symbol, mode)
-}
-
-var _ exchange.PerpExchange = (*BybitPerp)(nil)
-
-// ========== 内部实现 ==========
-
-type bybitPerpMarket struct {
-	bybit *Bybit
-}
-
-func (m *bybitPerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	// 如果已加载且不需要重新加载，直接返回
-	m.bybit.mu.RLock()
-	if !reload && len(m.bybit.perpMarketsBySymbol) > 0 {
-		m.bybit.mu.RUnlock()
+	p.bybit.mu.RLock()
+	if !reload && len(p.bybit.perpMarketsBySymbol) > 0 {
+		p.bybit.mu.RUnlock()
 		return nil
 	}
-	m.bybit.mu.RUnlock()
+	p.bybit.mu.RUnlock()
 
 	// 获取永续合约市场信息
-	resp, err := m.bybit.client.HTTPClient.Get(ctx, "/v5/market/instruments-info", map[string]interface{}{
+	resp, err := p.bybit.client.HTTPClient.Get(ctx, "/v5/market/instruments-info", map[string]interface{}{
 		"category": "linear",
 	})
 	if err != nil {
@@ -190,68 +102,68 @@ func (m *bybitPerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	}
 
 	// 存储市场信息
-	m.bybit.mu.Lock()
-	if m.bybit.perpMarketsBySymbol == nil {
-		m.bybit.perpMarketsBySymbol = make(map[string]*model.Market)
-		m.bybit.perpMarketsByID = make(map[string]*model.Market)
+	p.bybit.mu.Lock()
+	if p.bybit.perpMarketsBySymbol == nil {
+		p.bybit.perpMarketsBySymbol = make(map[string]*model.Market)
+		p.bybit.perpMarketsByID = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
-		m.bybit.perpMarketsBySymbol[market.Symbol] = market
-		m.bybit.perpMarketsByID[market.ID] = market
+		p.bybit.perpMarketsBySymbol[market.Symbol] = market
+		p.bybit.perpMarketsByID[market.ID] = market
 	}
-	m.bybit.mu.Unlock()
+	p.bybit.mu.Unlock()
 
 	return nil
 }
 
-func (m *bybitPerpMarket) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
+func (p *BybitPerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	// 确保市场已加载
-	if err := m.LoadMarkets(ctx, false); err != nil {
+	if err := p.LoadMarkets(ctx, false); err != nil {
 		return nil, err
 	}
 
-	m.bybit.mu.RLock()
-	defer m.bybit.mu.RUnlock()
+	p.bybit.mu.RLock()
+	defer p.bybit.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.bybit.perpMarketsBySymbol))
-	for _, market := range m.bybit.perpMarketsBySymbol {
+	markets := make([]*model.Market, 0, len(p.bybit.perpMarketsBySymbol))
+	for _, market := range p.bybit.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
 	return markets, nil
 }
 
-func (m *bybitPerpMarket) GetMarket(key string) (*model.Market, error) {
-	m.bybit.mu.RLock()
-	defer m.bybit.mu.RUnlock()
+func (p *BybitPerp) GetMarket(symbol string) (*model.Market, error) {
+	p.bybit.mu.RLock()
+	defer p.bybit.mu.RUnlock()
 
 	// 先尝试标准化格式
-	if market, ok := m.bybit.perpMarketsBySymbol[key]; ok {
+	if market, ok := p.bybit.perpMarketsBySymbol[symbol]; ok {
 		return market, nil
 	}
 	// 再尝试原始格式
-	if market, ok := m.bybit.perpMarketsByID[key]; ok {
+	if market, ok := p.bybit.perpMarketsByID[symbol]; ok {
 		return market, nil
 	}
 
-	return nil, fmt.Errorf("market not found: %s", key)
+	return nil, fmt.Errorf("market not found: %s", symbol)
 }
 
-func (m *bybitPerpMarket) GetMarkets() ([]*model.Market, error) {
-	m.bybit.mu.RLock()
-	defer m.bybit.mu.RUnlock()
+func (p *BybitPerp) GetMarkets() ([]*model.Market, error) {
+	p.bybit.mu.RLock()
+	defer p.bybit.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.bybit.perpMarketsBySymbol))
-	for _, market := range m.bybit.perpMarketsBySymbol {
+	markets := make([]*model.Market, 0, len(p.bybit.perpMarketsBySymbol))
+	for _, market := range p.bybit.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
 	return markets, nil
 }
 
-func (m *bybitPerpMarket) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
+func (p *BybitPerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	// 获取市场信息
-	market, err := m.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +178,7 @@ func (m *bybitPerpMarket) FetchTicker(ctx context.Context, symbol string) (*mode
 		}
 	}
 
-	resp, err := m.bybit.client.HTTPClient.Get(ctx, "/v5/market/tickers", map[string]interface{}{
+	resp, err := p.bybit.client.HTTPClient.Get(ctx, "/v5/market/tickers", map[string]interface{}{
 		"symbol":   bybitSymbol,
 		"category": "linear",
 	})
@@ -307,8 +219,8 @@ func (m *bybitPerpMarket) FetchTicker(ctx context.Context, symbol string) (*mode
 	return ticker, nil
 }
 
-func (m *bybitPerpMarket) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
-	resp, err := m.bybit.client.HTTPClient.Get(ctx, "/v5/market/tickers", map[string]interface{}{
+func (p *BybitPerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
+	resp, err := p.bybit.client.HTTPClient.Get(ctx, "/v5/market/tickers", map[string]interface{}{
 		"category": "linear",
 	})
 	if err != nil {
@@ -328,7 +240,7 @@ func (m *bybitPerpMarket) FetchTickers(ctx context.Context) (map[string]*model.T
 	tickers := make(map[string]*model.Ticker)
 	for _, item := range result.Result.List {
 		// 尝试从市场信息中查找标准化格式
-		market, err := m.GetMarket(item.Symbol)
+		market, err := p.GetMarket(item.Symbol)
 		if err != nil {
 			continue
 		}
@@ -351,9 +263,22 @@ func (m *bybitPerpMarket) FetchTickers(ctx context.Context) (map[string]*model.T
 	return tickers, nil
 }
 
-func (m *bybitPerpMarket) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+func (p *BybitPerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+	limit := 100
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+	since := time.Time{}
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
+
 	// 获取市场信息
-	market, err := m.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -371,7 +296,7 @@ func (m *bybitPerpMarket) FetchOHLCVs(ctx context.Context, symbol string, timefr
 		params["start"] = since.UnixMilli()
 	}
 
-	resp, err := m.bybit.client.HTTPClient.Get(ctx, "/v5/market/kline", params)
+	resp, err := p.bybit.client.HTTPClient.Get(ctx, "/v5/market/kline", params)
 	if err != nil {
 		return nil, fmt.Errorf("fetch ohlcv: %w", err)
 	}
@@ -401,44 +326,52 @@ func (m *bybitPerpMarket) FetchOHLCVs(ctx context.Context, symbol string, timefr
 	return ohlcvs, nil
 }
 
-type bybitPerpOrder struct {
-	bybit           *Bybit
-	positionMode    *bool     // 持仓模式缓存: true=双向, false=单向
-	positionModeExp time.Time // 持仓模式缓存过期时间
+func (p *BybitPerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption) (model.Positions, error) {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+	symbols := []string{}
+	if argsOpts.Symbols != nil {
+		symbols = argsOpts.Symbols
+	}
+	return p.fetchPositions(ctx, symbols...)
 }
 
+// ========== 内部辅助方法 ==========
+
 // signAndRequest 签名并发送请求（Bybit v5 API）
-func (o *bybitPerpOrder) signAndRequest(ctx context.Context, method, path string, params map[string]interface{}, body map[string]interface{}) ([]byte, error) {
-	if o.bybit.client.SecretKey == "" {
+func (p *BybitPerp) signAndRequest(ctx context.Context, method, path string, params map[string]interface{}, body map[string]interface{}) ([]byte, error) {
+	if p.bybit.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
 
-	signature, timestamp := o.bybit.signer.SignRequest(method, params, body)
+	signature, timestamp := p.bybit.signer.SignRequest(method, params, body)
 	recvWindow := "5000"
 
 	// 设置请求头
-	o.bybit.client.HTTPClient.SetHeader("X-BAPI-API-KEY", o.bybit.client.APIKey)
-	o.bybit.client.HTTPClient.SetHeader("X-BAPI-TIMESTAMP", timestamp)
-	o.bybit.client.HTTPClient.SetHeader("X-BAPI-RECV-WINDOW", recvWindow)
-	o.bybit.client.HTTPClient.SetHeader("X-BAPI-SIGN", signature)
-	o.bybit.client.HTTPClient.SetHeader("Content-Type", "application/json")
+	p.bybit.client.HTTPClient.SetHeader("X-BAPI-API-KEY", p.bybit.client.APIKey)
+	p.bybit.client.HTTPClient.SetHeader("X-BAPI-TIMESTAMP", timestamp)
+	p.bybit.client.HTTPClient.SetHeader("X-BAPI-RECV-WINDOW", recvWindow)
+	p.bybit.client.HTTPClient.SetHeader("X-BAPI-SIGN", signature)
+	p.bybit.client.HTTPClient.SetHeader("Content-Type", "application/json")
 
 	// 发送请求
 	if method == "GET" || method == "DELETE" {
-		return o.bybit.client.HTTPClient.Get(ctx, path, params)
+		return p.bybit.client.HTTPClient.Get(ctx, path, params)
 	} else {
-		return o.bybit.client.HTTPClient.Post(ctx, path, body)
+		return p.bybit.client.HTTPClient.Post(ctx, path, body)
 	}
 }
 
-func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
+func (p *BybitPerp) fetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
 	params := map[string]interface{}{
 		"category": "linear",
 	}
 
 	if len(symbols) > 0 {
 		// Bybit 需要 symbol 参数
-		market, err := o.bybit.perp.market.GetMarket(symbols[0])
+		market, err := p.GetMarket(symbols[0])
 		if err == nil {
 			params["symbol"] = market.ID
 		} else {
@@ -450,7 +383,7 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 		}
 	}
 
-	resp, err := o.signAndRequest(ctx, "GET", "/v5/position/list", params, nil)
+	resp, err := p.signAndRequest(ctx, "GET", "/v5/position/list", params, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch positions: %w", err)
 	}
@@ -471,7 +404,7 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 			continue
 		}
 
-		market, err := o.bybit.perp.market.GetMarket(item.Symbol)
+		market, err := p.GetMarket(item.Symbol)
 		if err != nil {
 			continue
 		}
@@ -517,7 +450,7 @@ func (o *bybitPerpOrder) FetchPositions(ctx context.Context, symbols ...string) 
 	return positions, nil
 }
 
-func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
+func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	// 解析选项
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
@@ -547,7 +480,7 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 		priceStr = ""
 	}
 
-	market, err := o.bybit.perp.market.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -611,16 +544,10 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 	positionSideStr := side.ToPositionSide()
 	reduceOnly := side.ToReduceOnly()
 
-	// 获取持仓模式：如果提供了 hedgeMode 选项，使用它；否则查询 API
-	var isDualMode bool
+	// 获取持仓模式：从 hedgeMode 选项获取，未设置时默认为 false（单向持仓模式）
+	isDualMode := false
 	if argsOpts.HedgeMode != nil {
 		isDualMode = *argsOpts.HedgeMode
-	} else {
-		var err error
-		isDualMode, err = o.getPositionMode(ctx, symbol)
-		if err != nil {
-			return nil, fmt.Errorf("get position mode: %w", err)
-		}
 	}
 
 	if isDualMode {
@@ -646,7 +573,7 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
 		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-		req.OrderLinkID = common.GenerateClientOrderID(o.bybit.Name(), orderSide)
+		req.OrderLinkID = common.GenerateClientOrderID(p.bybit.Name(), orderSide)
 	}
 
 	// 将结构体转换为 map
@@ -659,7 +586,7 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 		return nil, fmt.Errorf("unmarshal request: %w", err)
 	}
 
-	resp, err := o.signAndRequest(ctx, "POST", "/v5/order/create", nil, reqBody)
+	resp, err := p.signAndRequest(ctx, "POST", "/v5/order/create", nil, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("create order: %w", err)
 	}
@@ -684,9 +611,8 @@ func (o *bybitPerpOrder) CreateOrder(ctx context.Context, symbol string, side op
 	return perpOrder, nil
 }
 
-// parseOrder 解析订单数据（合约版本）
 // parsePerpOrder 将 Bybit 响应转换为 model.PerpOrder
-func (o *bybitPerpOrder) parsePerpOrder(item bybitPerpFetchOrderItem, symbol string) *model.PerpOrder {
+func (p *BybitPerp) parsePerpOrder(item bybitPerpFetchOrderItem, symbol string) *model.PerpOrder {
 	// 确定 positionSide
 	var positionSide string
 	switch item.PositionIdx {
@@ -719,9 +645,20 @@ func (o *bybitPerpOrder) parsePerpOrder(item bybitPerpFetchOrderItem, symbol str
 	return order
 }
 
-func (o *bybitPerpOrder) CancelOrder(ctx context.Context, orderID, symbol string) error {
+func (p *BybitPerp) CancelOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) error {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 判断 OrderId 或 ClientOrderId 必须存在一个
+	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
+		return fmt.Errorf("either OrderId or ClientOrderID must be provided")
+	}
+
 	// 获取市场信息
-	market, err := o.bybit.perp.market.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
 	}
@@ -739,16 +676,33 @@ func (o *bybitPerpOrder) CancelOrder(ctx context.Context, orderID, symbol string
 	reqBody := map[string]interface{}{
 		"category": "linear",
 		"symbol":   bybitSymbol,
-		"orderId":  orderID,
 	}
 
-	_, err = o.signAndRequest(ctx, "POST", "/v5/order/cancel", nil, reqBody)
+	// 优先使用 OrderId，如果没有则使用 ClientOrderID
+	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
+		reqBody["orderId"] = *argsOpts.OrderId
+	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		reqBody["orderLinkId"] = *argsOpts.ClientOrderID
+	}
+
+	_, err = p.signAndRequest(ctx, "POST", "/v5/order/cancel", nil, reqBody)
 	return err
 }
 
-func (o *bybitPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
+func (p *BybitPerp) FetchOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 判断 OrderId 或 ClientOrderId 必须存在一个
+	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
+		return nil, fmt.Errorf("either OrderId or ClientOrderID must be provided")
+	}
+
 	// 获取市场信息
-	market, err := o.bybit.perp.market.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -766,25 +720,43 @@ func (o *bybitPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string)
 	params := map[string]interface{}{
 		"category": "linear",
 		"symbol":   bybitSymbol,
-		"orderId":  orderID,
+	}
+
+	// 优先使用 OrderId，如果没有则使用 ClientOrderID
+	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
+		params["orderId"] = *argsOpts.OrderId
+	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		params["orderLinkId"] = *argsOpts.ClientOrderID
+	}
+
+	// 确定要匹配的 ID
+	var targetOrderID string
+	var targetOrderLinkID string
+	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
+		targetOrderID = *argsOpts.OrderId
+	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		targetOrderLinkID = *argsOpts.ClientOrderID
 	}
 
 	// First try to fetch from open orders (realtime)
-	resp, err := o.signAndRequest(ctx, "GET", "/v5/order/realtime", params, nil)
+	resp, err := p.signAndRequest(ctx, "GET", "/v5/order/realtime", params, nil)
 	if err == nil {
 		var realtimeResult bybitPerpFetchOrderResponse
 
 		if err := json.Unmarshal(resp, &realtimeResult); err == nil && realtimeResult.RetCode == 0 {
 			for _, item := range realtimeResult.Result.List {
-				if item.OrderID == orderID {
-					return o.parsePerpOrder(item, symbol), nil
+				if targetOrderID != "" && item.OrderID == targetOrderID {
+					return p.parsePerpOrder(item, symbol), nil
+				}
+				if targetOrderLinkID != "" && item.OrderLinkID == targetOrderLinkID {
+					return p.parsePerpOrder(item, symbol), nil
 				}
 			}
 		}
 	}
 
 	// If not found in open orders, try history
-	resp, err = o.signAndRequest(ctx, "GET", "/v5/order/history", params, nil)
+	resp, err = p.signAndRequest(ctx, "GET", "/v5/order/history", params, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
@@ -805,16 +777,19 @@ func (o *bybitPerpOrder) FetchOrder(ctx context.Context, orderID, symbol string)
 
 	// Find the order by ID
 	for _, item := range result.Result.List {
-		if item.OrderID == orderID {
-			return o.parsePerpOrder(item, symbol), nil
+		if targetOrderID != "" && item.OrderID == targetOrderID {
+			return p.parsePerpOrder(item, symbol), nil
+		}
+		if targetOrderLinkID != "" && item.OrderLinkID == targetOrderLinkID {
+			return p.parsePerpOrder(item, symbol), nil
 		}
 	}
 
 	return nil, fmt.Errorf("order not found")
 }
 
-func (o *bybitPerpOrder) SetLeverage(ctx context.Context, symbol string, leverage int) error {
-	market, err := o.bybit.perp.market.GetMarket(symbol)
+func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
 	}
@@ -839,12 +814,12 @@ func (o *bybitPerpOrder) SetLeverage(ctx context.Context, symbol string, leverag
 		"sellLeverage": strconv.Itoa(leverage),
 	}
 
-	_, err = o.signAndRequest(ctx, "POST", "/v5/position/set-leverage", nil, reqBody)
+	_, err = p.signAndRequest(ctx, "POST", "/v5/position/set-leverage", nil, reqBody)
 	return err
 }
 
-func (o *bybitPerpOrder) SetMarginMode(ctx context.Context, symbol string, mode string) error {
-	market, err := o.bybit.perp.market.GetMarket(symbol)
+func (p *BybitPerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
 	}
@@ -873,74 +848,8 @@ func (o *bybitPerpOrder) SetMarginMode(ctx context.Context, symbol string, mode 
 		"tradeMode": strings.ToUpper(mode),
 	}
 
-	_, err = o.signAndRequest(ctx, "POST", "/v5/position/switch-mode", nil, reqBody)
+	_, err = p.signAndRequest(ctx, "POST", "/v5/position/switch-mode", nil, reqBody)
 	return err
 }
 
-// getPositionMode 获取持仓模式（带缓存）
-// 返回: true=双向持仓, false=单向持仓
-func (o *bybitPerpOrder) getPositionMode(ctx context.Context, symbol string) (bool, error) {
-	// 检查缓存是否有效（5分钟）
-	if o.positionMode != nil && time.Now().Before(o.positionModeExp) {
-		return *o.positionMode, nil
-	}
-
-	// 获取交易所格式的 symbol ID
-	market, err := o.bybit.perp.market.GetMarket(symbol)
-	if err != nil {
-		return false, fmt.Errorf("get market: %w", err)
-	}
-
-	bybitSymbol := market.ID
-	if bybitSymbol == "" {
-		var err error
-		bybitSymbol, err = ToBybitSymbol(symbol, true)
-		if err != nil {
-			return false, fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	// 尝试切换到单向持仓模式（mode=0）
-	reqBody := map[string]interface{}{
-		"category": "linear",
-		"symbol":   bybitSymbol,
-		"mode":     0, // 0=单向, 3=双向
-	}
-
-	resp, err := o.signAndRequest(ctx, "POST", "/v5/position/switch-mode", nil, reqBody)
-	if err != nil {
-		return false, fmt.Errorf("switch position mode: %w", err)
-	}
-
-	var result struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-	}
-
-	if err := json.Unmarshal(resp, &result); err != nil {
-		return false, fmt.Errorf("unmarshal position mode: %w", err)
-	}
-
-	var isDualMode bool
-	if result.RetCode == 110025 || strings.Contains(result.RetMsg, "Position mode is not modified") {
-		// 当前已经是单向持仓模式
-		isDualMode = false
-	} else if result.RetCode == 0 || result.RetMsg == "OK" {
-		// 切换成功，说明之前是双向持仓，需要切换回去
-		isDualMode = true
-		// 切换回双向持仓模式
-		reqBody["mode"] = 3
-		_, err := o.signAndRequest(ctx, "POST", "/v5/position/switch-mode", nil, reqBody)
-		if err != nil {
-			return false, fmt.Errorf("restore position mode: %w", err)
-		}
-	} else {
-		return false, fmt.Errorf("unexpected response: code=%d, msg=%s", result.RetCode, result.RetMsg)
-	}
-
-	// 缓存结果
-	o.positionMode = &isDualMode
-	o.positionModeExp = time.Now().Add(5 * time.Minute)
-
-	return isDualMode, nil
-}
+var _ exchange.PerpExchange = (*BybitPerp)(nil)

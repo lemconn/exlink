@@ -19,119 +19,31 @@ import (
 
 // GatePerp Gate 永续合约实现
 type GatePerp struct {
-	gate   *Gate
-	market *gatePerpMarket
-	order  *gatePerpOrder
+	gate *Gate
 }
 
 // NewGatePerp 创建 Gate 永续合约实例
 func NewGatePerp(g *Gate) *GatePerp {
 	return &GatePerp{
-		gate:   g,
-		market: &gatePerpMarket{gate: g},
-		order:  &gatePerpOrder{gate: g},
+		gate: g,
 	}
 }
 
 // ========== PerpExchange 接口实现 ==========
 
 func (p *GatePerp) LoadMarkets(ctx context.Context, reload bool) error {
-	return p.market.LoadMarkets(ctx, reload)
-}
-
-func (p *GatePerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
-	return p.market.FetchMarkets(ctx)
-}
-
-func (p *GatePerp) GetMarket(symbol string) (*model.Market, error) {
-	return p.market.GetMarket(symbol)
-}
-
-func (p *GatePerp) GetMarkets() ([]*model.Market, error) {
-	return p.market.GetMarkets()
-}
-
-func (p *GatePerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
-	return p.market.FetchTicker(ctx, symbol)
-}
-
-func (p *GatePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
-	return p.market.FetchTickers(ctx)
-}
-
-func (p *GatePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-	limit := 100
-	if argsOpts.Limit != nil {
-		limit = *argsOpts.Limit
-	}
-	since := time.Time{}
-	if argsOpts.Since != nil {
-		since = *argsOpts.Since
-	}
-	return p.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
-}
-
-func (p *GatePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption) (model.Positions, error) {
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-	symbols := []string{}
-	if argsOpts.Symbols != nil {
-		symbols = argsOpts.Symbols
-	}
-	return p.order.FetchPositions(ctx, symbols...)
-}
-
-func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-	return p.order.CreateOrder(ctx, symbol, side, amount, opts...)
-}
-
-func (p *GatePerp) CancelOrder(ctx context.Context, orderID, symbol string) error {
-	return p.order.CancelOrder(ctx, orderID, symbol)
-}
-
-func (p *GatePerp) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
-	return p.order.FetchOrder(ctx, orderID, symbol)
-}
-
-func (p *GatePerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
-	return p.order.SetLeverage(ctx, symbol, leverage)
-}
-
-func (p *GatePerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
-	return p.order.SetMarginMode(ctx, symbol, mode)
-}
-
-var _ exchange.PerpExchange = (*GatePerp)(nil)
-
-// ========== 内部实现 ==========
-
-type gatePerpMarket struct {
-	gate *Gate
-}
-
-func (m *gatePerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	// 如果已加载且不需要重新加载，直接返回
-	m.gate.mu.RLock()
-	if !reload && len(m.gate.perpMarketsBySymbol) > 0 {
-		m.gate.mu.RUnlock()
+	p.gate.mu.RLock()
+	if !reload && len(p.gate.perpMarketsBySymbol) > 0 {
+		p.gate.mu.RUnlock()
 		return nil
 	}
-	m.gate.mu.RUnlock()
+	p.gate.mu.RUnlock()
 
 	// 获取永续合约市场信息
 	// Gate 永续合约使用 USDT 作为结算货币
 	settle := "usdt"
-	resp, err := m.gate.client.HTTPClient.Get(ctx, fmt.Sprintf("/api/v4/futures/%s/contracts", settle), nil)
+	resp, err := p.gate.client.HTTPClient.Get(ctx, fmt.Sprintf("/api/v4/futures/%s/contracts", settle), nil)
 	if err != nil {
 		return fmt.Errorf("fetch swap markets: %w", err)
 	}
@@ -187,68 +99,68 @@ func (m *gatePerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	}
 
 	// 存储市场信息
-	m.gate.mu.Lock()
-	if m.gate.perpMarketsBySymbol == nil {
-		m.gate.perpMarketsBySymbol = make(map[string]*model.Market)
-		m.gate.perpMarketsByID = make(map[string]*model.Market)
+	p.gate.mu.Lock()
+	if p.gate.perpMarketsBySymbol == nil {
+		p.gate.perpMarketsBySymbol = make(map[string]*model.Market)
+		p.gate.perpMarketsByID = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
-		m.gate.perpMarketsBySymbol[market.Symbol] = market
-		m.gate.perpMarketsByID[market.ID] = market
+		p.gate.perpMarketsBySymbol[market.Symbol] = market
+		p.gate.perpMarketsByID[market.ID] = market
 	}
-	m.gate.mu.Unlock()
+	p.gate.mu.Unlock()
 
 	return nil
 }
 
-func (m *gatePerpMarket) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
+func (p *GatePerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	// 确保市场已加载
-	if err := m.LoadMarkets(ctx, false); err != nil {
+	if err := p.LoadMarkets(ctx, false); err != nil {
 		return nil, err
 	}
 
-	m.gate.mu.RLock()
-	defer m.gate.mu.RUnlock()
+	p.gate.mu.RLock()
+	defer p.gate.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.gate.perpMarketsBySymbol))
-	for _, market := range m.gate.perpMarketsBySymbol {
+	markets := make([]*model.Market, 0, len(p.gate.perpMarketsBySymbol))
+	for _, market := range p.gate.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
 	return markets, nil
 }
 
-func (m *gatePerpMarket) GetMarket(key string) (*model.Market, error) {
-	m.gate.mu.RLock()
-	defer m.gate.mu.RUnlock()
+func (p *GatePerp) GetMarket(symbol string) (*model.Market, error) {
+	p.gate.mu.RLock()
+	defer p.gate.mu.RUnlock()
 
 	// 先尝试标准化格式
-	if market, ok := m.gate.perpMarketsBySymbol[key]; ok {
+	if market, ok := p.gate.perpMarketsBySymbol[symbol]; ok {
 		return market, nil
 	}
 	// 再尝试原始格式
-	if market, ok := m.gate.perpMarketsByID[key]; ok {
+	if market, ok := p.gate.perpMarketsByID[symbol]; ok {
 		return market, nil
 	}
 
-	return nil, fmt.Errorf("market not found: %s", key)
+	return nil, fmt.Errorf("market not found: %s", symbol)
 }
 
-func (m *gatePerpMarket) GetMarkets() ([]*model.Market, error) {
-	m.gate.mu.RLock()
-	defer m.gate.mu.RUnlock()
+func (p *GatePerp) GetMarkets() ([]*model.Market, error) {
+	p.gate.mu.RLock()
+	defer p.gate.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.gate.perpMarketsBySymbol))
-	for _, market := range m.gate.perpMarketsBySymbol {
+	markets := make([]*model.Market, 0, len(p.gate.perpMarketsBySymbol))
+	for _, market := range p.gate.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
 	return markets, nil
 }
 
-func (m *gatePerpMarket) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
+func (p *GatePerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	// 获取市场信息
-	market, err := m.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -264,7 +176,7 @@ func (m *gatePerpMarket) FetchTicker(ctx context.Context, symbol string) (*model
 	}
 
 	settle := strings.ToLower(market.Settle)
-	resp, err := m.gate.client.HTTPClient.Get(ctx, fmt.Sprintf("/api/v4/futures/%s/tickers", settle), map[string]interface{}{
+	resp, err := p.gate.client.HTTPClient.Get(ctx, fmt.Sprintf("/api/v4/futures/%s/tickers", settle), map[string]interface{}{
 		"contract": gateSymbol,
 	})
 	if err != nil {
@@ -298,9 +210,9 @@ func (m *gatePerpMarket) FetchTicker(ctx context.Context, symbol string) (*model
 	return ticker, nil
 }
 
-func (m *gatePerpMarket) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
+func (p *GatePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
 	settle := "usdt" // Gate 永续合约默认使用 USDT 结算
-	resp, err := m.gate.client.HTTPClient.Get(ctx, fmt.Sprintf("/api/v4/futures/%s/tickers", settle), nil)
+	resp, err := p.gate.client.HTTPClient.Get(ctx, fmt.Sprintf("/api/v4/futures/%s/tickers", settle), nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch tickers: %w", err)
 	}
@@ -314,7 +226,7 @@ func (m *gatePerpMarket) FetchTickers(ctx context.Context) (map[string]*model.Ti
 	tickers := make(map[string]*model.Ticker)
 	for _, item := range data {
 		// 尝试从市场信息中查找标准化格式
-		market, err := m.GetMarket(item.Contract)
+		market, err := p.GetMarket(item.Contract)
 		if err != nil {
 			continue
 		}
@@ -335,9 +247,22 @@ func (m *gatePerpMarket) FetchTickers(ctx context.Context) (map[string]*model.Ti
 	return tickers, nil
 }
 
-func (m *gatePerpMarket) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+func (p *GatePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+	limit := 100
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+	since := time.Time{}
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
+
 	// 获取市场信息
-	market, err := m.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -355,7 +280,7 @@ func (m *gatePerpMarket) FetchOHLCVs(ctx context.Context, symbol string, timefra
 		params["from"] = since.Unix()
 	}
 
-	resp, err := m.gate.client.HTTPClient.Get(ctx, fmt.Sprintf("/api/v4/futures/%s/candlesticks", settle), params)
+	resp, err := p.gate.client.HTTPClient.Get(ctx, fmt.Sprintf("/api/v4/futures/%s/candlesticks", settle), params)
 	if err != nil {
 		return nil, fmt.Errorf("fetch ohlcv: %w", err)
 	}
@@ -386,119 +311,19 @@ func (m *gatePerpMarket) FetchOHLCVs(ctx context.Context, symbol string, timefra
 	return ohlcvs, nil
 }
 
-type gatePerpOrder struct {
-	gate *Gate
+func (p *GatePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption) (model.Positions, error) {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+	symbols := []string{}
+	if argsOpts.Symbols != nil {
+		symbols = argsOpts.Symbols
+	}
+	return p.fetchPositions(ctx, symbols...)
 }
 
-// signAndRequest 签名并发送请求（Gate API）
-func (o *gatePerpOrder) signAndRequest(ctx context.Context, method, path string, params map[string]interface{}, body map[string]interface{}) ([]byte, error) {
-	if o.gate.client.SecretKey == "" {
-		return nil, fmt.Errorf("authentication required")
-	}
-
-	// 构建查询字符串
-	queryString := ""
-	if len(params) > 0 {
-		queryString = common.BuildQueryString(params)
-	}
-
-	// 构建请求体
-	bodyStr := ""
-	if body != nil {
-		bodyBytes, err := json.Marshal(body)
-		if err != nil {
-			return nil, fmt.Errorf("marshal body: %w", err)
-		}
-		bodyStr = string(bodyBytes)
-	}
-
-	// 签名（使用同一个 timestamp 确保签名和请求头一致）
-	timestamp := common.GetTimestampSeconds()
-	signature := o.gate.signer.SignRequest(method, path, queryString, bodyStr, timestamp)
-
-	// 设置请求头
-	o.gate.client.HTTPClient.SetHeader("KEY", o.gate.client.APIKey)
-	o.gate.client.HTTPClient.SetHeader("Timestamp", strconv.FormatInt(timestamp, 10))
-	o.gate.client.HTTPClient.SetHeader("SIGN", signature)
-	o.gate.client.HTTPClient.SetHeader("Content-Type", "application/json")
-	o.gate.client.HTTPClient.SetHeader("X-Gate-Channel-Id", "api")
-
-	// 发送请求
-	if method == "GET" || method == "DELETE" {
-		return o.gate.client.HTTPClient.Get(ctx, path, params)
-	} else {
-		return o.gate.client.HTTPClient.Post(ctx, path, body)
-	}
-}
-
-func (o *gatePerpOrder) FetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
-	// Gate 合约持仓
-	resp, err := o.signAndRequest(ctx, "GET", "/api/v4/futures/usdt/positions", nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("fetch positions: %w", err)
-	}
-
-	var data gatePerpPositionResponse
-	if err := json.Unmarshal(resp, &data); err != nil {
-		return nil, fmt.Errorf("unmarshal positions: %w", err)
-	}
-
-	positions := make([]*model.Position, 0)
-	for _, item := range data {
-		size, _ := item.Size.Float64()
-		if size == 0 {
-			continue
-		}
-
-		market, err := o.gate.perp.market.GetMarket(item.Contract)
-		if err != nil {
-			continue
-		}
-
-		if len(symbols) > 0 {
-			found := false
-			for _, s := range symbols {
-				if s == market.Symbol {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
-
-		var side string
-		amount := size
-		if size > 0 {
-			side = string(types.PositionSideLong)
-		} else {
-			side = string(types.PositionSideShort)
-			amount = -amount
-		}
-
-		position := &model.Position{
-			Symbol:           market.Symbol,
-			Side:             side,
-			Amount:           types.ExDecimal{Decimal: decimal.NewFromFloat(amount)},
-			EntryPrice:       item.EntryPrice,
-			MarkPrice:        item.MarkPrice,
-			UnrealizedPnl:    item.UnrealisedPnl,
-			LiquidationPrice: item.LiqPrice,
-			RealizedPnl:      item.RealisedPnl,
-			Leverage:         item.Leverage,
-			Margin:           item.Margin,
-			Percentage:       types.ExDecimal{},
-			Timestamp:        item.UpdateTime,
-		}
-
-		positions = append(positions, position)
-	}
-
-	return positions, nil
-}
-
-func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
+func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	// 解析选项
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
@@ -528,7 +353,7 @@ func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side opt
 		priceStr = ""
 	}
 
-	market, err := o.gate.perp.market.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -629,7 +454,7 @@ func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side opt
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
 		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-		req.Text = common.GenerateClientOrderID(o.gate.Name(), orderSide)
+		req.Text = common.GenerateClientOrderID(p.gate.Name(), orderSide)
 	}
 
 	// 将结构体转换为 map
@@ -642,7 +467,7 @@ func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side opt
 		return nil, fmt.Errorf("unmarshal request: %w", err)
 	}
 
-	resp, err := o.signAndRequest(ctx, "POST", path, nil, reqBody)
+	resp, err := p.signAndRequest(ctx, "POST", path, nil, reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("create order: %w", err)
 	}
@@ -666,9 +491,240 @@ func (o *gatePerpOrder) CreateOrder(ctx context.Context, symbol string, side opt
 	return perpOrder, nil
 }
 
-// parseOrder 解析订单数据（合约版本）
+func (p *GatePerp) CancelOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) error {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 判断 OrderId 或 ClientOrderId 必须存在一个
+	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
+		return fmt.Errorf("either OrderId or ClientOrderID must be provided")
+	}
+
+	// 获取市场信息（用于获取 settle）
+	market, err := p.GetMarket(symbol)
+	if err != nil {
+		return err
+	}
+
+	settle := strings.ToLower(market.Settle)
+
+	// Gate API 支持通过 order_id 或 text 参数（clientOrderId）
+	var path string
+	var params map[string]interface{}
+	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
+		path = fmt.Sprintf("/api/v4/futures/%s/orders/%s", settle, *argsOpts.OrderId)
+		params = nil
+	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		// 使用 text 参数通过 clientOrderId 取消订单
+		path = fmt.Sprintf("/api/v4/futures/%s/orders", settle)
+		params = map[string]interface{}{
+			"text": *argsOpts.ClientOrderID,
+		}
+	}
+
+	_, err = p.signAndRequest(ctx, "DELETE", path, params, nil)
+	return err
+}
+
+func (p *GatePerp) FetchOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 判断 OrderId 或 ClientOrderId 必须存在一个
+	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
+		return nil, fmt.Errorf("either OrderId or ClientOrderID must be provided")
+	}
+
+	// 获取市场信息（用于获取 settle）
+	market, err := p.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	settle := strings.ToLower(market.Settle)
+
+	// Gate API 支持通过 order_id 或 text 参数（clientOrderId）
+	var path string
+	var params map[string]interface{}
+	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
+		path = fmt.Sprintf("/api/v4/futures/%s/orders/%s", settle, *argsOpts.OrderId)
+		params = nil
+	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		// 使用 text 参数通过 clientOrderId 查询订单
+		path = fmt.Sprintf("/api/v4/futures/%s/orders", settle)
+		params = map[string]interface{}{
+			"text": *argsOpts.ClientOrderID,
+		}
+	}
+
+	resp, err := p.signAndRequest(ctx, "GET", path, params, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch order: %w", err)
+	}
+
+	var data gatePerpFetchOrderResponse
+	if err := json.Unmarshal(resp, &data); err != nil {
+		return nil, fmt.Errorf("unmarshal order: %w", err)
+	}
+
+	return p.parsePerpOrder(data, symbol), nil
+}
+
+func (p *GatePerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
+	market, err := p.GetMarket(symbol)
+	if err != nil {
+		return err
+	}
+
+	if !market.Contract {
+		return fmt.Errorf("leverage only supported for contracts")
+	}
+
+	settle := strings.ToLower(market.Settle)
+	gateSymbol := market.ID
+	if gateSymbol == "" {
+		var err error
+		gateSymbol, err = ToGateSymbol(symbol, true)
+		if err != nil {
+			return fmt.Errorf("get market ID: %w", err)
+		}
+	}
+
+	reqBody := map[string]interface{}{
+		"contract": gateSymbol,
+		"leverage": strconv.Itoa(leverage),
+	}
+
+	path := fmt.Sprintf("/api/v4/futures/%s/positions/%s/leverage", settle, gateSymbol)
+	_, err = p.signAndRequest(ctx, "POST", path, nil, reqBody)
+	return err
+}
+
+func (p *GatePerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
+	// Gate 不支持通过 API 设置保证金模式，需要在网页端设置
+	return fmt.Errorf("not supported: Gate does not support setting margin mode via API")
+}
+
+var _ exchange.PerpExchange = (*GatePerp)(nil)
+
+// ========== 内部辅助方法 ==========
+
+// signAndRequest 签名并发送请求（Gate API）
+func (p *GatePerp) signAndRequest(ctx context.Context, method, path string, params map[string]interface{}, body map[string]interface{}) ([]byte, error) {
+	if p.gate.client.SecretKey == "" {
+		return nil, fmt.Errorf("authentication required")
+	}
+
+	// 构建查询字符串
+	queryString := ""
+	if len(params) > 0 {
+		queryString = common.BuildQueryString(params)
+	}
+
+	// 构建请求体
+	bodyStr := ""
+	if body != nil {
+		bodyBytes, err := json.Marshal(body)
+		if err != nil {
+			return nil, fmt.Errorf("marshal body: %w", err)
+		}
+		bodyStr = string(bodyBytes)
+	}
+
+	// 签名（使用同一个 timestamp 确保签名和请求头一致）
+	timestamp := common.GetTimestampSeconds()
+	signature := p.gate.signer.SignRequest(method, path, queryString, bodyStr, timestamp)
+
+	// 设置请求头
+	p.gate.client.HTTPClient.SetHeader("KEY", p.gate.client.APIKey)
+	p.gate.client.HTTPClient.SetHeader("Timestamp", strconv.FormatInt(timestamp, 10))
+	p.gate.client.HTTPClient.SetHeader("SIGN", signature)
+	p.gate.client.HTTPClient.SetHeader("Content-Type", "application/json")
+	p.gate.client.HTTPClient.SetHeader("X-Gate-Channel-Id", "api")
+
+	// 发送请求
+	if method == "GET" || method == "DELETE" {
+		return p.gate.client.HTTPClient.Get(ctx, path, params)
+	} else {
+		return p.gate.client.HTTPClient.Post(ctx, path, body)
+	}
+}
+
+func (p *GatePerp) fetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
+	// Gate 合约持仓
+	resp, err := p.signAndRequest(ctx, "GET", "/api/v4/futures/usdt/positions", nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch positions: %w", err)
+	}
+
+	var data gatePerpPositionResponse
+	if err := json.Unmarshal(resp, &data); err != nil {
+		return nil, fmt.Errorf("unmarshal positions: %w", err)
+	}
+
+	positions := make([]*model.Position, 0)
+	for _, item := range data {
+		size, _ := item.Size.Float64()
+		if size == 0 {
+			continue
+		}
+
+		market, err := p.GetMarket(item.Contract)
+		if err != nil {
+			continue
+		}
+
+		if len(symbols) > 0 {
+			found := false
+			for _, s := range symbols {
+				if s == market.Symbol {
+					found = true
+					break
+				}
+			}
+			if !found {
+				continue
+			}
+		}
+
+		var side string
+		amount := size
+		if size > 0 {
+			side = string(types.PositionSideLong)
+		} else {
+			side = string(types.PositionSideShort)
+			amount = -amount
+		}
+
+		position := &model.Position{
+			Symbol:           market.Symbol,
+			Side:             side,
+			Amount:           types.ExDecimal{Decimal: decimal.NewFromFloat(amount)},
+			EntryPrice:       item.EntryPrice,
+			MarkPrice:        item.MarkPrice,
+			UnrealizedPnl:    item.UnrealisedPnl,
+			LiquidationPrice: item.LiqPrice,
+			RealizedPnl:      item.RealisedPnl,
+			Leverage:         item.Leverage,
+			Margin:           item.Margin,
+			Percentage:       types.ExDecimal{},
+			Timestamp:        item.UpdateTime,
+		}
+
+		positions = append(positions, position)
+	}
+
+	return positions, nil
+}
+
 // parsePerpOrder 将 Gate 响应转换为 model.PerpOrder
-func (o *gatePerpOrder) parsePerpOrder(data gatePerpFetchOrderResponse, symbol string) *model.PerpOrder {
+func (p *GatePerp) parsePerpOrder(data gatePerpFetchOrderResponse, symbol string) *model.PerpOrder {
 	// 计算实际成交数量（size - left）
 	//nolint:staticcheck // QF1008: need to access Decimal field for Sub method
 	executedQtyDecimal := data.Size.Decimal.Sub(data.Left.Decimal)
@@ -718,76 +774,4 @@ func (o *gatePerpOrder) parsePerpOrder(data gatePerpFetchOrderResponse, symbol s
 	}
 
 	return order
-}
-
-func (o *gatePerpOrder) CancelOrder(ctx context.Context, orderID, symbol string) error {
-	// 获取市场信息（用于获取 settle）
-	market, err := o.gate.perp.market.GetMarket(symbol)
-	if err != nil {
-		return err
-	}
-
-	settle := strings.ToLower(market.Settle)
-	path := fmt.Sprintf("/api/v4/futures/%s/orders/%s", settle, orderID)
-
-	_, err = o.signAndRequest(ctx, "DELETE", path, nil, nil)
-	return err
-}
-
-func (o *gatePerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
-	// 获取市场信息（用于获取 settle）
-	market, err := o.gate.perp.market.GetMarket(symbol)
-	if err != nil {
-		return nil, err
-	}
-
-	settle := strings.ToLower(market.Settle)
-	path := fmt.Sprintf("/api/v4/futures/%s/orders/%s", settle, orderID)
-
-	resp, err := o.signAndRequest(ctx, "GET", path, nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("fetch order: %w", err)
-	}
-
-	var data gatePerpFetchOrderResponse
-	if err := json.Unmarshal(resp, &data); err != nil {
-		return nil, fmt.Errorf("unmarshal order: %w", err)
-	}
-
-	return o.parsePerpOrder(data, symbol), nil
-}
-
-func (o *gatePerpOrder) SetLeverage(ctx context.Context, symbol string, leverage int) error {
-	market, err := o.gate.perp.market.GetMarket(symbol)
-	if err != nil {
-		return err
-	}
-
-	if !market.Contract {
-		return fmt.Errorf("leverage only supported for contracts")
-	}
-
-	settle := strings.ToLower(market.Settle)
-	gateSymbol := market.ID
-	if gateSymbol == "" {
-		var err error
-		gateSymbol, err = ToGateSymbol(symbol, true)
-		if err != nil {
-			return fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	reqBody := map[string]interface{}{
-		"contract": gateSymbol,
-		"leverage": strconv.Itoa(leverage),
-	}
-
-	path := fmt.Sprintf("/api/v4/futures/%s/positions/%s/leverage", settle, gateSymbol)
-	_, err = o.signAndRequest(ctx, "POST", path, nil, reqBody)
-	return err
-}
-
-func (o *gatePerpOrder) SetMarginMode(ctx context.Context, symbol string, mode string) error {
-	// Gate 不支持通过 API 设置保证金模式，需要在网页端设置
-	return fmt.Errorf("not supported: Gate does not support setting margin mode via API")
 }

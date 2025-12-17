@@ -19,16 +19,12 @@ import (
 // BinancePerp Binance 永续合约实现
 type BinancePerp struct {
 	binance *Binance
-	market  *binancePerpMarket
-	order   *binancePerpOrder
 }
 
 // NewBinancePerp 创建 Binance 永续合约实例
 func NewBinancePerp(b *Binance) *BinancePerp {
 	return &BinancePerp{
 		binance: b,
-		market:  &binancePerpMarket{binance: b},
-		order:   &binancePerpOrder{binance: b},
 	}
 }
 
@@ -36,126 +32,16 @@ func NewBinancePerp(b *Binance) *BinancePerp {
 
 // LoadMarkets 加载市场信息
 func (p *BinancePerp) LoadMarkets(ctx context.Context, reload bool) error {
-	return p.market.LoadMarkets(ctx, reload)
-}
-
-// FetchMarkets 获取市场列表
-func (p *BinancePerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
-	return p.market.FetchMarkets(ctx)
-}
-
-// GetMarket 获取单个市场信息
-func (p *BinancePerp) GetMarket(symbol string) (*model.Market, error) {
-	return p.market.GetMarket(symbol)
-}
-
-// GetMarkets 从内存中获取所有市场信息
-func (p *BinancePerp) GetMarkets() ([]*model.Market, error) {
-	return p.market.GetMarkets()
-}
-
-// FetchTicker 获取行情（单个）
-func (p *BinancePerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
-	return p.market.FetchTicker(ctx, symbol)
-}
-
-// FetchTickers 批量获取行情
-func (p *BinancePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
-	return p.market.FetchTickers(ctx)
-}
-
-// FetchOHLCVs 获取K线数据
-func (p *BinancePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
-	// 解析参数
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-
-	// 获取参数值（带默认值）
-	limit := 100 // 默认值
-	if argsOpts.Limit != nil {
-		limit = *argsOpts.Limit
-	}
-
-	since := time.Time{} // 默认值
-	if argsOpts.Since != nil {
-		since = *argsOpts.Since
-	}
-
-	return p.market.FetchOHLCVs(ctx, symbol, timeframe, since, limit)
-}
-
-// FetchPositions 获取持仓
-func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption) (model.Positions, error) {
-	// 解析参数
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-
-	// 获取参数值（带默认值）
-	symbols := []string{} // 默认值
-	if argsOpts.Symbols != nil {
-		symbols = argsOpts.Symbols
-	}
-
-	return p.order.FetchPositions(ctx, symbols...)
-}
-
-// CreateOrder 创建订单
-func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
-	// 解析参数
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-
-	return p.order.CreateOrder(ctx, symbol, side, amount, opts...)
-}
-
-// CancelOrder 取消订单
-func (p *BinancePerp) CancelOrder(ctx context.Context, orderID, symbol string) error {
-	return p.order.CancelOrder(ctx, orderID, symbol)
-}
-
-// FetchOrder 查询订单
-func (p *BinancePerp) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
-	return p.order.FetchOrder(ctx, orderID, symbol)
-}
-
-// SetLeverage 设置杠杆
-func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
-	return p.order.SetLeverage(ctx, symbol, leverage)
-}
-
-// SetMarginMode 设置保证金模式
-func (p *BinancePerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
-	return p.order.SetMarginMode(ctx, symbol, mode)
-}
-
-// 确保 BinancePerp 实现了 exchange.PerpExchange 接口
-var _ exchange.PerpExchange = (*BinancePerp)(nil)
-
-// ========== 内部实现 ==========
-
-// binancePerpMarket 永续合约市场相关方法
-type binancePerpMarket struct {
-	binance *Binance
-}
-
-// LoadMarkets 加载市场信息
-func (m *binancePerpMarket) LoadMarkets(ctx context.Context, reload bool) error {
 	// 如果已加载且不需要重新加载，直接返回
-	m.binance.mu.RLock()
-	if !reload && len(m.binance.perpMarketsBySymbol) > 0 {
-		m.binance.mu.RUnlock()
+	p.binance.mu.RLock()
+	if !reload && len(p.binance.perpMarketsBySymbol) > 0 {
+		p.binance.mu.RUnlock()
 		return nil
 	}
-	m.binance.mu.RUnlock()
+	p.binance.mu.RUnlock()
 
 	// 获取永续合约市场信息
-	resp, err := m.binance.client.PerpClient.Get(ctx, "/fapi/v1/exchangeInfo", map[string]interface{}{
+	resp, err := p.binance.client.PerpClient.Get(ctx, "/fapi/v1/exchangeInfo", map[string]interface{}{
 		"showPermissionSets": false,
 	})
 	if err != nil {
@@ -238,32 +124,32 @@ func (m *binancePerpMarket) LoadMarkets(ctx context.Context, reload bool) error 
 	}
 
 	// 存储市场信息
-	m.binance.mu.Lock()
-	if m.binance.perpMarketsBySymbol == nil {
-		m.binance.perpMarketsBySymbol = make(map[string]*model.Market)
-		m.binance.perpMarketsByID = make(map[string]*model.Market)
+	p.binance.mu.Lock()
+	if p.binance.perpMarketsBySymbol == nil {
+		p.binance.perpMarketsBySymbol = make(map[string]*model.Market)
+		p.binance.perpMarketsByID = make(map[string]*model.Market)
 	}
 	for _, market := range markets {
-		m.binance.perpMarketsBySymbol[market.Symbol] = market
-		m.binance.perpMarketsByID[market.ID] = market
+		p.binance.perpMarketsBySymbol[market.Symbol] = market
+		p.binance.perpMarketsByID[market.ID] = market
 	}
-	m.binance.mu.Unlock()
+	p.binance.mu.Unlock()
 
 	return nil
 }
 
 // FetchMarkets 获取市场列表
-func (m *binancePerpMarket) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
+func (p *BinancePerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	// 确保市场已加载
-	if err := m.LoadMarkets(ctx, false); err != nil {
+	if err := p.LoadMarkets(ctx, false); err != nil {
 		return nil, err
 	}
 
-	m.binance.mu.RLock()
-	defer m.binance.mu.RUnlock()
+	p.binance.mu.RLock()
+	defer p.binance.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.binance.perpMarketsBySymbol))
-	for _, market := range m.binance.perpMarketsBySymbol {
+	markets := make([]*model.Market, 0, len(p.binance.perpMarketsBySymbol))
+	for _, market := range p.binance.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
@@ -271,29 +157,29 @@ func (m *binancePerpMarket) FetchMarkets(ctx context.Context) ([]*model.Market, 
 }
 
 // GetMarket 获取单个市场信息
-func (m *binancePerpMarket) GetMarket(key string) (*model.Market, error) {
-	m.binance.mu.RLock()
-	defer m.binance.mu.RUnlock()
+func (p *BinancePerp) GetMarket(symbol string) (*model.Market, error) {
+	p.binance.mu.RLock()
+	defer p.binance.mu.RUnlock()
 
 	// 先尝试标准化格式
-	if market, ok := m.binance.perpMarketsBySymbol[key]; ok {
+	if market, ok := p.binance.perpMarketsBySymbol[symbol]; ok {
 		return market, nil
 	}
 	// 再尝试原始格式
-	if market, ok := m.binance.perpMarketsByID[key]; ok {
+	if market, ok := p.binance.perpMarketsByID[symbol]; ok {
 		return market, nil
 	}
 
-	return nil, fmt.Errorf("market not found: %s", key)
+	return nil, fmt.Errorf("market not found: %s", symbol)
 }
 
 // GetMarkets 从内存中获取所有市场信息
-func (m *binancePerpMarket) GetMarkets() ([]*model.Market, error) {
-	m.binance.mu.RLock()
-	defer m.binance.mu.RUnlock()
+func (p *BinancePerp) GetMarkets() ([]*model.Market, error) {
+	p.binance.mu.RLock()
+	defer p.binance.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(m.binance.perpMarketsBySymbol))
-	for _, market := range m.binance.perpMarketsBySymbol {
+	markets := make([]*model.Market, 0, len(p.binance.perpMarketsBySymbol))
+	for _, market := range p.binance.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
 
@@ -301,9 +187,9 @@ func (m *binancePerpMarket) GetMarkets() ([]*model.Market, error) {
 }
 
 // FetchTicker 获取行情（单个）
-func (m *binancePerpMarket) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
+func (p *BinancePerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
 	// 获取市场信息
-	market, err := m.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -320,7 +206,7 @@ func (m *binancePerpMarket) FetchTicker(ctx context.Context, symbol string) (*mo
 	}
 
 	// 使用合约 API
-	resp, err := m.binance.client.PerpClient.Get(ctx, "/fapi/v1/ticker/24hr", map[string]interface{}{
+	resp, err := p.binance.client.PerpClient.Get(ctx, "/fapi/v1/ticker/24hr", map[string]interface{}{
 		"symbol": binanceSymbol,
 	})
 	if err != nil {
@@ -354,8 +240,8 @@ func (m *binancePerpMarket) FetchTicker(ctx context.Context, symbol string) (*mo
 }
 
 // FetchTickers 批量获取行情
-func (m *binancePerpMarket) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
-	resp, err := m.binance.client.PerpClient.Get(ctx, "/fapi/v1/ticker/24hr", nil)
+func (p *BinancePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
+	resp, err := p.binance.client.PerpClient.Get(ctx, "/fapi/v1/ticker/24hr", nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch tickers: %w", err)
 	}
@@ -369,7 +255,7 @@ func (m *binancePerpMarket) FetchTickers(ctx context.Context) (map[string]*model
 	tickers := make(map[string]*model.Ticker)
 	for _, item := range data {
 		// 尝试从市场信息中查找标准化格式
-		market, err := m.GetMarket(item.Symbol)
+		market, err := p.GetMarket(item.Symbol)
 		if err != nil {
 			// 如果找不到市场信息，使用 Binance 原始格式
 			ticker := &model.Ticker{
@@ -408,9 +294,26 @@ func (m *binancePerpMarket) FetchTickers(ctx context.Context) (map[string]*model
 }
 
 // FetchOHLCVs 获取K线数据
-func (m *binancePerpMarket) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, since time.Time, limit int) (model.OHLCVs, error) {
+func (p *BinancePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 获取参数值（带默认值）
+	limit := 100 // 默认值
+	if argsOpts.Limit != nil {
+		limit = *argsOpts.Limit
+	}
+
+	since := time.Time{} // 默认值
+	if argsOpts.Since != nil {
+		since = *argsOpts.Since
+	}
+
 	// 获取市场信息
-	market, err := m.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -439,7 +342,7 @@ func (m *binancePerpMarket) FetchOHLCVs(ctx context.Context, symbol string, time
 	params["symbol"] = binanceSymbol
 
 	// 使用合约 API
-	resp, err := m.binance.client.PerpClient.Get(ctx, "/fapi/v1/klines", params)
+	resp, err := p.binance.client.PerpClient.Get(ctx, "/fapi/v1/klines", params)
 	if err != nil {
 		return nil, fmt.Errorf("fetch ohlcv: %w", err)
 	}
@@ -465,16 +368,21 @@ func (m *binancePerpMarket) FetchOHLCVs(ctx context.Context, symbol string, time
 	return ohlcvs, nil
 }
 
-// binancePerpOrder 永续合约订单相关方法
-type binancePerpOrder struct {
-	binance         *Binance
-	positionMode    *bool     // 持仓模式缓存: true=双向, false=单向
-	positionModeExp time.Time // 持仓模式缓存过期时间
-}
-
 // FetchPositions 获取持仓
-func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
-	if o.binance.client.SecretKey == "" {
+func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption) (model.Positions, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 获取参数值（带默认值）
+	symbols := []string{} // 默认值
+	if argsOpts.Symbols != nil {
+		symbols = argsOpts.Symbols
+	}
+
+	if p.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
 
@@ -484,10 +392,10 @@ func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string
 	}
 
 	queryString := BuildQueryString(params)
-	signature := o.binance.signer.Sign(queryString)
+	signature := p.binance.signer.Sign(queryString)
 	params["signature"] = signature
 
-	resp, err := o.binance.client.PerpClient.Get(ctx, "/fapi/v2/positionRisk", params)
+	resp, err := p.binance.client.PerpClient.Get(ctx, "/fapi/v2/positionRisk", params)
 	if err != nil {
 		return nil, fmt.Errorf("fetch positions: %w", err)
 	}
@@ -505,7 +413,7 @@ func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string
 		}
 
 		// 获取市场信息（通过 ID 查找）
-		market, err := o.binance.perp.market.GetMarket(item.Symbol)
+		market, err := p.GetMarket(item.Symbol)
 		if err != nil {
 			continue
 		}
@@ -555,8 +463,8 @@ func (o *binancePerpOrder) FetchPositions(ctx context.Context, symbols ...string
 }
 
 // CreateOrder 创建订单
-func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
-	if o.binance.client.SecretKey == "" {
+func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
+	if p.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
 
@@ -567,7 +475,7 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 	}
 
 	// 获取市场信息
-	market, err := o.binance.perp.market.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -665,16 +573,10 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 	positionSideStr := side.ToPositionSide()
 	reduceOnly := side.ToReduceOnly()
 
-	// 获取持仓模式：如果提供了 hedgeMode 选项，使用它；否则查询 API
-	var isDualMode bool
+	// 获取持仓模式：从 hedgeMode 选项获取，未设置时默认为 false（单向持仓模式）
+	isDualMode := false
 	if argsOpts.HedgeMode != nil {
 		isDualMode = *argsOpts.HedgeMode
-	} else {
-		var err error
-		isDualMode, err = o.getPositionMode(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("get position mode: %w", err)
-		}
 	}
 
 	if isDualMode {
@@ -698,7 +600,7 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
 		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-		req.NewClientOrderID = common.GenerateClientOrderID(o.binance.Name(), orderSide)
+		req.NewClientOrderID = common.GenerateClientOrderID(p.binance.Name(), orderSide)
 	}
 
 	// 将结构体转换为 map，以便添加 timestamp 和 signature
@@ -714,11 +616,11 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 	// 添加 timestamp 和 signature
 	reqParams["timestamp"] = reqTimestamp
 	queryString := BuildQueryString(reqParams)
-	signature := o.binance.signer.Sign(queryString)
+	signature := p.binance.signer.Sign(queryString)
 	reqParams["signature"] = signature
 
 	// 发送请求（合约订单使用 PerpClient）
-	resp, err := o.binance.client.PerpClient.Request(ctx, "POST", "/fapi/v1/order", reqParams, nil)
+	resp, err := p.binance.client.PerpClient.Request(ctx, "POST", "/fapi/v1/order", reqParams, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create order: %w", err)
 	}
@@ -741,13 +643,24 @@ func (o *binancePerpOrder) CreateOrder(ctx context.Context, symbol string, side 
 }
 
 // CancelOrder 取消订单
-func (o *binancePerpOrder) CancelOrder(ctx context.Context, orderID, symbol string) error {
-	if o.binance.client.SecretKey == "" {
+func (p *BinancePerp) CancelOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) error {
+	if p.binance.client.SecretKey == "" {
 		return fmt.Errorf("authentication required")
 	}
 
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 判断 OrderId 或 ClientOrderId 必须存在一个
+	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
+		return fmt.Errorf("either OrderId or ClientOrderID must be provided")
+	}
+
 	// 获取市场信息
-	market, err := o.binance.perp.market.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
 	}
@@ -765,26 +678,43 @@ func (o *binancePerpOrder) CancelOrder(ctx context.Context, orderID, symbol stri
 	timestamp := common.GetTimestamp()
 	params := map[string]interface{}{
 		"symbol":    binanceSymbol,
-		"orderId":   orderID,
 		"timestamp": timestamp,
 	}
 
+	// 优先使用 OrderId，如果没有则使用 ClientOrderID
+	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
+		params["orderId"] = *argsOpts.OrderId
+	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		params["origClientOrderId"] = *argsOpts.ClientOrderID
+	}
+
 	queryString := BuildQueryString(params)
-	signature := o.binance.signer.Sign(queryString)
+	signature := p.binance.signer.Sign(queryString)
 	params["signature"] = signature
 
-	_, err = o.binance.client.PerpClient.Post(ctx, "/fapi/v1/order", params)
+	_, err = p.binance.client.PerpClient.Post(ctx, "/fapi/v1/order", params)
 	return err
 }
 
 // FetchOrder 查询订单
-func (o *binancePerpOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*model.PerpOrder, error) {
-	if o.binance.client.SecretKey == "" {
+func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
+	if p.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
 
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 判断 OrderId 或 ClientOrderId 必须存在一个
+	if (argsOpts.OrderId == nil || *argsOpts.OrderId == "") && (argsOpts.ClientOrderID == nil || *argsOpts.ClientOrderID == "") {
+		return nil, fmt.Errorf("either OrderId or ClientOrderID must be provided")
+	}
+
 	// 获取市场信息
-	market, err := o.binance.perp.market.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
@@ -802,16 +732,22 @@ func (o *binancePerpOrder) FetchOrder(ctx context.Context, orderID, symbol strin
 	timestamp := common.GetTimestamp()
 	params := map[string]interface{}{
 		"symbol":    binanceSymbol,
-		"orderId":   orderID,
 		"timestamp": timestamp,
 	}
 
+	// 优先使用 OrderId，如果没有则使用 ClientOrderID
+	if argsOpts.OrderId != nil && *argsOpts.OrderId != "" {
+		params["orderId"] = *argsOpts.OrderId
+	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		params["origClientOrderId"] = *argsOpts.ClientOrderID
+	}
+
 	queryString := BuildQueryString(params)
-	signature := o.binance.signer.Sign(queryString)
+	signature := p.binance.signer.Sign(queryString)
 	params["signature"] = signature
 
 	// 使用合约 API
-	resp, err := o.binance.client.PerpClient.Get(ctx, "/fapi/v1/order", params)
+	resp, err := p.binance.client.PerpClient.Get(ctx, "/fapi/v1/order", params)
 	if err != nil {
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
@@ -827,39 +763,16 @@ func (o *binancePerpOrder) FetchOrder(ctx context.Context, orderID, symbol strin
 		return nil, fmt.Errorf("order not found")
 	}
 
-	return o.parsePerpOrder(data, symbol), nil
-}
-
-// parsePerpOrder 将 Binance 响应转换为 model.PerpOrder
-func (o *binancePerpOrder) parsePerpOrder(data binancePerpFetchOrderResponse, symbol string) *model.PerpOrder {
-	order := &model.PerpOrder{
-		ID:               strconv.FormatInt(data.OrderID, 10),
-		ClientID:         data.ClientOrderID,
-		Type:             data.Type,
-		Side:             data.Side,
-		PositionSide:     data.PositionSide,
-		Symbol:           symbol, // 使用标准化格式
-		Price:            data.Price,
-		AvgPrice:         data.AvgPrice,
-		Quantity:         data.OrigQty,
-		ExecutedQuantity: data.ExecutedQty,
-		Status:           data.Status,
-		TimeInForce:      data.TimeInForce,
-		ReduceOnly:       data.ReduceOnly,
-		CreateTime:       data.Time,
-		UpdateTime:       data.UpdateTime,
-	}
-
-	return order
+	return p.parsePerpOrder(data, symbol), nil
 }
 
 // SetLeverage 设置杠杆
-func (o *binancePerpOrder) SetLeverage(ctx context.Context, symbol string, leverage int) error {
-	if o.binance.client.SecretKey == "" {
+func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
+	if p.binance.client.SecretKey == "" {
 		return fmt.Errorf("authentication required")
 	}
 
-	market, err := o.binance.perp.market.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
 	}
@@ -876,20 +789,20 @@ func (o *binancePerpOrder) SetLeverage(ctx context.Context, symbol string, lever
 	}
 
 	queryString := BuildQueryString(reqParams)
-	signature := o.binance.signer.Sign(queryString)
+	signature := p.binance.signer.Sign(queryString)
 	reqParams["signature"] = signature
 
-	_, err = o.binance.client.PerpClient.Post(ctx, "/fapi/v1/leverage", reqParams)
+	_, err = p.binance.client.PerpClient.Post(ctx, "/fapi/v1/leverage", reqParams)
 	return err
 }
 
 // SetMarginMode 设置保证金模式
-func (o *binancePerpOrder) SetMarginMode(ctx context.Context, symbol string, mode string) error {
-	if o.binance.client.SecretKey == "" {
+func (p *BinancePerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
+	if p.binance.client.SecretKey == "" {
 		return fmt.Errorf("authentication required")
 	}
 
-	market, err := o.binance.perp.market.GetMarket(symbol)
+	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
 	}
@@ -911,47 +824,37 @@ func (o *binancePerpOrder) SetMarginMode(ctx context.Context, symbol string, mod
 	}
 
 	queryString := BuildQueryString(reqParams)
-	signature := o.binance.signer.Sign(queryString)
+	signature := p.binance.signer.Sign(queryString)
 	reqParams["signature"] = signature
 
-	_, err = o.binance.client.PerpClient.Post(ctx, "/fapi/v1/marginType", reqParams)
+	_, err = p.binance.client.PerpClient.Post(ctx, "/fapi/v1/marginType", reqParams)
 	return err
 }
 
-// getPositionMode 获取持仓模式（带缓存）
-// 返回: true=双向持仓(hedge mode), false=单向持仓(one-way mode)
-func (o *binancePerpOrder) getPositionMode(ctx context.Context) (bool, error) {
-	// 检查缓存是否有效（5分钟）
-	if o.positionMode != nil && time.Now().Before(o.positionModeExp) {
-		return *o.positionMode, nil
+// ========== 内部辅助方法 ==========
+
+// parsePerpOrder 将 Binance 响应转换为 model.PerpOrder
+func (p *BinancePerp) parsePerpOrder(data binancePerpFetchOrderResponse, symbol string) *model.PerpOrder {
+	order := &model.PerpOrder{
+		ID:               strconv.FormatInt(data.OrderID, 10),
+		ClientID:         data.ClientOrderID,
+		Type:             data.Type,
+		Side:             data.Side,
+		PositionSide:     data.PositionSide,
+		Symbol:           symbol, // 使用标准化格式
+		Price:            data.Price,
+		AvgPrice:         data.AvgPrice,
+		Quantity:         data.OrigQty,
+		ExecutedQuantity: data.ExecutedQty,
+		Status:           data.Status,
+		TimeInForce:      data.TimeInForce,
+		ReduceOnly:       data.ReduceOnly,
+		CreateTime:       data.Time,
+		UpdateTime:       data.UpdateTime,
 	}
 
-	// 查询持仓模式
-	reqTimestamp := common.GetTimestamp()
-	reqParams := map[string]interface{}{
-		"timestamp": reqTimestamp,
-	}
-
-	queryString := BuildQueryString(reqParams)
-	signature := o.binance.signer.Sign(queryString)
-	reqParams["signature"] = signature
-
-	resp, err := o.binance.client.PerpClient.Request(ctx, "GET", "/fapi/v1/positionSide/dual", reqParams, nil)
-	if err != nil {
-		return false, fmt.Errorf("get position mode: %w", err)
-	}
-
-	var result struct {
-		DualSidePosition bool `json:"dualSidePosition"`
-	}
-
-	if err := json.Unmarshal(resp, &result); err != nil {
-		return false, fmt.Errorf("unmarshal position mode: %w", err)
-	}
-
-	// 缓存结果
-	o.positionMode = &result.DualSidePosition
-	o.positionModeExp = time.Now().Add(5 * time.Minute)
-
-	return result.DualSidePosition, nil
+	return order
 }
+
+// 确保 BinancePerp 实现了 exchange.PerpExchange 接口
+var _ exchange.PerpExchange = (*BinancePerp)(nil)
