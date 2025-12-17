@@ -44,7 +44,7 @@ type PerpExchange interface {
 	// ========== 订单操作 ==========
 
 	// CreateOrder 创建订单
-	CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error)
+	CreateOrder(ctx context.Context, symbol string, amount string, orderSide option.PerpOrderSide, orderType option.OrderType, opts ...option.ArgsOption) (*model.NewOrder, error)
 
 	// CancelOrder 取消订单
 	CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error

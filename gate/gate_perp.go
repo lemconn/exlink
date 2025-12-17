@@ -323,20 +323,11 @@ func (p *GatePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption
 	return p.fetchPositions(ctx, symbols...)
 }
 
-func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
+func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, amount string, orderSide option.PerpOrderSide, orderType option.OrderType, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	// 解析选项
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
-	}
-
-	// 判断订单类型：优先使用 argsOpts.OrderType，如果未设置则默认为 Market
-	var orderType option.OrderType
-	if argsOpts.OrderType != nil {
-		orderType = *argsOpts.OrderType
-	} else {
-		// 默认使用 Market
-		orderType = option.Market
 	}
 
 	// 如果订单类型为 Limit，必须设置价格
@@ -389,7 +380,7 @@ func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side option.P
 	}
 
 	// 从 PerpOrderSide 自动推断 PositionSide 和 reduceOnly
-	reduceOnly := side.ToReduceOnly()
+	reduceOnly := orderSide.ToReduceOnly()
 
 	// 计算 size（张数）: 张数 = 币的个数 / quanto_multiplier
 	var size int64
@@ -414,7 +405,7 @@ func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side option.P
 	// 平多: CloseLong -> size负数
 	// 开空: OpenShort -> size负数
 	// 平空: CloseShort -> size正数
-	switch side {
+	switch orderSide {
 	case option.OpenLong:
 		req.Size = size
 	case option.CloseLong:
@@ -424,7 +415,7 @@ func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side option.P
 	case option.CloseShort:
 		req.Size = size
 	default:
-		return nil, fmt.Errorf("invalid PerpOrderSide: %s", side)
+		return nil, fmt.Errorf("invalid PerpOrderSide: %s", orderSide)
 	}
 
 	// 设置 reduce_only
@@ -453,8 +444,8 @@ func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, side option.P
 		req.Text = *argsOpts.ClientOrderID
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
-		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-		req.Text = common.GenerateClientOrderID(p.gate.Name(), orderSide)
+		orderSideForID := types.OrderSide(strings.ToLower(orderSide.ToSide()))
+		req.Text = common.GenerateClientOrderID(p.gate.Name(), orderSideForID)
 	}
 
 	// 将结构体转换为 map
@@ -569,7 +560,56 @@ func (p *GatePerp) FetchOrder(ctx context.Context, symbol string, orderId string
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
-	return p.parsePerpOrder(data, symbol), nil
+	// 将 Gate 响应转换为 model.PerpOrder
+	// 计算实际成交数量（size - left）
+	//nolint:staticcheck // QF1008: need to access Decimal field for Sub method
+	executedQtyDecimal := data.Size.Decimal.Sub(data.Left.Decimal)
+	var executedQty types.ExDecimal
+	if executedQtyDecimal.IsNegative() {
+		executedQty = types.ExDecimal{Decimal: decimal.Zero}
+	} else {
+		executedQty = types.ExDecimal{Decimal: executedQtyDecimal}
+	}
+
+	// 确定订单方向和类型（Gate 的 size 正负表示方向）
+	var side string
+	if data.Size.IsPositive() {
+		side = "buy"
+	} else {
+		side = "sell"
+	}
+
+	// 确定订单类型（Gate 的 tif 为 ioc 时通常是市价单）
+	var orderType string
+	if strings.ToLower(data.Tif) == "ioc" && data.Price.IsZero() {
+		orderType = "market"
+	} else {
+		orderType = "limit"
+	}
+
+	// 确定 positionSide（Gate 没有明确的 positionSide，使用 BOTH）
+	positionSide := "BOTH"
+
+	order := &model.PerpOrder{
+		ID:           strconv.FormatInt(data.ID, 10),
+		ClientID:     data.Text,
+		Type:         orderType,
+		Side:         side,
+		PositionSide: positionSide,
+		Symbol:       symbol,
+		Price:        data.Price,
+		AvgPrice:     data.FillPrice,
+		//nolint:staticcheck // QF1008: need to access Decimal field for Abs method
+		Quantity:         types.ExDecimal{Decimal: data.Size.Decimal.Abs()}, // 使用绝对值作为数量
+		ExecutedQuantity: executedQty,
+		Status:           data.Status,
+		TimeInForce:      strings.ToUpper(data.Tif),
+		ReduceOnly:       data.IsReduceOnly,
+		CreateTime:       data.CreateTime,
+		UpdateTime:       data.UpdateTime,
+	}
+
+	return order, nil
 }
 
 func (p *GatePerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
@@ -717,57 +757,4 @@ func (p *GatePerp) fetchPositions(ctx context.Context, symbols ...string) (model
 	}
 
 	return positions, nil
-}
-
-// parsePerpOrder 将 Gate 响应转换为 model.PerpOrder
-func (p *GatePerp) parsePerpOrder(data gatePerpFetchOrderResponse, symbol string) *model.PerpOrder {
-	// 计算实际成交数量（size - left）
-	//nolint:staticcheck // QF1008: need to access Decimal field for Sub method
-	executedQtyDecimal := data.Size.Decimal.Sub(data.Left.Decimal)
-	var executedQty types.ExDecimal
-	if executedQtyDecimal.IsNegative() {
-		executedQty = types.ExDecimal{Decimal: decimal.Zero}
-	} else {
-		executedQty = types.ExDecimal{Decimal: executedQtyDecimal}
-	}
-
-	// 确定订单方向和类型（Gate 的 size 正负表示方向）
-	var side string
-	if data.Size.IsPositive() {
-		side = "buy"
-	} else {
-		side = "sell"
-	}
-
-	// 确定订单类型（Gate 的 tif 为 ioc 时通常是市价单）
-	var orderType string
-	if strings.ToLower(data.Tif) == "ioc" && data.Price.IsZero() {
-		orderType = "market"
-	} else {
-		orderType = "limit"
-	}
-
-	// 确定 positionSide（Gate 没有明确的 positionSide，使用 BOTH）
-	positionSide := "BOTH"
-
-	order := &model.PerpOrder{
-		ID:           strconv.FormatInt(data.ID, 10),
-		ClientID:     data.Text,
-		Type:         orderType,
-		Side:         side,
-		PositionSide: positionSide,
-		Symbol:       symbol,
-		Price:        data.Price,
-		AvgPrice:     data.FillPrice,
-		//nolint:staticcheck // QF1008: need to access Decimal field for Abs method
-		Quantity:         types.ExDecimal{Decimal: data.Size.Decimal.Abs()}, // 使用绝对值作为数量
-		ExecutedQuantity: executedQty,
-		Status:           data.Status,
-		TimeInForce:      strings.ToUpper(data.Tif),
-		ReduceOnly:       data.IsReduceOnly,
-		CreateTime:       data.CreateTime,
-		UpdateTime:       data.UpdateTime,
-	}
-
-	return order
 }
