@@ -676,7 +676,7 @@ func (p *OKXPerp) SetLeverage(ctx context.Context, symbol string, leverage int) 
 	return err
 }
 
-func (p *OKXPerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
+func (p *OKXPerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType) error {
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
@@ -686,14 +686,14 @@ func (p *OKXPerp) SetMarginMode(ctx context.Context, symbol string, mode string)
 		return fmt.Errorf("margin mode only supported for contracts")
 	}
 
-	// 验证模式
-	if mode != "isolated" && mode != "cross" {
-		return fmt.Errorf("invalid margin mode: %s, must be 'isolated' or 'cross'", mode)
+	// 验证类型
+	if marginType != option.ISOLATED && marginType != option.CROSSED {
+		return fmt.Errorf("invalid margin type: %s, must be 'ISOLATED' or 'CROSSED'", marginType)
 	}
 
 	reqBody := map[string]interface{}{
 		"instId":  market.ID,
-		"mgnMode": strings.ToUpper(mode),
+		"mgnMode": marginType.Upper(),
 	}
 
 	_, err = p.signAndRequest(ctx, "POST", "/api/v5/account/set-margin-mode", nil, reqBody)

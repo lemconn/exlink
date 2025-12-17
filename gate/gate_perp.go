@@ -642,9 +642,9 @@ func (p *GatePerp) SetLeverage(ctx context.Context, symbol string, leverage int)
 	return err
 }
 
-func (p *GatePerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
-	// Gate 不支持通过 API 设置保证金模式，需要在网页端设置
-	return fmt.Errorf("not supported: Gate does not support setting margin mode via API")
+func (p *GatePerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType) error {
+	// Gate 不支持通过 API 设置保证金类型，需要在网页端设置
+	return fmt.Errorf("not supported: Gate does not support setting margin type via API")
 }
 
 var _ exchange.PerpExchange = (*GatePerp)(nil)

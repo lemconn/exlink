@@ -774,8 +774,8 @@ func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage i
 	return err
 }
 
-// SetMarginMode 设置保证金模式
-func (p *BinancePerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
+// SetMarginType 设置保证金类型
+func (p *BinancePerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType) error {
 	if p.binance.client.SecretKey == "" {
 		return fmt.Errorf("authentication required")
 	}
@@ -789,15 +789,15 @@ func (p *BinancePerp) SetMarginMode(ctx context.Context, symbol string, mode str
 		return fmt.Errorf("margin mode only supported for linear contracts")
 	}
 
-	// 验证模式
-	if mode != "isolated" && mode != "cross" {
-		return fmt.Errorf("invalid margin mode: %s, must be 'isolated' or 'cross'", mode)
+	// 验证类型
+	if marginType != option.ISOLATED && marginType != option.CROSSED {
+		return fmt.Errorf("invalid margin type: %s, must be 'ISOLATED' or 'CROSSED'", marginType)
 	}
 
 	timestamp := common.GetTimestamp()
 	reqParams := map[string]interface{}{
 		"symbol":     market.ID,
-		"marginType": strings.ToUpper(mode),
+		"marginType": marginType.Upper(),
 		"timestamp":  timestamp,
 	}
 

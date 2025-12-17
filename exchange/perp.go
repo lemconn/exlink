@@ -57,6 +57,6 @@ type PerpExchange interface {
 	// SetLeverage 设置杠杆
 	SetLeverage(ctx context.Context, symbol string, leverage int) error
 
-	// SetMarginMode 设置保证金模式（isolated/cross）
-	SetMarginMode(ctx context.Context, symbol string, mode string) error
+	// SetMarginType 设置保证金类型（isolated/cross）
+	SetMarginType(ctx context.Context, symbol string, marginType option.MarginType) error
 }

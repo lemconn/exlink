@@ -878,7 +878,7 @@ func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int
 	return err
 }
 
-func (p *BybitPerp) SetMarginMode(ctx context.Context, symbol string, mode string) error {
+func (p *BybitPerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType) error {
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
@@ -888,9 +888,9 @@ func (p *BybitPerp) SetMarginMode(ctx context.Context, symbol string, mode strin
 		return fmt.Errorf("margin mode only supported for contracts")
 	}
 
-	// 验证模式
-	if mode != "isolated" && mode != "cross" {
-		return fmt.Errorf("invalid margin mode: %s, must be 'isolated' or 'cross'", mode)
+	// 验证类型
+	if marginType != option.ISOLATED && marginType != option.CROSSED {
+		return fmt.Errorf("invalid margin type: %s, must be 'ISOLATED' or 'CROSSED'", marginType)
 	}
 
 	bybitSymbol := market.ID
@@ -905,7 +905,7 @@ func (p *BybitPerp) SetMarginMode(ctx context.Context, symbol string, mode strin
 	reqBody := map[string]interface{}{
 		"category":  "linear",
 		"symbol":    bybitSymbol,
-		"tradeMode": strings.ToUpper(mode),
+		"tradeMode": marginType.Upper(),
 	}
 
 	_, err = p.signAndRequest(ctx, "POST", "/v5/position/switch-mode", nil, reqBody)
