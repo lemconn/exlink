@@ -49,12 +49,3 @@ vet: ## Run go vet on all packages
 
 lint: ## Run golangci-lint on all packages
 	golangci-lint run --timeout=5m
-
-example: ## Build all example programs to bin directory
-	@echo "Building example programs..."
-	@mkdir -p bin
-	@echo "Building spot/market..."
-	@go build -o bin/spot-market ./examples/spot
-	@echo "Building perp/market..."
-	@go build -o bin/perp-market ./examples/perp
-	@echo "Done! Binaries are in bin/ directory"
