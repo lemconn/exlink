@@ -450,20 +450,11 @@ func (p *BybitPerp) fetchPositions(ctx context.Context, symbols ...string) (mode
 	return positions, nil
 }
 
-func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
+func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, amount string, orderSide option.PerpOrderSide, orderType option.OrderType, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	// 解析选项
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
-	}
-
-	// 判断订单类型：优先使用 argsOpts.OrderType，如果未设置则默认为 Market
-	var orderType option.OrderType
-	if argsOpts.OrderType != nil {
-		orderType = *argsOpts.OrderType
-	} else {
-		// 默认使用 Market
-		orderType = option.Market
 	}
 
 	// 如果订单类型为 Limit，必须设置价格
@@ -495,7 +486,7 @@ func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side option.
 	}
 
 	// Bybit API requires "Buy" or "Sell" (capitalized)
-	sideStr := side.ToSide()
+	sideStr := orderSide.ToSide()
 	if len(sideStr) > 0 {
 		sideStr = strings.ToUpper(sideStr[:1]) + strings.ToLower(sideStr[1:])
 	}
@@ -541,8 +532,8 @@ func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side option.
 	}
 
 	// 从 PerpOrderSide 自动推断 PositionSide 和 reduceOnly
-	positionSideStr := side.ToPositionSide()
-	reduceOnly := side.ToReduceOnly()
+	positionSideStr := orderSide.ToPositionSide()
+	reduceOnly := orderSide.ToReduceOnly()
 
 	// 获取持仓模式：从 hedgeMode 选项获取，未设置时默认为 false（单向持仓模式）
 	isDualMode := false
@@ -572,8 +563,8 @@ func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side option.
 		req.OrderLinkID = *argsOpts.ClientOrderID
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
-		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-		req.OrderLinkID = common.GenerateClientOrderID(p.bybit.Name(), orderSide)
+		orderSideForID := types.OrderSide(strings.ToLower(orderSide.ToSide()))
+		req.OrderLinkID = common.GenerateClientOrderID(p.bybit.Name(), orderSideForID)
 	}
 
 	// 将结构体转换为 map
@@ -609,40 +600,6 @@ func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, side option.
 	}
 
 	return perpOrder, nil
-}
-
-// parsePerpOrder 将 Bybit 响应转换为 model.PerpOrder
-func (p *BybitPerp) parsePerpOrder(item bybitPerpFetchOrderItem, symbol string) *model.PerpOrder {
-	// 确定 positionSide
-	var positionSide string
-	switch item.PositionIdx {
-	case 1:
-		positionSide = "LONG"
-	case 2:
-		positionSide = "SHORT"
-	default:
-		positionSide = "BOTH"
-	}
-
-	order := &model.PerpOrder{
-		ID:               item.OrderID,
-		ClientID:         item.OrderLinkID,
-		Type:             item.OrderType,
-		Side:             item.Side,
-		PositionSide:     positionSide,
-		Symbol:           symbol,
-		Price:            item.Price,
-		AvgPrice:         item.AvgPrice,
-		Quantity:         item.Qty,
-		ExecutedQuantity: item.CumExecQty,
-		Status:           item.OrderStatus,
-		TimeInForce:      item.TimeInForce,
-		ReduceOnly:       item.ReduceOnly,
-		CreateTime:       item.CreatedTime,
-		UpdateTime:       item.UpdatedTime,
-	}
-
-	return order
 }
 
 func (p *BybitPerp) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
@@ -737,10 +694,66 @@ func (p *BybitPerp) FetchOrder(ctx context.Context, symbol string, orderId strin
 		if err := json.Unmarshal(resp, &realtimeResult); err == nil && realtimeResult.RetCode == 0 {
 			for _, item := range realtimeResult.Result.List {
 				if targetOrderID != "" && item.OrderID == targetOrderID {
-					return p.parsePerpOrder(item, symbol), nil
+					// 将 Bybit 响应转换为 model.PerpOrder
+					var positionSide string
+					switch item.PositionIdx {
+					case 1:
+						positionSide = "LONG"
+					case 2:
+						positionSide = "SHORT"
+					default:
+						positionSide = "BOTH"
+					}
+
+					order := &model.PerpOrder{
+						ID:               item.OrderID,
+						ClientID:         item.OrderLinkID,
+						Type:             item.OrderType,
+						Side:             item.Side,
+						PositionSide:     positionSide,
+						Symbol:           symbol,
+						Price:            item.Price,
+						AvgPrice:         item.AvgPrice,
+						Quantity:         item.Qty,
+						ExecutedQuantity: item.CumExecQty,
+						Status:           item.OrderStatus,
+						TimeInForce:      item.TimeInForce,
+						ReduceOnly:       item.ReduceOnly,
+						CreateTime:       item.CreatedTime,
+						UpdateTime:       item.UpdatedTime,
+					}
+					return order, nil
 				}
 				if targetOrderLinkID != "" && item.OrderLinkID == targetOrderLinkID {
-					return p.parsePerpOrder(item, symbol), nil
+					// 将 Bybit 响应转换为 model.PerpOrder
+					var positionSide string
+					switch item.PositionIdx {
+					case 1:
+						positionSide = "LONG"
+					case 2:
+						positionSide = "SHORT"
+					default:
+						positionSide = "BOTH"
+					}
+
+					order := &model.PerpOrder{
+						ID:               item.OrderID,
+						ClientID:         item.OrderLinkID,
+						Type:             item.OrderType,
+						Side:             item.Side,
+						PositionSide:     positionSide,
+						Symbol:           symbol,
+						Price:            item.Price,
+						AvgPrice:         item.AvgPrice,
+						Quantity:         item.Qty,
+						ExecutedQuantity: item.CumExecQty,
+						Status:           item.OrderStatus,
+						TimeInForce:      item.TimeInForce,
+						ReduceOnly:       item.ReduceOnly,
+						CreateTime:       item.CreatedTime,
+						UpdateTime:       item.UpdatedTime,
+					}
+					return order, nil
 				}
 			}
 		}
@@ -769,10 +782,66 @@ func (p *BybitPerp) FetchOrder(ctx context.Context, symbol string, orderId strin
 	// Find the order by ID
 	for _, item := range result.Result.List {
 		if targetOrderID != "" && item.OrderID == targetOrderID {
-			return p.parsePerpOrder(item, symbol), nil
+			// 将 Bybit 响应转换为 model.PerpOrder
+			var positionSide string
+			switch item.PositionIdx {
+			case 1:
+				positionSide = "LONG"
+			case 2:
+				positionSide = "SHORT"
+			default:
+				positionSide = "BOTH"
+			}
+
+			order := &model.PerpOrder{
+				ID:               item.OrderID,
+				ClientID:         item.OrderLinkID,
+				Type:             item.OrderType,
+				Side:             item.Side,
+				PositionSide:     positionSide,
+				Symbol:           symbol,
+				Price:            item.Price,
+				AvgPrice:         item.AvgPrice,
+				Quantity:         item.Qty,
+				ExecutedQuantity: item.CumExecQty,
+				Status:           item.OrderStatus,
+				TimeInForce:      item.TimeInForce,
+				ReduceOnly:       item.ReduceOnly,
+				CreateTime:       item.CreatedTime,
+				UpdateTime:       item.UpdatedTime,
+			}
+			return order, nil
 		}
 		if targetOrderLinkID != "" && item.OrderLinkID == targetOrderLinkID {
-			return p.parsePerpOrder(item, symbol), nil
+			// 将 Bybit 响应转换为 model.PerpOrder
+			var positionSide string
+			switch item.PositionIdx {
+			case 1:
+				positionSide = "LONG"
+			case 2:
+				positionSide = "SHORT"
+			default:
+				positionSide = "BOTH"
+			}
+
+			order := &model.PerpOrder{
+				ID:               item.OrderID,
+				ClientID:         item.OrderLinkID,
+				Type:             item.OrderType,
+				Side:             item.Side,
+				PositionSide:     positionSide,
+				Symbol:           symbol,
+				Price:            item.Price,
+				AvgPrice:         item.AvgPrice,
+				Quantity:         item.Qty,
+				ExecutedQuantity: item.CumExecQty,
+				Status:           item.OrderStatus,
+				TimeInForce:      item.TimeInForce,
+				ReduceOnly:       item.ReduceOnly,
+				CreateTime:       item.CreatedTime,
+				UpdateTime:       item.UpdatedTime,
+			}
+			return order, nil
 		}
 	}
 

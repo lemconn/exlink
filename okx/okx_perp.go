@@ -379,20 +379,11 @@ func (p *OKXPerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption)
 	return p.fetchPositions(ctx, symbols...)
 }
 
-func (p *OKXPerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
+func (p *OKXPerp) CreateOrder(ctx context.Context, symbol string, amount string, orderSide option.PerpOrderSide, orderType option.OrderType, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	// 解析选项
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
-	}
-
-	// 判断订单类型：优先使用 argsOpts.OrderType，如果未设置则默认为 Market
-	var orderType option.OrderType
-	if argsOpts.OrderType != nil {
-		orderType = *argsOpts.OrderType
-	} else {
-		// 默认使用 Market
-		orderType = option.Market
 	}
 
 	// 如果订单类型为 Limit，必须设置价格
@@ -455,7 +446,7 @@ func (p *OKXPerp) CreateOrder(ctx context.Context, symbol string, side option.Pe
 	req := okxPerpCreateOrderRequest{
 		InstID:  okxSymbol,
 		TdMode:  tdMode,
-		Side:    strings.ToLower(side.ToSide()),
+		Side:    strings.ToLower(orderSide.ToSide()),
 		OrdType: orderType.Lower(),
 		Sz:      sz,
 	}
@@ -466,8 +457,8 @@ func (p *OKXPerp) CreateOrder(ctx context.Context, symbol string, side option.Pe
 	}
 
 	// 从 PerpOrderSide 自动推断 PositionSide 和 reduceOnly
-	positionSideStr := side.ToPositionSide()
-	reduceOnly := side.ToReduceOnly()
+	positionSideStr := orderSide.ToPositionSide()
+	reduceOnly := orderSide.ToReduceOnly()
 
 	// 获取持仓模式：从 hedgeMode 选项获取，未设置时默认为 net_mode（单向持仓模式）
 	posMode := "net_mode"
@@ -499,8 +490,8 @@ func (p *OKXPerp) CreateOrder(ctx context.Context, symbol string, side option.Pe
 		req.ClOrdID = *argsOpts.ClientOrderID
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
-		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-		req.ClOrdID = common.GenerateClientOrderID(p.okx.Name(), orderSide)
+		orderSideForID := types.OrderSide(strings.ToLower(orderSide.ToSide()))
+		req.ClOrdID = common.GenerateClientOrderID(p.okx.Name(), orderSideForID)
 	}
 
 	// 将结构体转换为 map
@@ -640,7 +631,30 @@ func (p *OKXPerp) FetchOrder(ctx context.Context, symbol string, orderId string,
 		return nil, fmt.Errorf("okx api error: %s", result.Msg)
 	}
 
-	return p.parsePerpOrder(result.Data[0], symbol), nil
+	// 将 OKX 响应转换为 model.PerpOrder
+	item := result.Data[0]
+	// 转换 reduceOnly 字符串为 bool
+	reduceOnly := strings.ToLower(item.ReduceOnly) == "true"
+
+	order := &model.PerpOrder{
+		ID:               item.OrdID,
+		ClientID:         item.ClOrdID,
+		Type:             item.OrdType,
+		Side:             item.Side,
+		PositionSide:     item.PosSide,
+		Symbol:           symbol,
+		Price:            item.Px,
+		AvgPrice:         item.AvgPx,
+		Quantity:         item.Sz,
+		ExecutedQuantity: item.AccFillSz,
+		Status:           item.State,
+		TimeInForce:      "", // OKX 响应中没有 timeInForce 字段
+		ReduceOnly:       reduceOnly,
+		CreateTime:       item.CTime,
+		UpdateTime:       item.UTime,
+	}
+
+	return order, nil
 }
 
 func (p *OKXPerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
@@ -813,30 +827,4 @@ func (p *OKXPerp) fetchPositions(ctx context.Context, symbols ...string) (model.
 	}
 
 	return positions, nil
-}
-
-// parsePerpOrder 将 OKX 响应转换为 model.PerpOrder
-func (p *OKXPerp) parsePerpOrder(item okxPerpFetchOrderItem, symbol string) *model.PerpOrder {
-	// 转换 reduceOnly 字符串为 bool
-	reduceOnly := strings.ToLower(item.ReduceOnly) == "true"
-
-	order := &model.PerpOrder{
-		ID:               item.OrdID,
-		ClientID:         item.ClOrdID,
-		Type:             item.OrdType,
-		Side:             item.Side,
-		PositionSide:     item.PosSide,
-		Symbol:           symbol,
-		Price:            item.Px,
-		AvgPrice:         item.AvgPx,
-		Quantity:         item.Sz,
-		ExecutedQuantity: item.AccFillSz,
-		Status:           item.State,
-		TimeInForce:      "", // OKX 响应中没有 timeInForce 字段
-		ReduceOnly:       reduceOnly,
-		CreateTime:       item.CTime,
-		UpdateTime:       item.UTime,
-	}
-
-	return order
 }

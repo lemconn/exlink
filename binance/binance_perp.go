@@ -463,7 +463,7 @@ func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOpt
 }
 
 // CreateOrder 创建订单
-func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side option.PerpOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
+func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, amount string, orderSide option.PerpOrderSide, orderType option.OrderType, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	if p.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
@@ -488,15 +488,6 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side optio
 		if err != nil {
 			return nil, fmt.Errorf("get market ID: %w", err)
 		}
-	}
-
-	// 判断订单类型：优先使用 argsOpts.OrderType，如果未设置则默认为 Market
-	var orderType option.OrderType
-	if argsOpts.OrderType != nil {
-		orderType = *argsOpts.OrderType
-	} else {
-		// 默认使用 Market
-		orderType = option.Market
 	}
 
 	// 如果订单类型为 Limit，必须设置价格
@@ -538,7 +529,7 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side optio
 	reqTimestamp := common.GetTimestamp()
 	req := binancePerpCreateOrderRequest{
 		Symbol: binanceSymbol,
-		Side:   side.ToSide(),
+		Side:   orderSide.ToSide(),
 		Type:   orderType.Upper(),
 	}
 
@@ -570,8 +561,8 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side optio
 
 	// ========== 永续合约订单处理 ==========
 	// 从 PerpOrderSide 自动推断 PositionSide 和 reduceOnly
-	positionSideStr := side.ToPositionSide()
-	reduceOnly := side.ToReduceOnly()
+	positionSideStr := orderSide.ToPositionSide()
+	reduceOnly := orderSide.ToReduceOnly()
 
 	// 获取持仓模式：从 hedgeMode 选项获取，未设置时默认为 false（单向持仓模式）
 	isDualMode := false
@@ -599,8 +590,8 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, side optio
 		req.NewClientOrderID = *argsOpts.ClientOrderID
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
-		orderSide := types.OrderSide(strings.ToLower(side.ToSide()))
-		req.NewClientOrderID = common.GenerateClientOrderID(p.binance.Name(), orderSide)
+		orderSideForID := types.OrderSide(strings.ToLower(orderSide.ToSide()))
+		req.NewClientOrderID = common.GenerateClientOrderID(p.binance.Name(), orderSideForID)
 	}
 
 	// 将结构体转换为 map，以便添加 timestamp 和 signature
@@ -731,7 +722,26 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, orderId str
 		return nil, fmt.Errorf("order not found")
 	}
 
-	return p.parsePerpOrder(data, symbol), nil
+	// 将 Binance 响应转换为 model.PerpOrder
+	order := &model.PerpOrder{
+		ID:               strconv.FormatInt(data.OrderID, 10),
+		ClientID:         data.ClientOrderID,
+		Type:             data.Type,
+		Side:             data.Side,
+		PositionSide:     data.PositionSide,
+		Symbol:           symbol, // 使用标准化格式
+		Price:            data.Price,
+		AvgPrice:         data.AvgPrice,
+		Quantity:         data.OrigQty,
+		ExecutedQuantity: data.ExecutedQty,
+		Status:           data.Status,
+		TimeInForce:      data.TimeInForce,
+		ReduceOnly:       data.ReduceOnly,
+		CreateTime:       data.Time,
+		UpdateTime:       data.UpdateTime,
+	}
+
+	return order, nil
 }
 
 // SetLeverage 设置杠杆
@@ -800,29 +810,6 @@ func (p *BinancePerp) SetMarginMode(ctx context.Context, symbol string, mode str
 }
 
 // ========== 内部辅助方法 ==========
-
-// parsePerpOrder 将 Binance 响应转换为 model.PerpOrder
-func (p *BinancePerp) parsePerpOrder(data binancePerpFetchOrderResponse, symbol string) *model.PerpOrder {
-	order := &model.PerpOrder{
-		ID:               strconv.FormatInt(data.OrderID, 10),
-		ClientID:         data.ClientOrderID,
-		Type:             data.Type,
-		Side:             data.Side,
-		PositionSide:     data.PositionSide,
-		Symbol:           symbol, // 使用标准化格式
-		Price:            data.Price,
-		AvgPrice:         data.AvgPrice,
-		Quantity:         data.OrigQty,
-		ExecutedQuantity: data.ExecutedQty,
-		Status:           data.Status,
-		TimeInForce:      data.TimeInForce,
-		ReduceOnly:       data.ReduceOnly,
-		CreateTime:       data.Time,
-		UpdateTime:       data.UpdateTime,
-	}
-
-	return order
-}
 
 // 确保 BinancePerp 实现了 exchange.PerpExchange 接口
 var _ exchange.PerpExchange = (*BinancePerp)(nil)
