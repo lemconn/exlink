@@ -590,8 +590,7 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, amount str
 		req.NewClientOrderID = *argsOpts.ClientOrderID
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
-		orderSideForID := types.OrderSide(strings.ToLower(orderSide.ToSide()))
-		req.NewClientOrderID = common.GenerateClientOrderID(p.binance.Name(), orderSideForID)
+		req.NewClientOrderID = common.GenerateClientOrderID(p.binance.Name(), orderSide.ToSide())
 	}
 
 	// 将结构体转换为 map，以便添加 timestamp 和 signature

@@ -82,3 +82,40 @@ type bybitSpotCreateOrderResult struct {
 	OrderID     string `json:"orderId"`
 	OrderLinkID string `json:"orderLinkId"`
 }
+
+// bybitSpotFetchOrderResponse Bybit 现货查询订单响应
+type bybitSpotFetchOrderResponse struct {
+	RetCode    int                       `json:"retCode"`
+	RetMsg     string                    `json:"retMsg"`
+	Result     bybitSpotFetchOrderResult `json:"result"`
+	RetExtInfo map[string]interface{}    `json:"retExtInfo"`
+	Time       types.ExTimestamp         `json:"time"`
+}
+
+// bybitSpotFetchOrderResult Bybit 现货查询订单结果
+type bybitSpotFetchOrderResult struct {
+	NextPageCursor string                       `json:"nextPageCursor"` // 下一页游标
+	Category       string                       `json:"category"`       // 产品类型
+	List           []bybitSpotFetchOrderItem    `json:"list"`           // 订单列表
+}
+
+// bybitSpotFetchOrderItem Bybit 现货订单详情
+type bybitSpotFetchOrderItem struct {
+	Symbol         string            `json:"symbol"`         // 交易对
+	OrderType      string            `json:"orderType"`      // 订单类型
+	OrderLinkID    string            `json:"orderLinkId"`    // 客户端订单ID
+	OrderID        string            `json:"orderId"`        // 订单ID
+	OrderStatus    string            `json:"orderStatus"`    // 订单状态
+	AvgPrice       types.ExDecimal   `json:"avgPrice"`       // 平均成交价格
+	Price          types.ExDecimal   `json:"price"`          // 订单价格
+	CreatedTime    types.ExTimestamp `json:"createdTime"`    // 创建时间
+	UpdatedTime    types.ExTimestamp `json:"updatedTime"`    // 更新时间
+	Side           string            `json:"side"`           // 订单方向
+	TimeInForce    string            `json:"timeInForce"`    // 时间有效性
+	CumExecValue   types.ExDecimal   `json:"cumExecValue"`   // 累计成交金额
+	CumExecFee     types.ExDecimal   `json:"cumExecFee"`     // 累计手续费
+	LeavesQty      types.ExDecimal   `json:"leavesQty"`      // 剩余数量
+	CumExecQty     types.ExDecimal   `json:"cumExecQty"`     // 累计成交数量
+	Qty            types.ExDecimal   `json:"qty"`            // 订单数量
+	LeavesValue    types.ExDecimal   `json:"leavesValue"`    // 剩余价值
+}

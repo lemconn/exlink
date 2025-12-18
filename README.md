@@ -182,58 +182,27 @@ import (
 spot := ex.Spot()
 
 // Create a limit order (with price option, it becomes a limit order)
-order, err := spot.CreateOrder(ctx, "BTC/USDT", model.OrderSideBuy,
+order, err := spot.CreateOrder(ctx, "BTC/USDT", option.Buy,
     option.WithPrice("50000"),
     option.WithAmount("0.001"),
 )
 if err != nil {
     log.Fatal(err)
 }
-fmt.Printf("Order created: %s\n", order.ID)
+fmt.Printf("Order created: %s\n", order.OrderId)
 
 // Fetch order status
-order, err = spot.FetchOrder(ctx, order.ID, "BTC/USDT")
+order, err = spot.FetchOrder(ctx, "BTC/USDT", order.ID, option.WithClientOrderID("clientOrderID"))
 if err != nil {
     log.Fatal(err)
 }
 
 // Cancel order
-err = spot.CancelOrder(ctx, order.ID, "BTC/USDT")
+err = spot.CancelOrder(ctx, "BTC/USDT", order.ID, option.WithClientOrderID("clientOrderID"))
 if err != nil {
     log.Fatal(err)
 }
 
-```
-
-### Trading History
-
-```go
-import (
-    "time"
-    "github.com/lemconn/exlink"
-    "github.com/lemconn/exlink/option"
-)
-
-// Get spot interface
-spot := ex.Spot()
-
-// Fetch public trades
-trades, err := spot.FetchTrades(ctx, "BTC/USDT",
-    option.WithLimit(100),
-    option.WithSince(time.Time{}),
-)
-if err != nil {
-    log.Fatal(err)
-}
-
-// Fetch my trades (requires authentication)
-myTrades, err := spot.FetchMyTrades(ctx, "BTC/USDT",
-    option.WithLimit(100),
-    option.WithSince(time.Time{}),
-)
-if err != nil {
-    log.Fatal(err)
-}
 ```
 
 ### Contract Trading

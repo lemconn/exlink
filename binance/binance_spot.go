@@ -92,39 +92,18 @@ func (s *BinanceSpot) FetchBalance(ctx context.Context) (model.Balances, error) 
 }
 
 // CreateOrder 创建订单
-func (s *BinanceSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...option.ArgsOption) (*model.Order, error) {
-	// 解析参数
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-
-	// 转换为 model.OrderOption
-	orderOpts := []model.OrderOption{}
-	if argsOpts.Price != nil {
-		orderOpts = append(orderOpts, model.WithPrice(*argsOpts.Price))
-	}
-	if argsOpts.Amount != nil {
-		orderOpts = append(orderOpts, model.WithAmount(*argsOpts.Amount))
-	}
-	if argsOpts.ClientOrderID != nil {
-		orderOpts = append(orderOpts, model.WithClientOrderID(*argsOpts.ClientOrderID))
-	}
-	if argsOpts.TimeInForce != nil {
-		orderOpts = append(orderOpts, model.WithTimeInForce(model.OrderTimeInForce(*argsOpts.TimeInForce)))
-	}
-
-	return s.order.CreateOrder(ctx, symbol, side, amount, orderOpts...)
+func (s *BinanceSpot) CreateOrder(ctx context.Context, symbol string, side option.SpotOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
+	return s.order.CreateOrder(ctx, symbol, side, amount, opts...)
 }
 
 // CancelOrder 取消订单
-func (s *BinanceSpot) CancelOrder(ctx context.Context, orderID, symbol string) error {
-	return s.order.CancelOrder(ctx, orderID, symbol)
+func (s *BinanceSpot) CancelOrder(ctx context.Context, symbol string, orderID string, opts ...option.ArgsOption) error {
+	return s.order.CancelOrder(ctx, symbol, orderID, opts...)
 }
 
 // FetchOrder 查询订单
-func (s *BinanceSpot) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
-	return s.order.FetchOrder(ctx, orderID, symbol)
+func (s *BinanceSpot) FetchOrder(ctx context.Context, symbol string, orderID string, opts ...option.ArgsOption) (*model.SpotOrder, error) {
+	return s.order.FetchOrder(ctx, symbol, orderID, opts...)
 }
 
 // 确保 BinanceSpot 实现了 exchange.SpotExchange 接口
@@ -495,13 +474,16 @@ func (o *binanceSpotOrder) FetchBalance(ctx context.Context) (model.Balances, er
 }
 
 // CreateOrder 创建订单
-func (o *binanceSpotOrder) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...model.OrderOption) (*model.Order, error) {
+func (o *binanceSpotOrder) CreateOrder(ctx context.Context, symbol string, side option.SpotOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	if o.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
 	}
 
 	// 解析订单选项
-	options := model.ApplyOrderOptions(opts...)
+	options := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
 
 	// 获取市场信息
 	market, err := o.binance.spot.market.GetMarket(symbol)
@@ -520,13 +502,13 @@ func (o *binanceSpotOrder) CreateOrder(ctx context.Context, symbol string, side 
 	}
 
 	// 判断订单类型：如果 options.Price 设置了且不为空，则为限价单，否则为市价单
-	var orderType types.OrderType
+	var orderType model.OrderType
 	var priceStr string
 	if options.Price != nil && *options.Price != "" {
-		orderType = types.OrderTypeLimit
+		orderType = model.OrderTypeLimit
 		priceStr = *options.Price
 	} else {
-		orderType = types.OrderTypeMarket
+		orderType = model.OrderTypeMarket
 		priceStr = ""
 	}
 
@@ -555,7 +537,7 @@ func (o *binanceSpotOrder) CreateOrder(ctx context.Context, symbol string, side 
 	reqTimestamp := common.GetTimestamp()
 	reqParams := map[string]interface{}{
 		"symbol":    binanceSymbol,
-		"side":      side.Upper(),
+		"side":      side,
 		"type":      orderType.Upper(),
 		"timestamp": reqTimestamp,
 	}
@@ -568,7 +550,7 @@ func (o *binanceSpotOrder) CreateOrder(ctx context.Context, symbol string, side 
 	reqParams["quantity"] = amountDecimal.StringFixed(int32(amountPrecision))
 
 	// 处理限价单的价格和 timeInForce
-	if orderType == types.OrderTypeLimit {
+	if orderType == model.OrderTypeLimit {
 		pricePrecision := market.Precision.Price
 		if pricePrecision == 0 {
 			pricePrecision = 8 // 默认精度
@@ -579,7 +561,7 @@ func (o *binanceSpotOrder) CreateOrder(ctx context.Context, symbol string, side 
 		if options.TimeInForce != nil {
 			reqParams["timeInForce"] = options.TimeInForce.Upper()
 		} else {
-			reqParams["timeInForce"] = types.OrderTimeInForceGTC.Upper()
+			reqParams["timeInForce"] = model.OrderTimeInForceGTC.Upper()
 		}
 	}
 
@@ -587,7 +569,7 @@ func (o *binanceSpotOrder) CreateOrder(ctx context.Context, symbol string, side 
 	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
 		reqParams["newClientOrderId"] = *options.ClientOrderID
 	} else {
-		reqParams["newClientOrderId"] = common.GenerateClientOrderID(o.binance.Name(), types.OrderSide(side))
+		reqParams["newClientOrderId"] = common.GenerateClientOrderID(o.binance.Name(), side.ToSide())
 	}
 
 	// 构建签名
@@ -607,94 +589,26 @@ func (o *binanceSpotOrder) CreateOrder(ctx context.Context, symbol string, side 
 		return nil, fmt.Errorf("unmarshal spot order response: %w", err)
 	}
 
-	// 计算平均价格和手续费
-	var avgPrice decimal.Decimal
-	var totalFee decimal.Decimal
-	var feeCurrency string
-	if len(respData.Fills) > 0 {
-		var totalCost decimal.Decimal
-		for _, fill := range respData.Fills {
-			totalCost = totalCost.Add(fill.Price.Mul(fill.Qty.Decimal))
-			totalFee = totalFee.Add(fill.Commission.Decimal)
-			if feeCurrency == "" {
-				feeCurrency = fill.CommissionAsset
-			}
-		}
-		if !respData.ExecutedQty.IsZero() {
-			avgPrice = totalCost.Div(respData.ExecutedQty.Decimal)
-		}
-	}
-
-	// 计算剩余数量
-	remaining := respData.OrigQty.Sub(respData.ExecutedQty.Decimal)
-
-	// 转换状态
-	var status model.OrderStatus
-	switch respData.Status {
-	case "NEW":
-		status = model.OrderStatusNew
-	case "PARTIALLY_FILLED":
-		status = model.OrderStatusOpen // 部分成交视为开放状态
-	case "FILLED":
-		status = model.OrderStatusClosed
-	case "CANCELED", "CANCELLED":
-		status = model.OrderStatusCanceled
-	case "EXPIRED":
-		status = model.OrderStatusExpired
-	case "REJECTED":
-		status = model.OrderStatusRejected
-	default:
-		status = model.OrderStatusNew
-	}
-
-	// 转换订单类型
-	var modelOrderType model.OrderType
-	if orderType == types.OrderTypeMarket {
-		modelOrderType = model.OrderTypeMarket
-	} else {
-		modelOrderType = model.OrderTypeLimit
-	}
-
-	// 转换订单方向
-	var modelOrderSide model.OrderSide
-	if side == model.OrderSideBuy {
-		modelOrderSide = model.OrderSideBuy
-	} else {
-		modelOrderSide = model.OrderSideSell
-	}
-
 	// 构建订单对象
-	order := &model.Order{
-		ID:            strconv.FormatInt(respData.OrderID, 10),
+	order := &model.NewOrder{
+		OrderId:       strconv.FormatInt(respData.OrderID, 10),
 		ClientOrderID: respData.ClientOrderID,
 		Symbol:        symbol,
-		Type:          modelOrderType,
-		Side:          modelOrderSide,
-		Amount:        respData.OrigQty,
-		Price:         respData.Price,
-		Filled:        respData.ExecutedQty,
-		Remaining:     types.ExDecimal{Decimal: remaining},
-		Cost:          respData.CummulativeQuoteQty,
-		Average:       types.ExDecimal{Decimal: avgPrice},
-		Status:        status,
-		Timestamp:     respData.TransactTime,
-	}
-
-	// 设置手续费
-	if !totalFee.IsZero() && feeCurrency != "" {
-		order.Fee = &model.Fee{
-			Currency: feeCurrency,
-			Cost:     types.ExDecimal{Decimal: totalFee},
-		}
+		Timestamp:     respData.Time,
 	}
 
 	return order, nil
 }
 
 // CancelOrder 取消订单
-func (o *binanceSpotOrder) CancelOrder(ctx context.Context, orderID, symbol string) error {
+func (o *binanceSpotOrder) CancelOrder(ctx context.Context, symbol string, orderID string, opts ...option.ArgsOption) error {
 	if o.binance.client.SecretKey == "" {
 		return fmt.Errorf("authentication required")
+	}
+
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
 	}
 
 	// 获取市场信息
@@ -719,6 +633,9 @@ func (o *binanceSpotOrder) CancelOrder(ctx context.Context, orderID, symbol stri
 		"orderId":   orderID,
 		"timestamp": timestamp,
 	}
+	if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		params["origClientOrderId"] = *argsOpts.ClientOrderID
+	}
 
 	queryString := BuildQueryString(params)
 	signature := o.binance.signer.Sign(queryString)
@@ -729,9 +646,14 @@ func (o *binanceSpotOrder) CancelOrder(ctx context.Context, orderID, symbol stri
 }
 
 // FetchOrder 查询订单
-func (o *binanceSpotOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
+func (o *binanceSpotOrder) FetchOrder(ctx context.Context, symbol string, orderID string, opts ...option.ArgsOption) (*model.SpotOrder, error) {
 	if o.binance.client.SecretKey == "" {
 		return nil, fmt.Errorf("authentication required")
+	}
+
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
 	}
 
 	// 获取市场信息
@@ -756,6 +678,9 @@ func (o *binanceSpotOrder) FetchOrder(ctx context.Context, orderID, symbol strin
 		"orderId":   orderID,
 		"timestamp": timestamp,
 	}
+	if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		params["origClientOrderId"] = *argsOpts.ClientOrderID
+	}
 
 	queryString := BuildQueryString(params)
 	signature := o.binance.signer.Sign(queryString)
@@ -768,100 +693,67 @@ func (o *binanceSpotOrder) FetchOrder(ctx context.Context, orderID, symbol strin
 	}
 
 	// 解析响应
-	var data map[string]interface{}
+	var data binanceSpotFetchOrderResponse
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
-	// 检查是否有错误码
-	if code, ok := data["code"].(float64); ok && code != 0 {
-		return nil, fmt.Errorf("fetch order error: %v", data["msg"])
-	}
-
-	// 提取订单ID
-	var orderIDInt int64
-	if id, ok := data["orderId"].(float64); ok {
-		orderIDInt = int64(id)
-	} else {
-		return nil, fmt.Errorf("missing orderId in response")
-	}
-
-	// 提取时间戳（现货使用 time）
-	var timestampInt int64
-	if t, ok := data["time"].(float64); ok {
-		timestampInt = int64(t)
-	} else if t, ok := data["transactTime"].(float64); ok {
-		timestampInt = int64(t)
-	} else {
-		return nil, fmt.Errorf("missing timestamp in response")
-	}
-
-	// 提取数量
-	origQtyStr := getString(data, "origQty", "quantity")
-	executedQtyStr := getString(data, "executedQty", "cumQty")
-	priceStr := getString(data, "price", "avgPrice")
-
-	// 解析数值
-	origQty, _ := strconv.ParseFloat(origQtyStr, 64)
-	executedQty, _ := strconv.ParseFloat(executedQtyStr, 64)
-	orderPrice, _ := strconv.ParseFloat(priceStr, 64)
-
-	// 构建订单对象
-	order := &types.Order{
-		ID:            strconv.FormatInt(orderIDInt, 10),
-		ClientOrderID: getString(data, "clientOrderId", "newClientStrategyId"),
-		Symbol:        symbol, // 使用标准化格式
-		Amount:        origQty,
-		Price:         orderPrice,
-		Filled:        executedQty,
-		Remaining:     origQty - executedQty,
-		Timestamp:     time.UnixMilli(timestampInt),
-	}
-
-	// 转换方向
-	sideStr := getString(data, "side")
-	if strings.ToUpper(sideStr) == "BUY" {
-		order.Side = types.OrderSideBuy
-	} else {
-		order.Side = types.OrderSideSell
-	}
-
-	// 转换类型
-	typeStr := getString(data, "type")
-	if strings.ToUpper(typeStr) == "MARKET" {
-		order.Type = types.OrderTypeMarket
-	} else {
-		order.Type = types.OrderTypeLimit
-	}
+	// 计算剩余数量
+	remaining := data.OrigQty.Sub(data.ExecutedQty.Decimal)
 
 	// 转换状态
-	statusStr := getString(data, "status", "strategyStatus")
-	switch statusStr {
+	var status model.OrderStatus
+	switch data.Status {
 	case "NEW":
-		order.Status = types.OrderStatusNew
+		status = model.OrderStatusNew
 	case "PARTIALLY_FILLED":
-		order.Status = types.OrderStatusPartiallyFilled
+		status = model.OrderStatusOpen
 	case "FILLED":
-		order.Status = types.OrderStatusFilled
+		status = model.OrderStatusFilled
 	case "CANCELED", "CANCELLED":
-		order.Status = types.OrderStatusCanceled
+		status = model.OrderStatusCanceled
 	case "EXPIRED":
-		order.Status = types.OrderStatusExpired
+		status = model.OrderStatusExpired
 	case "REJECTED":
-		order.Status = types.OrderStatusRejected
+		status = model.OrderStatusRejected
 	default:
-		order.Status = types.OrderStatusNew
+		status = model.OrderStatusNew
+	}
+
+	// 转换订单类型
+	var orderType model.OrderType
+	if strings.ToUpper(data.Type) == "MARKET" {
+		orderType = model.OrderTypeMarket
+	} else {
+		orderType = model.OrderTypeLimit
+	}
+
+	// 转换订单方向
+	var side model.OrderSide
+	if strings.ToUpper(data.Side) == "BUY" {
+		side = model.OrderSideBuy
+	} else {
+		side = model.OrderSideSell
+	}
+
+	// 构建订单对象
+	order := &model.SpotOrder{
+		ID:            strconv.FormatInt(data.OrderID, 10),
+		ClientOrderID: data.ClientOrderID,
+		Symbol:        symbol,
+		Type:          orderType,
+		Side:          side,
+		Amount:        data.OrigQty,
+		Price:         data.Price,
+		Filled:        data.ExecutedQty,
+		Remaining:     types.ExDecimal{Decimal: remaining},
+		Cost:          data.CummulativeQuoteQty,
+		Average:       data.Price, // Binance 查询订单接口没有返回平均价格，使用订单价格
+		Status:        status,
+		TimeInForce:   data.TimeInForce,
+		CreatedAt:     data.Time,
+		UpdatedAt:     data.UpdateTime,
 	}
 
 	return order, nil
-}
-
-// getString 从 map 中获取字符串值，支持多个键名
-func getString(data map[string]interface{}, keys ...string) string {
-	for _, key := range keys {
-		if val, ok := data[key].(string); ok {
-			return val
-		}
-	}
-	return ""
 }

@@ -77,33 +77,16 @@ func (s *GateSpot) FetchBalance(ctx context.Context) (model.Balances, error) {
 	return s.order.FetchBalance(ctx)
 }
 
-func (s *GateSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...option.ArgsOption) (*model.Order, error) {
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-	orderOpts := []model.OrderOption{}
-	if argsOpts.Price != nil {
-		orderOpts = append(orderOpts, model.WithPrice(*argsOpts.Price))
-	}
-	if argsOpts.Amount != nil {
-		orderOpts = append(orderOpts, model.WithAmount(*argsOpts.Amount))
-	}
-	if argsOpts.ClientOrderID != nil {
-		orderOpts = append(orderOpts, model.WithClientOrderID(*argsOpts.ClientOrderID))
-	}
-	if argsOpts.TimeInForce != nil {
-		orderOpts = append(orderOpts, model.WithTimeInForce(model.OrderTimeInForce(*argsOpts.TimeInForce)))
-	}
-	return s.order.CreateOrder(ctx, symbol, side, amount, orderOpts...)
+func (s *GateSpot) CreateOrder(ctx context.Context, symbol string, side option.SpotOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
+	return s.order.CreateOrder(ctx, symbol, side, amount, opts...)
 }
 
-func (s *GateSpot) CancelOrder(ctx context.Context, orderID, symbol string) error {
-	return s.order.CancelOrder(ctx, orderID, symbol)
+func (s *GateSpot) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
+	return s.order.CancelOrder(ctx, symbol, orderId, opts...)
 }
 
-func (s *GateSpot) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
-	return s.order.FetchOrder(ctx, orderID, symbol)
+func (s *GateSpot) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.SpotOrder, error) {
+	return s.order.FetchOrder(ctx, symbol, orderId, opts...)
 }
 
 var _ exchange.SpotExchange = (*GateSpot)(nil)
@@ -439,18 +422,21 @@ func (o *gateSpotOrder) FetchBalance(ctx context.Context) (model.Balances, error
 	return balances, nil
 }
 
-func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...model.OrderOption) (*model.Order, error) {
+func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side option.SpotOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	// 解析选项
-	options := model.ApplyOrderOptions(opts...)
+	options := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
 
 	// 判断订单类型
-	var orderType types.OrderType
+	var orderType model.OrderType
 	var priceStr string
 	if options.Price != nil && *options.Price != "" {
-		orderType = types.OrderTypeLimit
+		orderType = model.OrderTypeLimit
 		priceStr = *options.Price
 	} else {
-		orderType = types.OrderTypeMarket
+		orderType = model.OrderTypeMarket
 		priceStr = ""
 	}
 
@@ -486,7 +472,7 @@ func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side mod
 		"side":          strings.ToLower(string(side)),
 	}
 
-	if orderType == types.OrderTypeLimit {
+	if orderType == model.OrderTypeLimit {
 		reqBody["type"] = "limit"
 		reqBody["price"] = strconv.FormatFloat(priceFloat, 'f', -1, 64)
 		reqBody["amount"] = strconv.FormatFloat(amountFloat, 'f', -1, 64)
@@ -502,7 +488,7 @@ func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side mod
 		reqBody["time_in_force"] = "ioc" // 市价单固定 ioc
 
 		// 现货市价买单: 需要通过Ticker换算成USDT数量
-		if side == model.OrderSideBuy {
+		if side == option.Buy {
 			ticker, err := o.gate.spot.market.FetchTicker(ctx, symbol)
 			if err != nil {
 				return nil, fmt.Errorf("fetch ticker for market buy: %w", err)
@@ -525,7 +511,7 @@ func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side mod
 	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
 		reqBody["text"] = *options.ClientOrderID
 	} else {
-		reqBody["text"] = common.GenerateClientOrderID(o.gate.Name(), types.OrderSide(side))
+		reqBody["text"] = common.GenerateClientOrderID(o.gate.Name(), side.ToSide())
 	}
 
 	resp, err := o.signAndRequest(ctx, "POST", "/api/v4/spot/orders", nil, reqBody)
@@ -538,65 +524,26 @@ func (o *gateSpotOrder) CreateOrder(ctx context.Context, symbol string, side mod
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
-	// 解析状态
-	var status model.OrderStatus
-	switch result.FinishAs {
-	case "":
-		status = model.OrderStatusOpen
-	case "filled":
-		status = model.OrderStatusClosed
-	case "cancelled":
-		status = model.OrderStatusCanceled
-	case "expired":
-		status = model.OrderStatusExpired
-	default:
-		status = model.OrderStatusNew
-	}
-
-	// 转换订单类型
-	var modelOrderType model.OrderType
-	if orderType == types.OrderTypeMarket {
-		modelOrderType = model.OrderTypeMarket
-	} else {
-		modelOrderType = model.OrderTypeLimit
-	}
-
-	// 转换订单方向
-	var modelOrderSide model.OrderSide
-	if side == model.OrderSideBuy {
-		modelOrderSide = model.OrderSideBuy
-	} else {
-		modelOrderSide = model.OrderSideSell
-	}
-
-	order := &model.Order{
-		ID:            result.ID,
+	order := &model.NewOrder{
+		OrderId:       result.ID,
 		ClientOrderID: result.Text,
 		Symbol:        symbol,
-		Type:          modelOrderType,
-		Side:          modelOrderSide,
-		Amount:        result.Amount,
-		Price:         result.Price,
 		Timestamp:     result.CreateTimeMs,
-		Status:        status,
-	}
-
-	// 设置手续费
-	if !result.Fee.IsZero() && result.FeeCurrency != "" {
-		order.Fee = &model.Fee{
-			Currency: result.FeeCurrency,
-			Cost:     result.Fee,
-		}
 	}
 
 	return order, nil
 }
 
-func (o *gateSpotOrder) CancelOrder(ctx context.Context, orderID, symbol string) error {
+func (o *gateSpotOrder) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
 	// 获取市场信息
 	market, err := o.gate.spot.market.GetMarket(symbol)
 	if err != nil {
 		return err
+	}
+
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
 	}
 
 	// 获取交易所格式的 symbol ID
@@ -613,56 +560,79 @@ func (o *gateSpotOrder) CancelOrder(ctx context.Context, orderID, symbol string)
 		"currency_pair": gateSymbol,
 	}
 
-	_, err = o.signAndRequest(ctx, "DELETE", "/api/v4/spot/orders/"+orderID, reqBody, nil)
+	if orderId == "" && argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		orderId = *argsOpts.ClientOrderID
+	}
+
+	_, err = o.signAndRequest(ctx, "DELETE", "/api/v4/spot/orders/"+orderId, reqBody, nil)
 	return err
 }
 
 // parseOrder 解析订单数据
-func (o *gateSpotOrder) parseOrder(data map[string]interface{}, symbol string) *types.Order {
-	order := &types.Order{
-		ID:        getString(data, "id"),
-		Symbol:    symbol,
-		Timestamp: time.Now(),
-	}
-
-	order.Price, _ = strconv.ParseFloat(getString(data, "price"), 64)
-	order.Amount, _ = strconv.ParseFloat(getString(data, "amount"), 64)
-	order.Filled, _ = strconv.ParseFloat(getString(data, "filled_total"), 64)
-	order.Remaining = order.Amount - order.Filled
-
-	if strings.ToLower(getString(data, "side")) == "buy" {
-		order.Side = types.OrderSideBuy
-	} else {
-		order.Side = types.OrderSideSell
-	}
-
-	if strings.ToLower(getString(data, "type")) == "market" {
-		order.Type = types.OrderTypeMarket
-	} else {
-		order.Type = types.OrderTypeLimit
-	}
+func (o *gateSpotOrder) parseOrder(data gateSpotFetchOrderResponse, symbol string) *model.SpotOrder {
+	// 计算剩余数量
+	remaining := data.Amount.Sub(data.FilledAmount.Decimal)
 
 	// 转换状态
-	statusStr := getString(data, "status")
-	switch statusStr {
+	var status model.OrderStatus
+	switch data.Status {
 	case "open":
-		order.Status = types.OrderStatusOpen
+		status = model.OrderStatusOpen
 	case "finished":
-		order.Status = types.OrderStatusFilled
+		status = model.OrderStatusFilled
 	case "cancelled":
-		order.Status = types.OrderStatusCanceled
+		status = model.OrderStatusCanceled
 	default:
-		order.Status = types.OrderStatusNew
+		status = model.OrderStatusNew
+	}
+
+	// 转换订单类型
+	var orderType model.OrderType
+	if strings.ToLower(data.Type) == "market" {
+		orderType = model.OrderTypeMarket
+	} else {
+		orderType = model.OrderTypeLimit
+	}
+
+	// 转换订单方向
+	var side model.OrderSide
+	if strings.ToLower(data.Side) == "buy" {
+		side = model.OrderSideBuy
+	} else {
+		side = model.OrderSideSell
+	}
+
+	order := &model.SpotOrder{
+		ID:            data.ID,
+		ClientOrderID: data.Text,
+		Symbol:        symbol,
+		Type:          orderType,
+		Side:          side,
+		Amount:        data.Amount,
+		Price:         data.Price,
+		Filled:        data.FilledAmount,
+		Remaining:     types.ExDecimal{Decimal: remaining},
+		Cost:          data.FilledTotal,
+		Average:       data.FillPrice,
+		Status:        status,
+		TimeInForce:   data.TimeInForce,
+		CreatedAt:     data.CreateTimeMs,
+		UpdatedAt:     data.UpdateTimeMs,
 	}
 
 	return order
 }
 
-func (o *gateSpotOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
+func (o *gateSpotOrder) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.SpotOrder, error) {
 	// 获取市场信息
 	market, err := o.gate.spot.market.GetMarket(symbol)
 	if err != nil {
 		return nil, err
+	}
+
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
 	}
 
 	// 获取交易所格式的 symbol ID
@@ -677,15 +647,18 @@ func (o *gateSpotOrder) FetchOrder(ctx context.Context, orderID, symbol string) 
 
 	params := map[string]interface{}{
 		"currency_pair": gateSymbol,
-		"order_id":      orderID,
 	}
 
-	resp, err := o.signAndRequest(ctx, "GET", "/api/v4/spot/orders/"+orderID, params, nil)
+	if orderId == "" && argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		orderId = *argsOpts.ClientOrderID
+	}
+
+	resp, err := o.signAndRequest(ctx, "GET", "/api/v4/spot/orders/"+orderId, params, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
 
-	var data map[string]interface{}
+	var data gateSpotFetchOrderResponse
 	if err := json.Unmarshal(resp, &data); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}

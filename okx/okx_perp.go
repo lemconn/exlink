@@ -490,7 +490,7 @@ func (p *OKXPerp) CreateOrder(ctx context.Context, symbol string, amount string,
 		req.ClOrdID = *argsOpts.ClientOrderID
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
-		orderSideForID := types.OrderSide(strings.ToLower(orderSide.ToSide()))
+		orderSideForID := model.OrderSide(strings.ToLower(orderSide.ToSide()))
 		req.ClOrdID = common.GenerateClientOrderID(p.okx.Name(), orderSideForID)
 	}
 

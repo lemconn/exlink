@@ -78,33 +78,16 @@ func (s *BybitSpot) FetchBalance(ctx context.Context) (model.Balances, error) {
 	return s.order.FetchBalance(ctx)
 }
 
-func (s *BybitSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...option.ArgsOption) (*model.Order, error) {
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-	orderOpts := []model.OrderOption{}
-	if argsOpts.Price != nil {
-		orderOpts = append(orderOpts, model.WithPrice(*argsOpts.Price))
-	}
-	if argsOpts.Amount != nil {
-		orderOpts = append(orderOpts, model.WithAmount(*argsOpts.Amount))
-	}
-	if argsOpts.ClientOrderID != nil {
-		orderOpts = append(orderOpts, model.WithClientOrderID(*argsOpts.ClientOrderID))
-	}
-	if argsOpts.TimeInForce != nil {
-		orderOpts = append(orderOpts, model.WithTimeInForce(model.OrderTimeInForce(*argsOpts.TimeInForce)))
-	}
-	return s.order.CreateOrder(ctx, symbol, side, amount, orderOpts...)
+func (s *BybitSpot) CreateOrder(ctx context.Context, symbol string, side option.SpotOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
+	return s.order.CreateOrder(ctx, symbol, side, amount, opts...)
 }
 
-func (s *BybitSpot) CancelOrder(ctx context.Context, orderID, symbol string) error {
-	return s.order.CancelOrder(ctx, orderID, symbol)
+func (s *BybitSpot) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
+	return s.order.CancelOrder(ctx, symbol, orderId, opts...)
 }
 
-func (s *BybitSpot) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
-	return s.order.FetchOrder(ctx, orderID, symbol)
+func (s *BybitSpot) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.SpotOrder, error) {
+	return s.order.FetchOrder(ctx, symbol, orderId, opts...)
 }
 
 var _ exchange.SpotExchange = (*BybitSpot)(nil)
@@ -462,18 +445,21 @@ func (o *bybitSpotOrder) FetchBalance(ctx context.Context) (model.Balances, erro
 	return balances, nil
 }
 
-func (o *bybitSpotOrder) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...model.OrderOption) (*model.Order, error) {
+func (o *bybitSpotOrder) CreateOrder(ctx context.Context, symbol string, side option.SpotOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	// 解析选项
-	options := model.ApplyOrderOptions(opts...)
+	options := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
 
 	// 判断订单类型
-	var orderType types.OrderType
+	var orderType model.OrderType
 	var priceStr string
 	if options.Price != nil && *options.Price != "" {
-		orderType = types.OrderTypeLimit
+		orderType = model.OrderTypeLimit
 		priceStr = *options.Price
 	} else {
-		orderType = types.OrderTypeMarket
+		orderType = model.OrderTypeMarket
 		priceStr = ""
 	}
 
@@ -504,7 +490,7 @@ func (o *bybitSpotOrder) CreateOrder(ctx context.Context, symbol string, side mo
 	}
 
 	// 现货市价买单特殊处理
-	if orderType == types.OrderTypeMarket && side == model.OrderSideBuy {
+	if orderType == model.OrderTypeMarket && side == option.Buy {
 		// Calculate cost: amount * price (use current ask price if price not provided)
 		amountDecimal, err := decimal.NewFromString(amount)
 		if err != nil {
@@ -547,7 +533,7 @@ func (o *bybitSpotOrder) CreateOrder(ctx context.Context, symbol string, side mo
 		}
 		reqBody["qty"] = strconv.FormatFloat(amountFloat, 'f', precision, 64)
 
-		if orderType == types.OrderTypeLimit {
+		if orderType == model.OrderTypeLimit {
 			reqBody["orderType"] = "Limit"
 			priceFloat, err := strconv.ParseFloat(priceStr, 64)
 			if err != nil {
@@ -574,7 +560,7 @@ func (o *bybitSpotOrder) CreateOrder(ctx context.Context, symbol string, side mo
 	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
 		reqBody["orderLinkId"] = *options.ClientOrderID
 	} else {
-		reqBody["orderLinkId"] = common.GenerateClientOrderID(o.bybit.Name(), types.OrderSide(side))
+		reqBody["orderLinkId"] = common.GenerateClientOrderID(o.bybit.Name(), side.ToSide())
 	}
 
 	resp, err := o.signAndRequest(ctx, "POST", "/v5/order/create", nil, reqBody)
@@ -591,49 +577,26 @@ func (o *bybitSpotOrder) CreateOrder(ctx context.Context, symbol string, side mo
 		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
 	}
 
-	// 解析数量和价格
-	amountDecimal, _ := decimal.NewFromString(amount)
-	var priceDecimal decimal.Decimal
-	if priceStr != "" {
-		priceDecimal, _ = decimal.NewFromString(priceStr)
-	}
-
-	// 转换订单类型
-	var modelOrderType model.OrderType
-	if orderType == types.OrderTypeMarket {
-		modelOrderType = model.OrderTypeMarket
-	} else {
-		modelOrderType = model.OrderTypeLimit
-	}
-
-	// 转换订单方向
-	var modelOrderSide model.OrderSide
-	if side == model.OrderSideBuy {
-		modelOrderSide = model.OrderSideBuy
-	} else {
-		modelOrderSide = model.OrderSideSell
-	}
-
-	order := &model.Order{
-		ID:            result.Result.OrderID,
+	order := &model.NewOrder{
+		OrderId:       result.Result.OrderID,
 		ClientOrderID: result.Result.OrderLinkID,
 		Symbol:        symbol,
-		Type:          modelOrderType,
-		Side:          modelOrderSide,
-		Amount:        types.ExDecimal{Decimal: amountDecimal},
-		Price:         types.ExDecimal{Decimal: priceDecimal},
 		Timestamp:     result.Time,
-		Status:        model.OrderStatusNew,
 	}
 
 	return order, nil
 }
 
-func (o *bybitSpotOrder) CancelOrder(ctx context.Context, orderID, symbol string) error {
+func (o *bybitSpotOrder) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
 	// 获取市场信息
 	market, err := o.bybit.spot.market.GetMarket(symbol)
 	if err != nil {
 		return err
+	}
+
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
 	}
 
 	// 获取交易所格式的 symbol ID
@@ -649,7 +612,10 @@ func (o *bybitSpotOrder) CancelOrder(ctx context.Context, orderID, symbol string
 	reqBody := map[string]interface{}{
 		"category": "spot",
 		"symbol":   bybitSymbol,
-		"orderId":  orderID,
+		"orderId":  orderId,
+	}
+	if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		reqBody["orderLinkId"] = *argsOpts.ClientOrderID
 	}
 
 	_, err = o.signAndRequest(ctx, "POST", "/v5/order/cancel", nil, reqBody)
@@ -657,63 +623,74 @@ func (o *bybitSpotOrder) CancelOrder(ctx context.Context, orderID, symbol string
 }
 
 // parseOrder 解析订单数据
-func (o *bybitSpotOrder) parseOrder(item struct {
-	OrderID     string `json:"orderId"`
-	OrderLinkID string `json:"orderLinkId"`
-	OrderStatus string `json:"orderStatus"`
-	Side        string `json:"side"`
-	OrderType   string `json:"orderType"`
-	Price       string `json:"price"`
-	Qty         string `json:"qty"`
-	CumExecQty  string `json:"cumExecQty"`
-	CreatedTime string `json:"createdTime"`
-}, symbol string) *types.Order {
-	order := &types.Order{
+func (o *bybitSpotOrder) parseOrder(item bybitSpotFetchOrderItem, symbol string) *model.SpotOrder {
+	// 计算剩余数量
+	remaining := item.Qty.Sub(item.CumExecQty.Decimal)
+
+	// 转换状态
+	var status model.OrderStatus
+	switch item.OrderStatus {
+	case "New":
+		status = model.OrderStatusNew
+	case "PartiallyFilled":
+		status = model.OrderStatusOpen
+	case "Filled":
+		status = model.OrderStatusFilled
+	case "Cancelled", "Canceled":
+		status = model.OrderStatusCanceled
+	case "Rejected":
+		status = model.OrderStatusRejected
+	default:
+		status = model.OrderStatusNew
+	}
+
+	// 转换订单类型
+	var orderType model.OrderType
+	if strings.ToUpper(item.OrderType) == "MARKET" {
+		orderType = model.OrderTypeMarket
+	} else {
+		orderType = model.OrderTypeLimit
+	}
+
+	// 转换订单方向
+	var side model.OrderSide
+	if strings.ToUpper(item.Side) == "BUY" {
+		side = model.OrderSideBuy
+	} else {
+		side = model.OrderSideSell
+	}
+
+	order := &model.SpotOrder{
 		ID:            item.OrderID,
 		ClientOrderID: item.OrderLinkID,
 		Symbol:        symbol,
-		Timestamp:     time.Now(),
-	}
-
-	order.Price, _ = strconv.ParseFloat(item.Price, 64)
-	order.Amount, _ = strconv.ParseFloat(item.Qty, 64)
-	order.Filled, _ = strconv.ParseFloat(item.CumExecQty, 64)
-	order.Remaining = order.Amount - order.Filled
-
-	if strings.ToUpper(item.Side) == "BUY" {
-		order.Side = types.OrderSideBuy
-	} else {
-		order.Side = types.OrderSideSell
-	}
-
-	if strings.ToUpper(item.OrderType) == "MARKET" {
-		order.Type = types.OrderTypeMarket
-	} else {
-		order.Type = types.OrderTypeLimit
-	}
-
-	// 转换状态
-	switch item.OrderStatus {
-	case "New":
-		order.Status = types.OrderStatusNew
-	case "PartiallyFilled":
-		order.Status = types.OrderStatusPartiallyFilled
-	case "Filled":
-		order.Status = types.OrderStatusFilled
-	case "Cancelled":
-		order.Status = types.OrderStatusCanceled
-	default:
-		order.Status = types.OrderStatusNew
+		Type:          orderType,
+		Side:          side,
+		Price:         item.Price,
+		Amount:        item.Qty,
+		Filled:        item.CumExecQty,
+		Remaining:     types.ExDecimal{Decimal: remaining},
+		Cost:          item.CumExecValue,
+		Average:       item.AvgPrice,
+		Status:        status,
+		TimeInForce:   item.TimeInForce,
+		CreatedAt:     item.CreatedTime,
+		UpdatedAt:     item.UpdatedTime,
 	}
 
 	return order
 }
 
-func (o *bybitSpotOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
+func (o *bybitSpotOrder) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.SpotOrder, error) {
 	// 获取市场信息
 	market, err := o.bybit.spot.market.GetMarket(symbol)
 	if err != nil {
 		return nil, err
+	}
+
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
 	}
 
 	// 获取交易所格式的 symbol ID
@@ -729,33 +706,20 @@ func (o *bybitSpotOrder) FetchOrder(ctx context.Context, orderID, symbol string)
 	params := map[string]interface{}{
 		"category": "spot",
 		"symbol":   bybitSymbol,
-		"orderId":  orderID,
+		"orderId":  orderId,
+	}
+	if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		params["orderLinkId"] = *argsOpts.ClientOrderID
 	}
 
 	// First try to fetch from open orders (realtime)
 	resp, err := o.signAndRequest(ctx, "GET", "/v5/order/realtime", params, nil)
 	if err == nil {
-		var realtimeResult struct {
-			RetCode int    `json:"retCode"`
-			RetMsg  string `json:"retMsg"`
-			Result  struct {
-				List []struct {
-					OrderID     string `json:"orderId"`
-					OrderLinkID string `json:"orderLinkId"`
-					OrderStatus string `json:"orderStatus"`
-					Side        string `json:"side"`
-					OrderType   string `json:"orderType"`
-					Price       string `json:"price"`
-					Qty         string `json:"qty"`
-					CumExecQty  string `json:"cumExecQty"`
-					CreatedTime string `json:"createdTime"`
-				} `json:"list"`
-			} `json:"result"`
-		}
+		var realtimeResult bybitSpotFetchOrderResponse
 
 		if err := json.Unmarshal(resp, &realtimeResult); err == nil && realtimeResult.RetCode == 0 {
 			for _, item := range realtimeResult.Result.List {
-				if item.OrderID == orderID {
+				if item.OrderID == orderId {
 					return o.parseOrder(item, symbol), nil
 				}
 			}
@@ -768,24 +732,7 @@ func (o *bybitSpotOrder) FetchOrder(ctx context.Context, orderID, symbol string)
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
 
-	var result struct {
-		RetCode int    `json:"retCode"`
-		RetMsg  string `json:"retMsg"`
-		Result  struct {
-			List []struct {
-				OrderID     string `json:"orderId"`
-				OrderLinkID string `json:"orderLinkId"`
-				OrderStatus string `json:"orderStatus"`
-				Side        string `json:"side"`
-				OrderType   string `json:"orderType"`
-				Price       string `json:"price"`
-				Qty         string `json:"qty"`
-				CumExecQty  string `json:"cumExecQty"`
-				CreatedTime string `json:"createdTime"`
-			} `json:"list"`
-		} `json:"result"`
-	}
-
+	var result bybitSpotFetchOrderResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
@@ -800,7 +747,7 @@ func (o *bybitSpotOrder) FetchOrder(ctx context.Context, orderID, symbol string)
 
 	// Find the order by ID
 	for _, item := range result.Result.List {
-		if item.OrderID == orderID {
+		if item.OrderID == orderId {
 			return o.parseOrder(item, symbol), nil
 		}
 	}

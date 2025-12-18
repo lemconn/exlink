@@ -81,3 +81,34 @@ type okxSpotCreateOrderData struct {
 	SMsg    string            `json:"sMsg"`
 	Ts      types.ExTimestamp `json:"ts"`
 }
+
+// okxSpotFetchOrderResponse OKX 现货查询订单响应
+type okxSpotFetchOrderResponse struct {
+	Code string                  `json:"code"`
+	Msg  string                  `json:"msg"`
+	Data []okxSpotFetchOrderData `json:"data"`
+}
+
+// okxSpotFetchOrderData OKX 现货订单详情
+type okxSpotFetchOrderData struct {
+	AccFillSz  types.ExDecimal   `json:"accFillSz"`  // 累计成交数量
+	AvgPx      types.ExDecimal   `json:"avgPx"`      // 平均成交价格
+	CTime      types.ExTimestamp `json:"cTime"`      // 创建时间
+	Category   string            `json:"category"`   // 订单类别
+	Ccy        string            `json:"ccy"`        // 保证金币种
+	ClOrdID    string            `json:"clOrdId"`    // 客户端订单ID
+	Fee        types.ExDecimal   `json:"fee"`        // 手续费
+	FeeCcy     string            `json:"feeCcy"`     // 手续费币种
+	FillPx     types.ExDecimal   `json:"fillPx"`     // 最新成交价格
+	FillSz     types.ExDecimal   `json:"fillSz"`     // 最新成交数量
+	InstID     string            `json:"instId"`     // 产品ID
+	InstType   string            `json:"instType"`   // 产品类型
+	OrdID      string            `json:"ordId"`      // 订单ID
+	OrdType    string            `json:"ordType"`    // 订单类型
+	Px         types.ExDecimal   `json:"px"`         // 委托价格
+	Side       string            `json:"side"`       // 订单方向
+	State      string            `json:"state"`      // 订单状态
+	Sz         types.ExDecimal   `json:"sz"`         // 委托数量
+	TdMode     string            `json:"tdMode"`     // 交易模式
+	UTime      types.ExTimestamp `json:"uTime"`      // 更新时间
+}

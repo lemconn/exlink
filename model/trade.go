@@ -24,8 +24,6 @@ type Trade struct {
 	Price decimal.Decimal `json:"price"`
 	// Cost 成交金额
 	Cost decimal.Decimal `json:"cost"`
-	// Fee 手续费
-	Fee *Fee `json:"fee,omitempty"`
 	// Timestamp 时间戳
 	Timestamp time.Time `json:"timestamp"`
 	// Info 交易所原始信息

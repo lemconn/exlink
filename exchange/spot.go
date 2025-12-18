@@ -5,7 +5,6 @@ import (
 
 	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/option"
-	"github.com/lemconn/exlink/types"
 )
 
 // SpotExchange 现货交易接口
@@ -45,11 +44,11 @@ type SpotExchange interface {
 	// ========== 订单操作 ==========
 
 	// CreateOrder 创建订单
-	CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...option.ArgsOption) (*model.Order, error)
+	CreateOrder(ctx context.Context, symbol string, side option.SpotOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error)
 
 	// CancelOrder 取消订单
-	CancelOrder(ctx context.Context, orderID, symbol string) error
+	CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error
 
 	// FetchOrder 查询订单
-	FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error)
+	FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.SpotOrder, error)
 }

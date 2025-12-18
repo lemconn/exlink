@@ -65,30 +65,33 @@ type binanceSpotBalanceItem struct {
 	Locked types.ExDecimal `json:"locked"`
 }
 
-// binanceSpotCreateOrderResponse Binance 现货创建订单响应
+// binanceSpotCreateOrderResponse Binance 现货订单响应
 type binanceSpotCreateOrderResponse struct {
-	Symbol              string                       `json:"symbol"`
-	OrderID             int64                        `json:"orderId"`
-	ClientOrderID       string                       `json:"clientOrderId"`
-	TransactTime        types.ExTimestamp            `json:"transactTime"`
-	Price               types.ExDecimal              `json:"price"`
-	OrigQty             types.ExDecimal              `json:"origQty"`
-	ExecutedQty         types.ExDecimal              `json:"executedQty"`
-	CummulativeQuoteQty types.ExDecimal              `json:"cummulativeQuoteQty"`
-	Status              string                       `json:"status"`
-	TimeInForce         string                       `json:"timeInForce"`
-	Type                string                       `json:"type"`
-	Side                string                       `json:"side"`
-	WorkingTime         types.ExTimestamp            `json:"workingTime"`
-	Fills               []binanceSpotCreateOrderFill `json:"fills"`
-	OrigQuoteOrderQty   types.ExDecimal              `json:"origQuoteOrderQty,omitempty"`
+	Symbol        string            `json:"symbol"`
+	OrderID       int64             `json:"orderId"`
+	ClientOrderID string            `json:"clientOrderId"`
+	Time          types.ExTimestamp `json:"time"`
 }
 
-// binanceSpotCreateOrderFill Binance 现货订单成交明细
-type binanceSpotCreateOrderFill struct {
-	Price           types.ExDecimal `json:"price"`
-	Qty             types.ExDecimal `json:"qty"`
-	Commission      types.ExDecimal `json:"commission"`
-	CommissionAsset string          `json:"commissionAsset"`
-	TradeID         int64           `json:"tradeId"`
+// binanceSpotFetchOrderResponse Binance 现货查询订单响应
+type binanceSpotFetchOrderResponse struct {
+	Symbol              string            `json:"symbol"`              // 交易对
+	OrderID             int64             `json:"orderId"`             // 订单ID
+	OrderListID         int64             `json:"orderListId"`         // 订单列表ID
+	ClientOrderID       string            `json:"clientOrderId"`       // 客户端订单ID
+	Price               types.ExDecimal   `json:"price"`               // 订单价格
+	OrigQty             types.ExDecimal   `json:"origQty"`             // 原始数量
+	ExecutedQty         types.ExDecimal   `json:"executedQty"`         // 已成交数量
+	CummulativeQuoteQty types.ExDecimal   `json:"cummulativeQuoteQty"` // 累计成交金额
+	Status              string            `json:"status"`              // 订单状态
+	TimeInForce         string            `json:"timeInForce"`         // 时间有效性
+	Type                string            `json:"type"`                // 订单类型
+	Side                string            `json:"side"`                // 订单方向
+	StopPrice           types.ExDecimal   `json:"stopPrice"`           // 止损价格
+	IcebergQty          types.ExDecimal   `json:"icebergQty"`          // 冰山订单数量
+	Time                types.ExTimestamp `json:"time"`                // 订单创建时间
+	UpdateTime          types.ExTimestamp `json:"updateTime"`          // 订单更新时间
+	IsWorking           bool              `json:"isWorking"`           // 是否在工作
+	WorkingTime         types.ExTimestamp `json:"workingTime"`         // 工作时间
+	OrigQuoteOrderQty   types.ExDecimal   `json:"origQuoteOrderQty"`   // 原始报价订单数量
 }
