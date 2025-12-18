@@ -166,3 +166,37 @@ type gateSpotCreateOrderResponse struct {
 	FeeCurrency  string            `json:"fee_currency,omitempty"`
 	FinishAs     string            `json:"finish_as,omitempty"`
 }
+
+// gateSpotFetchOrderResponse Gate 现货查询订单响应
+type gateSpotFetchOrderResponse struct {
+	ID             string            `json:"id"`               // 订单ID
+	Text           string            `json:"text"`             // 客户端订单ID
+	AmendText      string            `json:"amend_text"`       // 修改文本
+	CreateTime     types.ExTimestamp `json:"create_time"`      // 创建时间（秒）
+	UpdateTime     types.ExTimestamp `json:"update_time"`      // 更新时间（秒）
+	CreateTimeMs   types.ExTimestamp `json:"create_time_ms"`   // 创建时间（毫秒）
+	UpdateTimeMs   types.ExTimestamp `json:"update_time_ms"`   // 更新时间（毫秒）
+	Status         string            `json:"status"`           // 订单状态
+	CurrencyPair   string            `json:"currency_pair"`    // 交易对
+	Type           string            `json:"type"`             // 订单类型
+	Account        string            `json:"account"`          // 账户类型
+	Side           string            `json:"side"`             // 订单方向
+	Amount         types.ExDecimal   `json:"amount"`           // 订单数量
+	Price          types.ExDecimal   `json:"price"`            // 订单价格
+	TimeInForce    string            `json:"time_in_force"`    // 时间有效性
+	Iceberg        types.ExDecimal   `json:"iceberg"`          // 冰山订单显示数量
+	Left           types.ExDecimal   `json:"left"`             // 剩余数量
+	FilledAmount   types.ExDecimal   `json:"filled_amount"`    // 已成交数量
+	FillPrice      types.ExDecimal   `json:"fill_price"`       // 成交价格
+	FilledTotal    types.ExDecimal   `json:"filled_total"`     // 成交总额
+	Fee            types.ExDecimal   `json:"fee"`              // 手续费
+	FeeCurrency    string            `json:"fee_currency"`     // 手续费币种
+	PointFee       types.ExDecimal   `json:"point_fee"`        // 积分手续费
+	GtFee          types.ExDecimal   `json:"gt_fee"`           // GT抵扣手续费
+	GtMakerFee     types.ExDecimal   `json:"gt_maker_fee"`     // GT Maker手续费
+	GtTakerFee     types.ExDecimal   `json:"gt_taker_fee"`     // GT Taker手续费
+	GtDiscount     bool              `json:"gt_discount"`      // 是否使用GT抵扣
+	RebatedFee     types.ExDecimal   `json:"rebated_fee"`      // 返还手续费
+	RebatedFeeCcy  string            `json:"rebated_fee_currency"` // 返还手续费币种
+	FinishAs       string            `json:"finish_as"`        // 订单完成方式
+}

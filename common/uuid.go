@@ -6,8 +6,6 @@ import (
 	"math/big"
 	"strings"
 	"time"
-
-	"github.com/lemconn/exlink/types"
 )
 
 // GenerateClientOrderID generates a client order ID based on exchange type and side
@@ -16,7 +14,7 @@ import (
 // Special case: Gate exchange requires "t-" prefix: t-ELGTEB1732095709956A9
 // exchange: Exchange name (e.g., binance, okx, gate, bybit)
 // side: Order side (buy or sell)
-func GenerateClientOrderID(exchange string, side types.OrderSide) string {
+func GenerateClientOrderID(exchange string, side string) string {
 	// Map exchange names to three-letter abbreviations
 	exchangeMap := map[string]string{
 		"okx":     "OKX",
@@ -39,7 +37,7 @@ func GenerateClientOrderID(exchange string, side types.OrderSide) string {
 
 	// Order side: buy -> B, sell -> S
 	sideCode := "B"
-	if strings.ToLower(string(side)) == "sell" {
+	if strings.ToLower(side) == "sell" {
 		sideCode = "S"
 	}
 

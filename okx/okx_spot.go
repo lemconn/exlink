@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -13,7 +12,6 @@ import (
 	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/option"
 	"github.com/lemconn/exlink/types"
-	"github.com/shopspring/decimal"
 )
 
 // OKXSpot OKX 现货实现
@@ -78,33 +76,16 @@ func (s *OKXSpot) FetchBalance(ctx context.Context) (model.Balances, error) {
 	return s.order.FetchBalance(ctx)
 }
 
-func (s *OKXSpot) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...option.ArgsOption) (*model.Order, error) {
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-	orderOpts := []model.OrderOption{}
-	if argsOpts.Price != nil {
-		orderOpts = append(orderOpts, model.WithPrice(*argsOpts.Price))
-	}
-	if argsOpts.Amount != nil {
-		orderOpts = append(orderOpts, model.WithAmount(*argsOpts.Amount))
-	}
-	if argsOpts.ClientOrderID != nil {
-		orderOpts = append(orderOpts, model.WithClientOrderID(*argsOpts.ClientOrderID))
-	}
-	if argsOpts.TimeInForce != nil {
-		orderOpts = append(orderOpts, model.WithTimeInForce(model.OrderTimeInForce(*argsOpts.TimeInForce)))
-	}
-	return s.order.CreateOrder(ctx, symbol, side, amount, orderOpts...)
+func (s *OKXSpot) CreateOrder(ctx context.Context, symbol string, side option.SpotOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
+	return s.order.CreateOrder(ctx, symbol, side, amount, opts...)
 }
 
-func (s *OKXSpot) CancelOrder(ctx context.Context, orderID, symbol string) error {
-	return s.order.CancelOrder(ctx, orderID, symbol)
+func (s *OKXSpot) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
+	return s.order.CancelOrder(ctx, symbol, orderId, opts...)
 }
 
-func (s *OKXSpot) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
-	return s.order.FetchOrder(ctx, orderID, symbol)
+func (s *OKXSpot) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.SpotOrder, error) {
+	return s.order.FetchOrder(ctx, symbol, orderId, opts...)
 }
 
 var _ exchange.SpotExchange = (*OKXSpot)(nil)
@@ -465,18 +446,21 @@ func (o *okxSpotOrder) FetchBalance(ctx context.Context) (model.Balances, error)
 	return balances, nil
 }
 
-func (o *okxSpotOrder) CreateOrder(ctx context.Context, symbol string, side model.OrderSide, amount string, opts ...model.OrderOption) (*model.Order, error) {
+func (o *okxSpotOrder) CreateOrder(ctx context.Context, symbol string, side option.SpotOrderSide, amount string, opts ...option.ArgsOption) (*model.NewOrder, error) {
 	// 解析选项
-	options := model.ApplyOrderOptions(opts...)
+	options := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(options)
+	}
 
 	// 判断订单类型
-	var orderType types.OrderType
+	var orderType model.OrderType
 	var priceStr string
 	if options.Price != nil && *options.Price != "" {
-		orderType = types.OrderTypeLimit
+		orderType = model.OrderTypeLimit
 		priceStr = *options.Price
 	} else {
-		orderType = types.OrderTypeMarket
+		orderType = model.OrderTypeMarket
 		priceStr = ""
 	}
 
@@ -514,7 +498,7 @@ func (o *okxSpotOrder) CreateOrder(ctx context.Context, symbol string, side mode
 	reqBody["tgtCcy"] = "base_ccy"
 
 	// 限价单设置价格
-	if orderType == types.OrderTypeLimit {
+	if orderType == model.OrderTypeLimit {
 		reqBody["px"] = priceStr
 	}
 
@@ -522,7 +506,7 @@ func (o *okxSpotOrder) CreateOrder(ctx context.Context, symbol string, side mode
 	if options.ClientOrderID != nil && *options.ClientOrderID != "" {
 		reqBody["clOrdId"] = *options.ClientOrderID
 	} else {
-		reqBody["clOrdId"] = common.GenerateClientOrderID(o.okx.Name(), types.OrderSide(side))
+		reqBody["clOrdId"] = common.GenerateClientOrderID(o.okx.Name(), side.ToSide())
 	}
 
 	resp, err := o.signAndRequest(ctx, "POST", "/api/v5/trade/order", nil, reqBody)
@@ -556,49 +540,26 @@ func (o *okxSpotOrder) CreateOrder(ctx context.Context, symbol string, side mode
 		return nil, fmt.Errorf("okx api error: %s (code: %s)", errMsg, data.SCode)
 	}
 
-	// 解析数量和价格
-	amountDecimal, _ := decimal.NewFromString(amount)
-	var priceDecimal decimal.Decimal
-	if priceStr != "" {
-		priceDecimal, _ = decimal.NewFromString(priceStr)
-	}
-
-	// 转换订单类型
-	var modelOrderType model.OrderType
-	if orderType == types.OrderTypeMarket {
-		modelOrderType = model.OrderTypeMarket
-	} else {
-		modelOrderType = model.OrderTypeLimit
-	}
-
-	// 转换订单方向
-	var modelOrderSide model.OrderSide
-	if side == model.OrderSideBuy {
-		modelOrderSide = model.OrderSideBuy
-	} else {
-		modelOrderSide = model.OrderSideSell
-	}
-
-	order := &model.Order{
-		ID:            data.OrdId,
+	order := &model.NewOrder{
+		OrderId:       data.OrdId,
 		ClientOrderID: data.ClOrdId,
 		Symbol:        symbol,
-		Type:          modelOrderType,
-		Side:          modelOrderSide,
-		Amount:        types.ExDecimal{Decimal: amountDecimal},
-		Price:         types.ExDecimal{Decimal: priceDecimal},
 		Timestamp:     data.Ts,
-		Status:        model.OrderStatusNew,
 	}
 
 	return order, nil
 }
 
-func (o *okxSpotOrder) CancelOrder(ctx context.Context, orderID, symbol string) error {
+func (o *okxSpotOrder) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
 	// 获取市场信息
 	market, err := o.okx.spot.market.GetMarket(symbol)
 	if err != nil {
 		return err
+	}
+
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
 	}
 
 	// 获取交易所格式的 symbol ID
@@ -613,7 +574,10 @@ func (o *okxSpotOrder) CancelOrder(ctx context.Context, orderID, symbol string) 
 
 	reqBody := map[string]interface{}{
 		"instId": okxSymbol,
-		"ordId":  orderID,
+		"ordId":  orderId,
+	}
+	if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		reqBody["clOrdId"] = *argsOpts.ClientOrderID
 	}
 
 	_, err = o.signAndRequest(ctx, "POST", "/api/v5/trade/cancel-order", nil, reqBody)
@@ -621,64 +585,70 @@ func (o *okxSpotOrder) CancelOrder(ctx context.Context, orderID, symbol string) 
 }
 
 // parseOrder 解析订单数据
-func (o *okxSpotOrder) parseOrder(item struct {
-	InstID    string `json:"instId"`
-	OrdID     string `json:"ordId"`
-	ClOrdID   string `json:"clOrdId"`
-	State     string `json:"state"`
-	Side      string `json:"side"`
-	OrdType   string `json:"ordType"`
-	Px        string `json:"px"`
-	Sz        string `json:"sz"`
-	AccFillSz string `json:"accFillSz"`
-	UTime     string `json:"uTime"`
-}, symbol string) *types.Order {
-	order := &types.Order{
+func (o *okxSpotOrder) parseOrder(item okxSpotFetchOrderData, symbol string) *model.SpotOrder {
+	// 计算剩余数量
+	remaining := item.Sz.Sub(item.AccFillSz.Decimal)
+
+	// 转换状态
+	var status model.OrderStatus
+	switch item.State {
+	case "live":
+		status = model.OrderStatusOpen
+	case "partially_filled":
+		status = model.OrderStatusOpen
+	case "filled":
+		status = model.OrderStatusFilled
+	case "canceled":
+		status = model.OrderStatusCanceled
+	default:
+		status = model.OrderStatusNew
+	}
+
+	// 转换订单类型
+	var orderType model.OrderType
+	if strings.ToLower(item.OrdType) == "market" {
+		orderType = model.OrderTypeMarket
+	} else {
+		orderType = model.OrderTypeLimit
+	}
+
+	// 转换订单方向
+	var side model.OrderSide
+	if strings.ToLower(item.Side) == "buy" {
+		side = model.OrderSideBuy
+	} else {
+		side = model.OrderSideSell
+	}
+
+	order := &model.SpotOrder{
 		ID:            item.OrdID,
 		ClientOrderID: item.ClOrdID,
 		Symbol:        symbol,
-		Timestamp:     time.Now(),
-	}
-
-	order.Price, _ = strconv.ParseFloat(item.Px, 64)
-	order.Amount, _ = strconv.ParseFloat(item.Sz, 64)
-	order.Filled, _ = strconv.ParseFloat(item.AccFillSz, 64)
-	order.Remaining = order.Amount - order.Filled
-
-	if strings.ToLower(item.Side) == "buy" {
-		order.Side = types.OrderSideBuy
-	} else {
-		order.Side = types.OrderSideSell
-	}
-
-	if strings.ToLower(item.OrdType) == "market" {
-		order.Type = types.OrderTypeMarket
-	} else {
-		order.Type = types.OrderTypeLimit
-	}
-
-	// 转换状态
-	switch item.State {
-	case "live":
-		order.Status = types.OrderStatusOpen
-	case "partially_filled":
-		order.Status = types.OrderStatusPartiallyFilled
-	case "filled":
-		order.Status = types.OrderStatusFilled
-	case "canceled":
-		order.Status = types.OrderStatusCanceled
-	default:
-		order.Status = types.OrderStatusNew
+		Type:          orderType,
+		Side:          side,
+		Price:         item.Px,
+		Amount:        item.Sz,
+		Filled:        item.AccFillSz,
+		Remaining:     types.ExDecimal{Decimal: remaining},
+		Average:       item.AvgPx,
+		Status:        status,
+		CreatedAt:     item.CTime,
+		UpdatedAt:     item.UTime,
 	}
 
 	return order
 }
 
-func (o *okxSpotOrder) FetchOrder(ctx context.Context, orderID, symbol string) (*types.Order, error) {
+func (o *okxSpotOrder) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.SpotOrder, error) {
 	// 获取市场信息
 	market, err := o.okx.spot.market.GetMarket(symbol)
 	if err != nil {
 		return nil, err
+	}
+
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
 	}
 
 	// 获取交易所格式的 symbol ID
@@ -693,7 +663,10 @@ func (o *okxSpotOrder) FetchOrder(ctx context.Context, orderID, symbol string) (
 
 	params := map[string]interface{}{
 		"instId": okxSymbol,
-		"ordId":  orderID,
+		"ordId":  orderId,
+	}
+	if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
+		params["clOrdId"] = *argsOpts.ClientOrderID
 	}
 
 	resp, err := o.signAndRequest(ctx, "GET", "/api/v5/trade/order", params, nil)
@@ -701,23 +674,7 @@ func (o *okxSpotOrder) FetchOrder(ctx context.Context, orderID, symbol string) (
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
 
-	var result struct {
-		Code string `json:"code"`
-		Msg  string `json:"msg"`
-		Data []struct {
-			InstID    string `json:"instId"`
-			OrdID     string `json:"ordId"`
-			ClOrdID   string `json:"clOrdId"`
-			State     string `json:"state"`
-			Side      string `json:"side"`
-			OrdType   string `json:"ordType"`
-			Px        string `json:"px"`
-			Sz        string `json:"sz"`
-			AccFillSz string `json:"accFillSz"`
-			UTime     string `json:"uTime"`
-		} `json:"data"`
-	}
-
+	var result okxSpotFetchOrderResponse
 	if err := json.Unmarshal(resp, &result); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}

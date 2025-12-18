@@ -34,7 +34,7 @@ func getPrecisionDigits(value float64) int {
 	return 0
 }
 
-// getString 从 map 中获取字符串值
+//nolint:unused // getString 从 map 中获取字符串值
 func getString(m map[string]interface{}, key string) string {
 	if v, ok := m[key]; ok {
 		if str, ok := v.(string); ok {

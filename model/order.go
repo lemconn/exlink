@@ -113,31 +113,24 @@ const (
 	PositionSideShort PositionSide = "short" // PositionSideShort 空头
 )
 
-// Fee 手续费信息
-type Fee struct {
-	Currency string          `json:"currency"`       // Currency 手续费币种
-	Cost     types.ExDecimal `json:"cost"`           // Cost 手续费金额
-	Rate     types.ExDecimal `json:"rate,omitempty"` // Rate 手续费率
-}
-
-// Order 订单信息
-type Order struct {
-	ID            string                 `json:"id"`                        // ID 订单ID
-	ClientOrderID string                 `json:"client_order_id,omitempty"` // ClientOrderID 客户端订单ID
-	Symbol        string                 `json:"symbol"`                    // Symbol 交易对
-	Type          OrderType              `json:"type"`                      // Type 订单类型
-	Side          OrderSide              `json:"side"`                      // Side 订单方向
-	Amount        types.ExDecimal        `json:"amount"`                    // Amount 订单数量
-	Size          types.ExDecimal        `json:"size"`                      // Size 张数数量（gate/okx交易所使用张数交易）
-	Price         types.ExDecimal        `json:"price"`                     // Price 订单价格
-	Filled        types.ExDecimal        `json:"filled"`                    // Filled 已成交数量
-	Remaining     types.ExDecimal        `json:"remaining"`                 // Remaining 未成交数量
-	Cost          types.ExDecimal        `json:"cost"`                      // Cost 成交金额
-	Average       types.ExDecimal        `json:"average"`                   // Average 平均成交价格
-	Status        OrderStatus            `json:"status"`                    // Status 订单状态
-	Fee           *Fee                   `json:"fee,omitempty"`             // Fee 手续费
-	Timestamp     types.ExTimestamp      `json:"timestamp"`                 // Timestamp 时间戳
-	Info          map[string]interface{} `json:"info,omitempty"`            // Info 交易所原始信息
+// SpotOrder 现货订单信息
+type SpotOrder struct {
+	ID            string            `json:"id"`                        // ID 订单ID
+	ClientOrderID string            `json:"client_order_id,omitempty"` // ClientOrderID 客户端订单ID
+	Symbol        string            `json:"symbol"`                    // Symbol 交易对
+	Type          OrderType         `json:"type"`                      // Type 订单类型
+	Side          OrderSide         `json:"side"`                      // Side 订单方向
+	Amount        types.ExDecimal   `json:"amount"`                    // Amount 订单数量
+	Size          types.ExDecimal   `json:"size"`                      // Size 张数数量（gate/okx交易所使用张数交易）
+	Price         types.ExDecimal   `json:"price"`                     // Price 订单价格
+	Filled        types.ExDecimal   `json:"filled"`                    // Filled 已成交数量
+	Remaining     types.ExDecimal   `json:"remaining"`                 // Remaining 未成交数量
+	Cost          types.ExDecimal   `json:"cost"`                      // Cost 成交金额
+	Average       types.ExDecimal   `json:"average"`                   // Average 平均成交价格
+	Status        OrderStatus       `json:"status"`                    // Status 订单状态
+	TimeInForce   string            `json:"time_in_force"`             // TimeInForce 订单有效期
+	CreatedAt     types.ExTimestamp `json:"created_at"`                // CreatedAt 创建时间
+	UpdatedAt     types.ExTimestamp `json:"updated_at"`                // UpdatedAt 更新时间
 }
 
 // orderOptions 订单选项

@@ -3,30 +3,30 @@ package common
 import (
 	"testing"
 
-	"github.com/lemconn/exlink/types"
+	"github.com/lemconn/exlink/option"
 )
 
 func TestGenerateClientOrderID(t *testing.T) {
 	exchanges := []struct {
 		name     string
 		exchange string
-		side     types.OrderSide
+		side     option.SpotOrderSide
 	}{
-		{"OKX Buy", "okx", types.OrderSideBuy},
-		{"OKX Sell", "okx", types.OrderSideSell},
-		{"Binance Buy", "binance", types.OrderSideBuy},
-		{"Binance Sell", "binance", types.OrderSideSell},
-		{"Bybit Buy", "bybit", types.OrderSideBuy},
-		{"Bybit Sell", "bybit", types.OrderSideSell},
-		{"Gate Buy", "gate", types.OrderSideBuy},
-		{"Gate Sell", "gate", types.OrderSideSell},
+		{"OKX Buy", "okx", option.Buy},
+		{"OKX Sell", "okx", option.Sell},
+		{"Binance Buy", "binance", option.Buy},
+		{"Binance Sell", "binance", option.Sell},
+		{"Bybit Buy", "bybit", option.Buy},
+		{"Bybit Sell", "bybit", option.Sell},
+		{"Gate Buy", "gate", option.Buy},
+		{"Gate Sell", "gate", option.Sell},
 	}
 
 	ids := make(map[string]string)
-	
+
 	for _, tt := range exchanges {
 		t.Run(tt.name, func(t *testing.T) {
-			id := GenerateClientOrderID(tt.exchange, tt.side)
+			id := GenerateClientOrderID(tt.exchange, tt.side.ToSide())
 			ids[tt.name] = id
 			t.Logf("%s: %s", tt.name, id)
 		})

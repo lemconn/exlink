@@ -563,8 +563,7 @@ func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, amount strin
 		req.OrderLinkID = *argsOpts.ClientOrderID
 	} else {
 		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
-		orderSideForID := types.OrderSide(strings.ToLower(orderSide.ToSide()))
-		req.OrderLinkID = common.GenerateClientOrderID(p.bybit.Name(), orderSideForID)
+		req.OrderLinkID = common.GenerateClientOrderID(p.bybit.Name(), orderSide.ToSide())
 	}
 
 	// 将结构体转换为 map
