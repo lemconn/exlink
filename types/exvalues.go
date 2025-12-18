@@ -2,8 +2,14 @@ package types
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/url"
+	"reflect"
+	"strconv"
 	"strings"
+	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 // ExValues is a generic container for HTTP request parameters.
@@ -29,20 +35,128 @@ func NewExValues() *ExValues {
 
 // Set sets a single value for the given key.
 // If the key appears for the first time, its position is recorded in order.
-func (v *ExValues) Set(key, value string) {
+//
+// It supports any value type and will infer a string representation:
+//   - string / []byte / json.RawMessage
+//   - bool / all ints / all uints / floats
+//   - time.Time (RFC3339Nano)
+//   - decimal.Decimal / *decimal.Decimal
+//   - fmt.Stringer / error
+//   - slice/array: expands to multiple values (replaces existing values)
+func (v *ExValues) Set(key string, value any) {
 	if _, exists := v.values[key]; !exists {
 		v.order = append(v.order, key)
 	}
-	v.values[key] = []string{value}
+
+	vs, ok := inferStrings(value)
+	if !ok {
+		vs = []string{""}
+	}
+	v.values[key] = vs
 }
 
 // Add appends a value for the given key.
 // The key's order is preserved based on its first appearance.
-func (v *ExValues) Add(key, value string) {
+//
+// It supports any value type; slice/array expands to multiple appended values.
+func (v *ExValues) Add(key string, value any) {
 	if _, exists := v.values[key]; !exists {
 		v.order = append(v.order, key)
 	}
-	v.values[key] = append(v.values[key], value)
+
+	vs, ok := inferStrings(value)
+	if !ok {
+		vs = []string{""}
+	}
+	v.values[key] = append(v.values[key], vs...)
+}
+
+func inferStrings(v any) ([]string, bool) {
+	if v == nil {
+		return []string{""}, true
+	}
+
+	// Fast path for common, unambiguous types.
+	switch x := v.(type) {
+	case string:
+		return []string{x}, true
+	case []string:
+		// Treat as multi-value.
+		cp := make([]string, len(x))
+		copy(cp, x)
+		return cp, true
+	case []byte:
+		return []string{string(x)}, true
+	case json.RawMessage:
+		return []string{string(x)}, true
+	case bool:
+		return []string{strconv.FormatBool(x)}, true
+	case int:
+		return []string{strconv.FormatInt(int64(x), 10)}, true
+	case int8:
+		return []string{strconv.FormatInt(int64(x), 10)}, true
+	case int16:
+		return []string{strconv.FormatInt(int64(x), 10)}, true
+	case int32:
+		return []string{strconv.FormatInt(int64(x), 10)}, true
+	case int64:
+		return []string{strconv.FormatInt(x, 10)}, true
+	case uint:
+		return []string{strconv.FormatUint(uint64(x), 10)}, true
+	case uint8:
+		return []string{strconv.FormatUint(uint64(x), 10)}, true
+	case uint16:
+		return []string{strconv.FormatUint(uint64(x), 10)}, true
+	case uint32:
+		return []string{strconv.FormatUint(uint64(x), 10)}, true
+	case uint64:
+		return []string{strconv.FormatUint(x, 10)}, true
+	case float32:
+		return []string{strconv.FormatFloat(float64(x), 'f', -1, 32)}, true
+	case float64:
+		return []string{strconv.FormatFloat(x, 'f', -1, 64)}, true
+	case time.Time:
+		return []string{x.UTC().Format(time.RFC3339Nano)}, true
+	case decimal.Decimal:
+		return []string{x.String()}, true
+	case *decimal.Decimal:
+		if x == nil {
+			return []string{""}, true
+		}
+		return []string{x.String()}, true
+	case fmt.Stringer:
+		return []string{x.String()}, true
+	case error:
+		return []string{x.Error()}, true
+	}
+
+	rv := reflect.ValueOf(v)
+	for rv.Kind() == reflect.Pointer {
+		if rv.IsNil() {
+			return []string{""}, true
+		}
+		rv = rv.Elem()
+	}
+
+	switch rv.Kind() {
+	case reflect.Slice, reflect.Array:
+		// Expand to multiple values.
+		n := rv.Len()
+		out := make([]string, 0, n)
+		for i := 0; i < n; i++ {
+			ss, ok := inferStrings(rv.Index(i).Interface())
+			if !ok || len(ss) == 0 {
+				out = append(out, "")
+				continue
+			}
+			// If nested slice, flatten.
+			out = append(out, ss...)
+		}
+		return out, true
+	}
+
+	// Fallback: stable, readable string form.
+	return []string{fmt.Sprint(v)}, true
 }
 
 // EncodeQuery encodes parameters as a URL query string.
