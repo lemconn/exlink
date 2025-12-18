@@ -13,7 +13,6 @@ import (
 	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/option"
 	"github.com/lemconn/exlink/types"
-	"github.com/shopspring/decimal"
 )
 
 // BinancePerp Binance 永续合约实现
@@ -474,149 +473,80 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, amount str
 		opt(argsOpts)
 	}
 
+	req := types.NewExValues()
+
 	// 获取市场信息
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
+	req.Set("symbol", market.ID)
 
-	// 获取交易所格式的 symbol ID
-	binanceSymbol := market.ID
-	if binanceSymbol == "" {
-		var err error
-		binanceSymbol, err = ToBinanceSymbol(symbol, true)
-		if err != nil {
-			return nil, fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	// 如果订单类型为 Limit，必须设置价格
-	var priceStr string
+	// 设置限价单价格
 	if orderType == option.Limit {
-		if argsOpts.Price == nil || *argsOpts.Price == "" {
+		price, ok := option.GetDecimalFromString(argsOpts.Price)
+		if !ok || price.IsZero() {
 			return nil, fmt.Errorf("limit order requires price")
 		}
-		priceStr = *argsOpts.Price
-	} else if argsOpts.Price != nil && *argsOpts.Price != "" {
-		// 市价单也可以设置价格（用于某些交易所的限价市价单）
-		priceStr = *argsOpts.Price
+		req.Set("price", price.String())
+		// Limit 单默认使用 GTC
+		req.Set("timeInForce", option.GTC.Upper())
+	}
+
+	if argsOpts.TimeInForce != nil {
+		req.Set("timeInForce", argsOpts.TimeInForce.Upper())
+	}
+
+	// 设置数量
+	if quantity, ok := option.GetDecimalFromString(&amount); ok {
+		req.Set("quantity", quantity.String())
 	} else {
-		priceStr = ""
+		return nil, fmt.Errorf("amount is required and must be a valid decimal")
 	}
 
-	// 解析 amount 字符串为 decimal
-	amountDecimal, err := decimal.NewFromString(amount)
-	if err != nil {
-		return nil, fmt.Errorf("invalid amount: %w", err)
-	}
-	if amountDecimal.LessThanOrEqual(decimal.Zero) {
-		return nil, fmt.Errorf("amount must be greater than 0")
-	}
-
-	// 解析 price 字符串为 decimal（如果存在）
-	var priceDecimal decimal.Decimal
-	if priceStr != "" {
-		priceDecimal, err = decimal.NewFromString(priceStr)
-		if err != nil {
-			return nil, fmt.Errorf("invalid price: %w", err)
-		}
-		if priceDecimal.LessThanOrEqual(decimal.Zero) {
-			return nil, fmt.Errorf("limit order requires price > 0")
-		}
-	}
-
-	// 构建请求结构体
-	reqTimestamp := common.GetTimestamp()
-	req := binancePerpCreateOrderRequest{
-		Symbol: binanceSymbol,
-		Side:   orderSide.ToSide(),
-		Type:   orderType.Upper(),
-	}
-
-	// 格式化数量（合约订单使用更保守的精度策略）
-	// 合约订单：如果数量是整数，使用 0 精度；否则使用 1 位小数精度
-	var amountPrecision int
-	if amountDecimal.IsInteger() && amountDecimal.GreaterThanOrEqual(decimal.NewFromInt(1)) {
-		amountPrecision = 0
+	// 设置订单方向和类型
+	req.Set("side", orderSide.ToSide())
+	if orderSide.ToReduceOnly() {
+		req.Set("reduceOnly", "true")
 	} else {
-		amountPrecision = 1
+		req.Set("reduceOnly", "false")
 	}
-	req.Quantity = amountDecimal.StringFixed(int32(amountPrecision))
+	req.Set("type", orderType.Upper())
 
-	// 处理限价单的价格和 timeInForce
-	if orderType == option.Limit {
-		pricePrecision := market.Precision.Price
-		if pricePrecision == 0 {
-			pricePrecision = 8 // 默认精度
-		}
-		req.Price = priceDecimal.StringFixed(int32(pricePrecision))
-
-		// 处理 timeInForce：如果设置了则使用，否则使用默认值 GTC
-		if argsOpts.TimeInForce != nil {
-			req.TimeInForce = argsOpts.TimeInForce.Upper()
-		} else {
-			req.TimeInForce = option.GTC.Upper()
-		}
-	}
-
-	// ========== 永续合约订单处理 ==========
-	// 从 PerpOrderSide 自动推断 PositionSide 和 reduceOnly
-	positionSideStr := orderSide.ToPositionSide()
-	reduceOnly := orderSide.ToReduceOnly()
-
-	// 获取持仓模式：从 hedgeMode 选项获取，未设置时默认为 false（单向持仓模式）
-	isDualMode := false
-	if argsOpts.HedgeMode != nil {
-		isDualMode = *argsOpts.HedgeMode
-	}
-
-	if isDualMode {
+	if hedgeMode, ok := option.GetBool(argsOpts.HedgeMode); hedgeMode && ok {
 		// 双向持仓模式
 		// 开多/平多: positionSide=LONG
 		// 开空/平空: positionSide=SHORT
-		req.PositionSide = positionSideStr
+		req.Set("positionSide", orderSide.ToPositionSide())
 	} else {
-		// 单向持仓模式
-		req.PositionSide = "BOTH"
-
-		// 如果是平仓操作，设置 reduceOnly
-		if reduceOnly {
-			req.ReduceOnly = "true"
-		}
+		req.Set("positionSide", "BOTH")
 	}
 
-	// 生成客户端订单ID（如果未提供）
-	if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
-		req.NewClientOrderID = *argsOpts.ClientOrderID
+	if clientOrderId, ok := option.GetString(argsOpts.ClientOrderID); ok {
+		req.Set("newClientOrderId", clientOrderId)
 	} else {
-		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
-		req.NewClientOrderID = common.GenerateClientOrderID(p.binance.Name(), orderSide.ToSide())
+		// 生成订单 ID
+		generatedID := common.GenerateClientOrderID(p.binance.Name(), orderSide.ToSide())
+		req.Set("newClientOrderId", generatedID)
 	}
 
-	// 将结构体转换为 map，以便添加 timestamp 和 signature
-	reqBytes, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-	var reqParams map[string]interface{}
-	if err := json.Unmarshal(reqBytes, &reqParams); err != nil {
-		return nil, fmt.Errorf("unmarshal request: %w", err)
-	}
+	// 设置 timestamp
+	req.Set("timestamp", strconv.FormatInt(common.GetTimestamp(), 10))
+	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
-	// 添加 timestamp 和 signature
-	reqParams["timestamp"] = reqTimestamp
-	queryString := BuildQueryString(reqParams)
-	signature := p.binance.signer.Sign(queryString)
-	reqParams["signature"] = signature
+	reqPath := req.JoinPath("/fapi/v1/order")
+	resp, err := p.binance.client.PerpClient.Post(ctx, reqPath, nil)
 
-	// 发送请求（合约订单使用 PerpClient）
-	resp, err := p.binance.client.PerpClient.Request(ctx, "POST", "/fapi/v1/order", reqParams, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create order: %w", err)
 	}
 
 	// 解析响应（合约订单响应）
-	var respData binancePerpCreateOrderResponse
+	var respData struct {
+		OrderID       int64             `json:"orderId"`       // 系统订单号
+		ClientOrderID string            `json:"clientOrderId"` // 客户端订单ID
+		UpdateTime    types.ExTimestamp `json:"updateTime"`    // 更新时间（毫秒时间戳）
+	}
 	if err := json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal contract order response: %w", err)
 	}
@@ -624,7 +554,7 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, amount str
 	// 构建 NewOrder 对象
 	perpOrder := &model.NewOrder{
 		Symbol:        symbol,
-		OrderId:       respData.OrderID,
+		OrderId:       strconv.FormatInt(respData.OrderID, 10),
 		ClientOrderID: respData.ClientOrderID,
 		Timestamp:     respData.UpdateTime,
 	}
@@ -656,8 +586,8 @@ func (p *BinancePerp) CancelOrder(ctx context.Context, symbol string, orderId st
 	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
 	if orderId != "" {
 		req.Set("orderId", orderId)
-	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
-		req.Set("origClientOrderId", *argsOpts.ClientOrderID)
+	} else if clientOrderId, ok := option.GetString(argsOpts.ClientOrderID); ok {
+		req.Set("origClientOrderId", clientOrderId)
 	} else {
 		return fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
@@ -685,7 +615,6 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, orderId str
 
 	req := types.NewExValues()
 
-	// 获取市场信息
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
@@ -695,8 +624,8 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, orderId str
 	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
 	if orderId != "" {
 		req.Set("orderId", orderId)
-	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
-		req.Set("origClientOrderId", *argsOpts.ClientOrderID)
+	} else if clientOrderId, ok := option.GetString(argsOpts.ClientOrderID); ok {
+		req.Set("origClientOrderId", clientOrderId)
 	} else {
 		return nil, fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
@@ -711,40 +640,56 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, orderId str
 	}
 
 	// 解析响应
-	var data binancePerpFetchOrderResponse
-	if err := json.Unmarshal(resp, &data); err != nil {
+	var respData struct {
+		OrderID       int64             `json:"orderId"`       // 订单ID（交易所唯一）
+		ClientOrderID string            `json:"clientOrderId"` // 客户端自定义订单ID
+		Symbol        string            `json:"symbol"`        // 交易对 / 合约标的
+		Price         types.ExDecimal   `json:"price"`         // 下单价格（市价单通常为0）
+		AvgPrice      types.ExDecimal   `json:"avgPrice"`      // 成交均价
+		OrigQty       types.ExDecimal   `json:"origQty"`       // 下单数量
+		ExecutedQty   types.ExDecimal   `json:"executedQty"`   // 实际成交数量
+		Status        string            `json:"status"`        // 订单状态
+		TimeInForce   string            `json:"timeInForce"`   // 订单有效方式
+		ReduceOnly    bool              `json:"reduceOnly"`    // 是否只减仓
+		Time          types.ExTimestamp `json:"time"`          // 创建时间（毫秒）
+		Type          string            `json:"type"`          // 订单类型
+		Side          string            `json:"side"`          // 订单方向
+		PositionSide  string            `json:"positionSide"`  // 单向持仓 BOTH，双向持仓 LONG / SHORT
+		UpdateTime    types.ExTimestamp `json:"updateTime"`    // 更新时间（毫秒）
+	}
+	if err := json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
 	// 检查是否有错误码（通过检查 orderId 是否为 0）
-	if data.OrderID == 0 {
+	if respData.OrderID == 0 {
 		return nil, fmt.Errorf("order not found")
 	}
 
 	// 将 Binance 响应转换为 model.PerpOrder
 	order := &model.PerpOrder{
-		ID:               strconv.FormatInt(data.OrderID, 10),
-		ClientID:         data.ClientOrderID,
-		Type:             data.Type,
-		Side:             data.Side,
-		PositionSide:     data.PositionSide,
+		ID:               strconv.FormatInt(respData.OrderID, 10),
+		ClientID:         respData.ClientOrderID,
+		Type:             respData.Type,
+		Side:             respData.Side,
+		PositionSide:     respData.PositionSide,
 		Symbol:           symbol, // 使用标准化格式
-		Price:            data.Price,
-		AvgPrice:         data.AvgPrice,
-		Quantity:         data.OrigQty,
-		ExecutedQuantity: data.ExecutedQty,
-		Status:           data.Status,
-		TimeInForce:      data.TimeInForce,
-		ReduceOnly:       data.ReduceOnly,
-		CreateTime:       data.Time,
-		UpdateTime:       data.UpdateTime,
+		Price:            respData.Price,
+		AvgPrice:         respData.AvgPrice,
+		Quantity:         respData.OrigQty,
+		ExecutedQuantity: respData.ExecutedQty,
+		Status:           respData.Status,
+		TimeInForce:      respData.TimeInForce,
+		ReduceOnly:       respData.ReduceOnly,
+		CreateTime:       respData.Time,
+		UpdateTime:       respData.UpdateTime,
 	}
 
 	return order, nil
 }
 
 // SetLeverage 设置杠杆
-func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
+func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage int64) error {
 	if p.binance.client.SecretKey == "" {
 		return fmt.Errorf("authentication required")
 	}
@@ -807,8 +752,6 @@ func (p *BinancePerp) SetMarginType(ctx context.Context, symbol string, marginTy
 	_, err = p.binance.client.PerpClient.Post(ctx, "/fapi/v1/marginType", reqParams)
 	return err
 }
-
-// ========== 内部辅助方法 ==========
 
 // 确保 BinancePerp 实现了 exchange.PerpExchange 接口
 var _ exchange.PerpExchange = (*BinancePerp)(nil)

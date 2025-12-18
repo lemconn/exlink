@@ -1,6 +1,10 @@
 package option
 
-import "time"
+import (
+	"time"
+
+	"github.com/shopspring/decimal"
+)
 
 func StringPresent(s *string) bool {
 	return s != nil && *s != ""
@@ -24,6 +28,27 @@ func GetString(s *string) (string, bool) {
 		return "", false
 	}
 	return *s, true
+}
+
+func GetDecimalFromString(s *string) (decimal.Decimal, bool) {
+	if s == nil || *s == "" {
+		return decimal.Zero, false
+	}
+
+	d, err := decimal.NewFromString(*s)
+	if err != nil {
+		return decimal.Zero, false
+	}
+
+	return d, true
+}
+
+func GetDecimalFromInt64(i *int64) (decimal.Decimal, bool) {
+	if i == nil {
+		return decimal.Zero, false
+	}
+
+	return decimal.NewFromInt(*i), true
 }
 
 // GetInt 返回 int 值及是否存在（非 nil）
