@@ -847,7 +847,7 @@ func (p *BybitPerp) FetchOrder(ctx context.Context, symbol string, orderId strin
 	return nil, fmt.Errorf("order not found")
 }
 
-func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
+func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int64) error {
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
@@ -857,20 +857,11 @@ func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int
 		return fmt.Errorf("leverage only supported for contracts")
 	}
 
-	bybitSymbol := market.ID
-	if bybitSymbol == "" {
-		var err error
-		bybitSymbol, err = ToBybitSymbol(symbol, true)
-		if err != nil {
-			return fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
 	reqBody := map[string]interface{}{
 		"category":     "linear",
-		"symbol":       bybitSymbol,
-		"buyLeverage":  strconv.Itoa(leverage),
-		"sellLeverage": strconv.Itoa(leverage),
+		"symbol":       market.ID,
+		"buyLeverage":  strconv.FormatInt(leverage, 10),
+		"sellLeverage": strconv.FormatInt(leverage, 10),
 	}
 
 	_, err = p.signAndRequest(ctx, "POST", "/v5/position/set-leverage", nil, reqBody)
