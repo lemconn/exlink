@@ -116,7 +116,13 @@ func (p *BybitPerp) LoadMarkets(ctx context.Context, reload bool) error {
 	return nil
 }
 
-func (p *BybitPerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
+func (p *BybitPerp) FetchMarkets(ctx context.Context, opts ...option.ArgsOption) (model.Markets, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	// 确保市场已加载
 	if err := p.LoadMarkets(ctx, false); err != nil {
 		return nil, err
@@ -125,7 +131,7 @@ func (p *BybitPerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	p.bybit.mu.RLock()
 	defer p.bybit.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(p.bybit.perpMarketsBySymbol))
+	markets := make(model.Markets, 0, len(p.bybit.perpMarketsBySymbol))
 	for _, market := range p.bybit.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
@@ -147,18 +153,6 @@ func (p *BybitPerp) GetMarket(symbol string) (*model.Market, error) {
 	}
 
 	return nil, fmt.Errorf("market not found: %s", symbol)
-}
-
-func (p *BybitPerp) GetMarkets() ([]*model.Market, error) {
-	p.bybit.mu.RLock()
-	defer p.bybit.mu.RUnlock()
-
-	markets := make([]*model.Market, 0, len(p.bybit.perpMarketsBySymbol))
-	for _, market := range p.bybit.perpMarketsBySymbol {
-		markets = append(markets, market)
-	}
-
-	return markets, nil
 }
 
 func (p *BybitPerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
@@ -219,7 +213,13 @@ func (p *BybitPerp) FetchTicker(ctx context.Context, symbol string) (*model.Tick
 	return ticker, nil
 }
 
-func (p *BybitPerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
+func (p *BybitPerp) FetchTickers(ctx context.Context, opts ...option.ArgsOption) (model.Tickers, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	resp, err := p.bybit.client.HTTPClient.Get(ctx, "/v5/market/tickers", map[string]interface{}{
 		"category": "linear",
 	})
@@ -237,7 +237,7 @@ func (p *BybitPerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker,
 		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
 	}
 
-	tickers := make(map[string]*model.Ticker)
+	tickers := make(model.Tickers, 0, len(result.Result.List))
 	for _, item := range result.Result.List {
 		// 尝试从市场信息中查找标准化格式
 		market, err := p.GetMarket(item.Symbol)
@@ -257,20 +257,16 @@ func (p *BybitPerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker,
 		ticker.Volume = item.Volume24h
 		ticker.QuoteVolume = item.Turnover24h
 		ticker.Timestamp = result.Time
-		tickers[market.Symbol] = ticker
+		tickers = append(tickers, ticker)
 	}
 
 	return tickers, nil
 }
 
-func (p *BybitPerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
+func (p *BybitPerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, limit int, opts ...option.ArgsOption) (model.OHLCVs, error) {
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
-	}
-	limit := 100
-	if argsOpts.Limit != nil {
-		limit = *argsOpts.Limit
 	}
 	since := time.Time{}
 	if argsOpts.Since != nil {
@@ -331,52 +327,21 @@ func (p *BybitPerp) FetchPositions(ctx context.Context, opts ...option.ArgsOptio
 	for _, opt := range opts {
 		opt(argsOpts)
 	}
-	symbols := []string{}
-	if argsOpts.Symbols != nil {
-		symbols = argsOpts.Symbols
-	}
-	return p.fetchPositions(ctx, symbols...)
-}
 
-// ========== 内部辅助方法 ==========
-
-// signAndRequest 签名并发送请求（Bybit v5 API）
-func (p *BybitPerp) signAndRequest(ctx context.Context, method, path string, params map[string]interface{}, body map[string]interface{}) ([]byte, error) {
-	if p.bybit.client.SecretKey == "" {
-		return nil, fmt.Errorf("authentication required")
-	}
-
-	signature, timestamp := p.bybit.signer.SignRequest(method, params, body)
-	recvWindow := "5000"
-
-	// 设置请求头
-	p.bybit.client.HTTPClient.SetHeader("X-BAPI-API-KEY", p.bybit.client.APIKey)
-	p.bybit.client.HTTPClient.SetHeader("X-BAPI-TIMESTAMP", timestamp)
-	p.bybit.client.HTTPClient.SetHeader("X-BAPI-RECV-WINDOW", recvWindow)
-	p.bybit.client.HTTPClient.SetHeader("X-BAPI-SIGN", signature)
-	p.bybit.client.HTTPClient.SetHeader("Content-Type", "application/json")
-
-	// 发送请求
-	if method == "GET" || method == "DELETE" {
-		return p.bybit.client.HTTPClient.Get(ctx, path, params)
-	} else {
-		return p.bybit.client.HTTPClient.Post(ctx, path, body)
-	}
-}
-
-func (p *BybitPerp) fetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
 	params := map[string]interface{}{
 		"category": "linear",
 	}
 
-	if len(symbols) > 0 {
-		// Bybit 需要 symbol 参数
-		market, err := p.GetMarket(symbols[0])
+	// 如果指定了 Symbol，在 API 请求中传入
+	var targetSymbol string
+	if argsOpts.Symbol != nil && *argsOpts.Symbol != "" {
+		targetSymbol = *argsOpts.Symbol
+		market, err := p.GetMarket(targetSymbol)
 		if err == nil {
 			params["symbol"] = market.ID
 		} else {
 			// 如果市场未加载，尝试转换
-			bybitSymbol, err := ToBybitSymbol(symbols[0], true)
+			bybitSymbol, err := ToBybitSymbol(targetSymbol, true)
 			if err == nil {
 				params["symbol"] = bybitSymbol
 			}
@@ -409,17 +374,9 @@ func (p *BybitPerp) fetchPositions(ctx context.Context, symbols ...string) (mode
 			continue
 		}
 
-		if len(symbols) > 0 {
-			found := false
-			for _, s := range symbols {
-				if s == market.Symbol {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
+		// 如果指定了 Symbol，只返回匹配的
+		if targetSymbol != "" && market.Symbol != targetSymbol {
+			continue
 		}
 
 		var side string
@@ -448,6 +405,32 @@ func (p *BybitPerp) fetchPositions(ctx context.Context, symbols ...string) (mode
 	}
 
 	return positions, nil
+}
+
+// ========== 内部辅助方法 ==========
+
+// signAndRequest 签名并发送请求（Bybit v5 API）
+func (p *BybitPerp) signAndRequest(ctx context.Context, method, path string, params map[string]interface{}, body map[string]interface{}) ([]byte, error) {
+	if p.bybit.client.SecretKey == "" {
+		return nil, fmt.Errorf("authentication required")
+	}
+
+	signature, timestamp := p.bybit.signer.SignRequest(method, params, body)
+	recvWindow := "5000"
+
+	// 设置请求头
+	p.bybit.client.HTTPClient.SetHeader("X-BAPI-API-KEY", p.bybit.client.APIKey)
+	p.bybit.client.HTTPClient.SetHeader("X-BAPI-TIMESTAMP", timestamp)
+	p.bybit.client.HTTPClient.SetHeader("X-BAPI-RECV-WINDOW", recvWindow)
+	p.bybit.client.HTTPClient.SetHeader("X-BAPI-SIGN", signature)
+	p.bybit.client.HTTPClient.SetHeader("Content-Type", "application/json")
+
+	// 发送请求
+	if method == "GET" || method == "DELETE" {
+		return p.bybit.client.HTTPClient.Get(ctx, path, params)
+	} else {
+		return p.bybit.client.HTTPClient.Post(ctx, path, body)
+	}
 }
 
 func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, amount string, orderSide option.PerpOrderSide, orderType option.OrderType, opts ...option.ArgsOption) (*model.NewOrder, error) {

@@ -165,7 +165,13 @@ func (p *OKXPerp) LoadMarkets(ctx context.Context, reload bool) error {
 	return nil
 }
 
-func (p *OKXPerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
+func (p *OKXPerp) FetchMarkets(ctx context.Context, opts ...option.ArgsOption) (model.Markets, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	// 确保市场已加载
 	if err := p.LoadMarkets(ctx, false); err != nil {
 		return nil, err
@@ -174,7 +180,7 @@ func (p *OKXPerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	p.okx.mu.RLock()
 	defer p.okx.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(p.okx.perpMarketsBySymbol))
+	markets := make(model.Markets, 0, len(p.okx.perpMarketsBySymbol))
 	for _, market := range p.okx.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
@@ -196,18 +202,6 @@ func (p *OKXPerp) GetMarket(symbol string) (*model.Market, error) {
 	}
 
 	return nil, fmt.Errorf("market not found: %s", symbol)
-}
-
-func (p *OKXPerp) GetMarkets() ([]*model.Market, error) {
-	p.okx.mu.RLock()
-	defer p.okx.mu.RUnlock()
-
-	markets := make([]*model.Market, 0, len(p.okx.perpMarketsBySymbol))
-	for _, market := range p.okx.perpMarketsBySymbol {
-		markets = append(markets, market)
-	}
-
-	return markets, nil
 }
 
 func (p *OKXPerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
@@ -262,7 +256,13 @@ func (p *OKXPerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticker
 	return ticker, nil
 }
 
-func (p *OKXPerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
+func (p *OKXPerp) FetchTickers(ctx context.Context, opts ...option.ArgsOption) (model.Tickers, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	resp, err := p.okx.client.HTTPClient.Get(ctx, "/api/v5/market/tickers", map[string]interface{}{
 		"instType": "SWAP",
 	})
@@ -280,7 +280,7 @@ func (p *OKXPerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, e
 		return nil, fmt.Errorf("okx api error: %s", result.Msg)
 	}
 
-	tickers := make(map[string]*model.Ticker)
+	tickers := make(model.Tickers, 0, len(result.Data))
 	for _, item := range result.Data {
 		// 尝试从市场信息中查找标准化格式
 		market, err := p.GetMarket(item.InstID)
@@ -299,20 +299,16 @@ func (p *OKXPerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, e
 		ticker.Low = item.Low24h
 		ticker.Volume = item.Vol24h
 		ticker.QuoteVolume = item.VolCcy24h
-		tickers[market.Symbol] = ticker
+		tickers = append(tickers, ticker)
 	}
 
 	return tickers, nil
 }
 
-func (p *OKXPerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
+func (p *OKXPerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, limit int, opts ...option.ArgsOption) (model.OHLCVs, error) {
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
-	}
-	limit := 100
-	if argsOpts.Limit != nil {
-		limit = *argsOpts.Limit
 	}
 	since := time.Time{}
 	if argsOpts.Since != nil {
@@ -372,11 +368,85 @@ func (p *OKXPerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption)
 	for _, opt := range opts {
 		opt(argsOpts)
 	}
-	symbols := []string{}
-	if argsOpts.Symbols != nil {
-		symbols = argsOpts.Symbols
+
+	params := map[string]interface{}{
+		"instType": "SWAP",
 	}
-	return p.fetchPositions(ctx, symbols...)
+
+	// 如果指定了 Symbol，在 API 请求中传入
+	var targetSymbol string
+	if argsOpts.Symbol != nil && *argsOpts.Symbol != "" {
+		targetSymbol = *argsOpts.Symbol
+		market, err := p.GetMarket(targetSymbol)
+		if err == nil {
+			params["instId"] = market.ID
+		} else {
+			// 如果市场未加载，尝试转换
+			okxSymbol, err := ToOKXSymbol(targetSymbol, true)
+			if err == nil {
+				params["instId"] = okxSymbol
+			}
+		}
+	}
+
+	resp, err := p.signAndRequest(ctx, "GET", "/api/v5/account/positions", params, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch positions: %w", err)
+	}
+
+	var result okxPerpPositionResponse
+	if err := json.Unmarshal(resp, &result); err != nil {
+		return nil, fmt.Errorf("unmarshal positions: %w", err)
+	}
+
+	if result.Code != "0" {
+		return nil, fmt.Errorf("okx api error: %s", result.Msg)
+	}
+
+	positions := make([]*model.Position, 0)
+	for _, item := range result.Data {
+		pos, _ := item.Pos.Float64()
+		if pos == 0 {
+			continue
+		}
+
+		market, err := p.GetMarket(item.InstID)
+		if err != nil {
+			continue
+		}
+
+		// 如果指定了 Symbol，只返回匹配的
+		if targetSymbol != "" && market.Symbol != targetSymbol {
+			continue
+		}
+
+		var side string
+		// 根据 posSide 确定持仓方向
+		if item.PosSide == "long" || (item.PosSide == "net" && pos > 0) {
+			side = string(types.PositionSideLong)
+		} else {
+			side = string(types.PositionSideShort)
+		}
+
+		position := &model.Position{
+			Symbol:           market.Symbol,
+			Side:             side,
+			Amount:           item.Pos,
+			EntryPrice:       item.AvgPx,
+			MarkPrice:        item.MarkPx,
+			UnrealizedPnl:    item.Upl,
+			LiquidationPrice: item.LiqPx,
+			RealizedPnl:      item.RealizedPnl,
+			Leverage:         item.Lever,
+			Margin:           item.Margin,
+			Percentage:       types.ExDecimal{},
+			Timestamp:        item.UTime,
+		}
+
+		positions = append(positions, position)
+	}
+
+	return positions, nil
 }
 
 func (p *OKXPerp) CreateOrder(ctx context.Context, symbol string, amount string, orderSide option.PerpOrderSide, orderType option.OrderType, opts ...option.ArgsOption) (*model.NewOrder, error) {
@@ -739,91 +809,4 @@ func (p *OKXPerp) signAndRequest(ctx context.Context, method, path string, param
 	} else {
 		return p.okx.client.HTTPClient.Post(ctx, path, body)
 	}
-}
-
-func (p *OKXPerp) fetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
-	params := map[string]interface{}{
-		"instType": "SWAP",
-	}
-
-	if len(symbols) > 0 {
-		// 获取市场信息
-		market, err := p.GetMarket(symbols[0])
-		if err == nil {
-			params["instId"] = market.ID
-		} else {
-			// 如果市场未加载，尝试转换
-			okxSymbol, err := ToOKXSymbol(symbols[0], true)
-			if err == nil {
-				params["instId"] = okxSymbol
-			}
-		}
-	}
-
-	resp, err := p.signAndRequest(ctx, "GET", "/api/v5/account/positions", params, nil)
-	if err != nil {
-		return nil, fmt.Errorf("fetch positions: %w", err)
-	}
-
-	var result okxPerpPositionResponse
-	if err := json.Unmarshal(resp, &result); err != nil {
-		return nil, fmt.Errorf("unmarshal positions: %w", err)
-	}
-
-	if result.Code != "0" {
-		return nil, fmt.Errorf("okx api error: %s", result.Msg)
-	}
-
-	positions := make([]*model.Position, 0)
-	for _, item := range result.Data {
-		pos, _ := item.Pos.Float64()
-		if pos == 0 {
-			continue
-		}
-
-		market, err := p.GetMarket(item.InstID)
-		if err != nil {
-			continue
-		}
-
-		if len(symbols) > 0 {
-			found := false
-			for _, s := range symbols {
-				if s == market.Symbol {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
-
-		var side string
-		// 根据 posSide 确定持仓方向
-		if item.PosSide == "long" || (item.PosSide == "net" && pos > 0) {
-			side = string(types.PositionSideLong)
-		} else {
-			side = string(types.PositionSideShort)
-		}
-
-		position := &model.Position{
-			Symbol:           market.Symbol,
-			Side:             side,
-			Amount:           item.Pos,
-			EntryPrice:       item.AvgPx,
-			MarkPrice:        item.MarkPx,
-			UnrealizedPnl:    item.Upl,
-			LiquidationPrice: item.LiqPx,
-			RealizedPnl:      item.RealizedPnl,
-			Leverage:         item.Lever,
-			Margin:           item.Margin,
-			Percentage:       types.ExDecimal{},
-			Timestamp:        item.UTime,
-		}
-
-		positions = append(positions, position)
-	}
-
-	return positions, nil
 }

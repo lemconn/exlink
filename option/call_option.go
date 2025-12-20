@@ -11,6 +11,8 @@ type ExchangeArgsOptions struct {
 	Limit *int
 	// Since 起始时间（默认值：time.Time{}，表示不限制）
 	Since *time.Time
+	// Symbol 单个交易对（用于 FetchPositions 等方法，如果设置则返回单个仓位信息）
+	Symbol *string
 	// Symbols 交易对列表（用于 FetchPositions 等方法）
 	Symbols []string
 
@@ -45,6 +47,13 @@ func WithLimit(limit int) ArgsOption {
 func WithSince(since time.Time) ArgsOption {
 	return func(opts *ExchangeArgsOptions) {
 		opts.Since = &since
+	}
+}
+
+// WithSymbol 设置单个交易对（用于 FetchPositions 等方法）
+func WithSymbol(symbol string) ArgsOption {
+	return func(opts *ExchangeArgsOptions) {
+		opts.Symbol = &symbol
 	}
 }
 

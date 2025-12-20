@@ -33,8 +33,7 @@ func TestBybitPerp_FetchOHLCVs(t *testing.T) {
 	since := time.Time{} // 不指定开始时间，获取最新数据
 	limit := 10
 
-	ohlcvs, err := perp.FetchOHLCVs(ctx, symbol, timeframe,
-		option.WithLimit(limit),
+	ohlcvs, err := perp.FetchOHLCVs(ctx, symbol, timeframe, limit,
 		option.WithSince(since),
 	)
 	if err != nil {
@@ -170,16 +169,13 @@ func TestBybitPerp_FetchTickers(t *testing.T) {
 
 	// 验证数据结构
 	positivePriceCount := 0
-	for symbol, ticker := range tickers {
-		if symbol == "" {
-			t.Error("Ticker symbol is empty")
-		}
+	for _, ticker := range tickers {
 		if ticker.Symbol == "" {
-			t.Errorf("Ticker[%s]: Symbol is empty", symbol)
+			t.Error("Ticker symbol is empty")
 		}
 		// 允许 Last 价格为 0（已下架或暂停的交易对），但不允许为负数
 		if ticker.Last.IsNegative() {
-			t.Errorf("Ticker[%s]: Last price should not be negative, got %s", symbol, ticker.Last.String())
+			t.Errorf("Ticker[%s]: Last price should not be negative, got %s", ticker.Symbol, ticker.Last.String())
 		}
 		if ticker.Last.GreaterThan(decimal.Zero) {
 			positivePriceCount++
@@ -194,9 +190,7 @@ func TestBybitPerp_FetchTickers(t *testing.T) {
 	t.Logf("Successfully fetched %d tickers", len(tickers))
 	if len(tickers) > 0 {
 		// 打印第一个 ticker
-		for symbol, ticker := range tickers {
-			t.Logf("First ticker: %s, Last=%s", symbol, ticker.Last.String())
-			break
-		}
+		ticker := tickers[0]
+		t.Logf("First ticker: %s, Last=%s", ticker.Symbol, ticker.Last.String())
 	}
 }

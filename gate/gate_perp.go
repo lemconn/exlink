@@ -113,7 +113,13 @@ func (p *GatePerp) LoadMarkets(ctx context.Context, reload bool) error {
 	return nil
 }
 
-func (p *GatePerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
+func (p *GatePerp) FetchMarkets(ctx context.Context, opts ...option.ArgsOption) (model.Markets, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	// 确保市场已加载
 	if err := p.LoadMarkets(ctx, false); err != nil {
 		return nil, err
@@ -122,7 +128,7 @@ func (p *GatePerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
 	p.gate.mu.RLock()
 	defer p.gate.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(p.gate.perpMarketsBySymbol))
+	markets := make(model.Markets, 0, len(p.gate.perpMarketsBySymbol))
 	for _, market := range p.gate.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
@@ -144,18 +150,6 @@ func (p *GatePerp) GetMarket(symbol string) (*model.Market, error) {
 	}
 
 	return nil, fmt.Errorf("market not found: %s", symbol)
-}
-
-func (p *GatePerp) GetMarkets() ([]*model.Market, error) {
-	p.gate.mu.RLock()
-	defer p.gate.mu.RUnlock()
-
-	markets := make([]*model.Market, 0, len(p.gate.perpMarketsBySymbol))
-	for _, market := range p.gate.perpMarketsBySymbol {
-		markets = append(markets, market)
-	}
-
-	return markets, nil
 }
 
 func (p *GatePerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error) {
@@ -210,7 +204,13 @@ func (p *GatePerp) FetchTicker(ctx context.Context, symbol string) (*model.Ticke
 	return ticker, nil
 }
 
-func (p *GatePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
+func (p *GatePerp) FetchTickers(ctx context.Context, opts ...option.ArgsOption) (model.Tickers, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	settle := "usdt" // Gate 永续合约默认使用 USDT 结算
 	resp, err := p.gate.client.HTTPClient.Get(ctx, fmt.Sprintf("/api/v4/futures/%s/tickers", settle), nil)
 	if err != nil {
@@ -223,7 +223,7 @@ func (p *GatePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, 
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
 	}
 
-	tickers := make(map[string]*model.Ticker)
+	tickers := make(model.Tickers, 0, len(data))
 	for _, item := range data {
 		// 尝试从市场信息中查找标准化格式
 		market, err := p.GetMarket(item.Contract)
@@ -241,20 +241,16 @@ func (p *GatePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, 
 		ticker.Low = item.Low24h
 		ticker.Volume = item.Volume24hBase
 		ticker.QuoteVolume = item.Volume24hQuote
-		tickers[market.Symbol] = ticker
+		tickers = append(tickers, ticker)
 	}
 
 	return tickers, nil
 }
 
-func (p *GatePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
+func (p *GatePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, limit int, opts ...option.ArgsOption) (model.OHLCVs, error) {
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
-	}
-	limit := 100
-	if argsOpts.Limit != nil {
-		limit = *argsOpts.Limit
 	}
 	since := time.Time{}
 	if argsOpts.Since != nil {
@@ -316,11 +312,69 @@ func (p *GatePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption
 	for _, opt := range opts {
 		opt(argsOpts)
 	}
-	symbols := []string{}
-	if argsOpts.Symbols != nil {
-		symbols = argsOpts.Symbols
+
+	// Gate 合约持仓
+	resp, err := p.signAndRequest(ctx, "GET", "/api/v4/futures/usdt/positions", nil, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch positions: %w", err)
 	}
-	return p.fetchPositions(ctx, symbols...)
+
+	var data gatePerpPositionResponse
+	if err := json.Unmarshal(resp, &data); err != nil {
+		return nil, fmt.Errorf("unmarshal positions: %w", err)
+	}
+
+	// 如果指定了 Symbol，获取对应的市场信息用于过滤
+	var targetSymbol string
+	if argsOpts.Symbol != nil && *argsOpts.Symbol != "" {
+		targetSymbol = *argsOpts.Symbol
+	}
+
+	positions := make([]*model.Position, 0)
+	for _, item := range data {
+		size, _ := item.Size.Float64()
+		if size == 0 {
+			continue
+		}
+
+		market, err := p.GetMarket(item.Contract)
+		if err != nil {
+			continue
+		}
+
+		// 如果指定了 Symbol，只返回匹配的
+		if targetSymbol != "" && market.Symbol != targetSymbol {
+			continue
+		}
+
+		var side string
+		amount := size
+		if size > 0 {
+			side = string(types.PositionSideLong)
+		} else {
+			side = string(types.PositionSideShort)
+			amount = -amount
+		}
+
+		position := &model.Position{
+			Symbol:           market.Symbol,
+			Side:             side,
+			Amount:           types.ExDecimal{Decimal: decimal.NewFromFloat(amount)},
+			EntryPrice:       item.EntryPrice,
+			MarkPrice:        item.MarkPrice,
+			UnrealizedPnl:    item.UnrealisedPnl,
+			LiquidationPrice: item.LiqPrice,
+			RealizedPnl:      item.RealisedPnl,
+			Leverage:         item.Leverage,
+			Margin:           item.Margin,
+			Percentage:       types.ExDecimal{},
+			Timestamp:        item.UpdateTime,
+		}
+
+		positions = append(positions, position)
+	}
+
+	return positions, nil
 }
 
 func (p *GatePerp) CreateOrder(ctx context.Context, symbol string, amount string, orderSide option.PerpOrderSide, orderType option.OrderType, opts ...option.ArgsOption) (*model.NewOrder, error) {
@@ -691,69 +745,3 @@ func (p *GatePerp) signAndRequest(ctx context.Context, method, path string, para
 	}
 }
 
-func (p *GatePerp) fetchPositions(ctx context.Context, symbols ...string) (model.Positions, error) {
-	// Gate 合约持仓
-	resp, err := p.signAndRequest(ctx, "GET", "/api/v4/futures/usdt/positions", nil, nil)
-	if err != nil {
-		return nil, fmt.Errorf("fetch positions: %w", err)
-	}
-
-	var data gatePerpPositionResponse
-	if err := json.Unmarshal(resp, &data); err != nil {
-		return nil, fmt.Errorf("unmarshal positions: %w", err)
-	}
-
-	positions := make([]*model.Position, 0)
-	for _, item := range data {
-		size, _ := item.Size.Float64()
-		if size == 0 {
-			continue
-		}
-
-		market, err := p.GetMarket(item.Contract)
-		if err != nil {
-			continue
-		}
-
-		if len(symbols) > 0 {
-			found := false
-			for _, s := range symbols {
-				if s == market.Symbol {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
-
-		var side string
-		amount := size
-		if size > 0 {
-			side = string(types.PositionSideLong)
-		} else {
-			side = string(types.PositionSideShort)
-			amount = -amount
-		}
-
-		position := &model.Position{
-			Symbol:           market.Symbol,
-			Side:             side,
-			Amount:           types.ExDecimal{Decimal: decimal.NewFromFloat(amount)},
-			EntryPrice:       item.EntryPrice,
-			MarkPrice:        item.MarkPrice,
-			UnrealizedPnl:    item.UnrealisedPnl,
-			LiquidationPrice: item.LiqPrice,
-			RealizedPnl:      item.RealisedPnl,
-			Leverage:         item.Leverage,
-			Margin:           item.Margin,
-			Percentage:       types.ExDecimal{},
-			Timestamp:        item.UpdateTime,
-		}
-
-		positions = append(positions, position)
-	}
-
-	return positions, nil
-}
