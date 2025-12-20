@@ -4,25 +4,6 @@ import (
 	"github.com/lemconn/exlink/types"
 )
 
-// binancePerpMarketsResponse Binance 永续合约市场信息响应
-type binancePerpMarketsResponse struct {
-	Symbols []binancePerpSymbol `json:"symbols"`
-}
-
-// binancePerpSymbol Binance 永续合约交易对信息
-type binancePerpSymbol struct {
-	Symbol            string          `json:"symbol"`
-	Pair              string          `json:"pair"`
-	ContractType      string          `json:"contractType"`
-	BaseAsset         string          `json:"baseAsset"`
-	QuoteAsset        string          `json:"quoteAsset"`
-	MarginAsset       string          `json:"marginAsset"`
-	Status            string          `json:"status"`
-	PricePrecision    int             `json:"pricePrecision"`
-	QuantityPrecision int             `json:"quantityPrecision"`
-	Filters           []binanceFilter `json:"filters"`
-}
-
 // binancePerpTickerResponse Binance 永续合约 Ticker 响应
 type binancePerpTickerResponse struct {
 	Symbol             string            `json:"symbol"`
