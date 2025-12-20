@@ -153,3 +153,8 @@ func (k *binanceKline) UnmarshalJSON(data []byte) error {
 
 	return nil
 }
+
+type binanceError struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+}
