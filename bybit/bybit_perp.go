@@ -847,7 +847,7 @@ func (p *BybitPerp) FetchOrder(ctx context.Context, symbol string, orderId strin
 	return nil, fmt.Errorf("order not found")
 }
 
-func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int64) error {
+func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
@@ -860,8 +860,8 @@ func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int
 	reqBody := map[string]interface{}{
 		"category":     "linear",
 		"symbol":       market.ID,
-		"buyLeverage":  strconv.FormatInt(leverage, 10),
-		"sellLeverage": strconv.FormatInt(leverage, 10),
+		"buyLeverage":  strconv.Itoa(leverage),
+		"sellLeverage": strconv.Itoa(leverage),
 	}
 
 	_, err = p.signAndRequest(ctx, "POST", "/v5/position/set-leverage", nil, reqBody)

@@ -656,7 +656,7 @@ func (p *OKXPerp) FetchOrder(ctx context.Context, symbol string, orderId string,
 	return order, nil
 }
 
-func (p *OKXPerp) SetLeverage(ctx context.Context, symbol string, leverage int64) error {
+func (p *OKXPerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
@@ -668,7 +668,7 @@ func (p *OKXPerp) SetLeverage(ctx context.Context, symbol string, leverage int64
 
 	reqBody := map[string]interface{}{
 		"instId": market.ID,
-		"lever":  strconv.FormatInt(leverage, 10),
+		"lever":  strconv.Itoa(leverage),
 	}
 
 	_, err = p.signAndRequest(ctx, "POST", "/api/v5/account/set-leverage", nil, reqBody)

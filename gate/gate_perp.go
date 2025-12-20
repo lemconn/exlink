@@ -611,7 +611,7 @@ func (p *GatePerp) FetchOrder(ctx context.Context, symbol string, orderId string
 	return order, nil
 }
 
-func (p *GatePerp) SetLeverage(ctx context.Context, symbol string, leverage int64) error {
+func (p *GatePerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
@@ -633,7 +633,7 @@ func (p *GatePerp) SetLeverage(ctx context.Context, symbol string, leverage int6
 
 	reqBody := map[string]interface{}{
 		"contract": gateSymbol,
-		"leverage": strconv.FormatInt(leverage, 10),
+		"leverage": strconv.Itoa(leverage),
 	}
 
 	path := fmt.Sprintf("/api/v4/futures/%s/positions/%s/leverage", settle, gateSymbol)

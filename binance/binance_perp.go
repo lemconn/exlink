@@ -531,7 +531,7 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, amount str
 	}
 
 	// 设置 timestamp
-	req.Set("timestamp", strconv.FormatInt(common.GetTimestamp(), 10))
+	req.Set("timestamp", common.GetTimestamp())
 	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
 	reqPath := req.JoinPath("/fapi/v1/order")
@@ -593,7 +593,7 @@ func (p *BinancePerp) CancelOrder(ctx context.Context, symbol string, orderId st
 	}
 
 	// 设置 timestamp
-	req.Set("timestamp", strconv.FormatInt(common.GetTimestamp(), 10))
+	req.Set("timestamp", common.GetTimestamp())
 	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
 	reqPath := req.JoinPath("/fapi/v1/order")
@@ -630,7 +630,7 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, orderId str
 		return nil, fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
 
-	req.Set("timestamp", strconv.FormatInt(common.GetTimestamp(), 10))
+	req.Set("timestamp", common.GetTimestamp())
 	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
 	reqPath := req.JoinPath("/fapi/v1/order")
@@ -689,32 +689,28 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, orderId str
 }
 
 // SetLeverage 设置杠杆
-func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage int64) error {
+func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
 	if p.binance.client.SecretKey == "" {
 		return fmt.Errorf("authentication required")
 	}
+
+	req := types.NewExValues()
 
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
 	}
+	req.Set("symbol", market.ID)
 
-	if !market.Contract || !market.Linear {
-		return fmt.Errorf("leverage only supported for linear contracts")
+	if leverage < 1 || leverage > 125 {
+		return fmt.Errorf("leverage must be between 1 and 125")
 	}
+	req.Set("leverage", leverage)
+	req.Set("timestamp", common.GetTimestamp())
+	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
-	timestamp := common.GetTimestamp()
-	reqParams := map[string]interface{}{
-		"symbol":    market.ID,
-		"leverage":  leverage,
-		"timestamp": timestamp,
-	}
-
-	queryString := BuildQueryString(reqParams)
-	signature := p.binance.signer.Sign(queryString)
-	reqParams["signature"] = signature
-
-	_, err = p.binance.client.PerpClient.Post(ctx, "/fapi/v1/leverage", reqParams)
+	reqPath := req.JoinPath("/fapi/v1/leverage")
+	_, err = p.binance.client.PerpClient.Post(ctx, reqPath, nil)
 	return err
 }
 
@@ -724,32 +720,19 @@ func (p *BinancePerp) SetMarginType(ctx context.Context, symbol string, marginTy
 		return fmt.Errorf("authentication required")
 	}
 
+	req := types.NewExValues()
+
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
 	}
+	req.Set("symbol", market.ID)
+	req.Set("marginType", marginType.Upper())
+	req.Set("timestamp", common.GetTimestamp())
+	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
-	if !market.Contract || !market.Linear {
-		return fmt.Errorf("margin mode only supported for linear contracts")
-	}
-
-	// 验证类型
-	if marginType != option.ISOLATED && marginType != option.CROSSED {
-		return fmt.Errorf("invalid margin type: %s, must be 'ISOLATED' or 'CROSSED'", marginType)
-	}
-
-	timestamp := common.GetTimestamp()
-	reqParams := map[string]interface{}{
-		"symbol":     market.ID,
-		"marginType": marginType.Upper(),
-		"timestamp":  timestamp,
-	}
-
-	queryString := BuildQueryString(reqParams)
-	signature := p.binance.signer.Sign(queryString)
-	reqParams["signature"] = signature
-
-	_, err = p.binance.client.PerpClient.Post(ctx, "/fapi/v1/marginType", reqParams)
+	reqPath := req.JoinPath("/fapi/v1/marginType")
+	_, err = p.binance.client.PerpClient.Post(ctx, reqPath, nil)
 	return err
 }
 
