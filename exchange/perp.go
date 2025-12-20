@@ -15,26 +15,23 @@ type PerpExchange interface {
 	LoadMarkets(ctx context.Context, reload bool) error
 
 	// FetchMarkets 获取市场列表
-	FetchMarkets(ctx context.Context) ([]*model.Market, error)
+	FetchMarkets(ctx context.Context, opts ...option.ArgsOption) (model.Markets, error)
 
 	// GetMarket 获取单个市场信息
 	GetMarket(symbol string) (*model.Market, error)
-
-	// GetMarkets 从内存中获取所有市场信息
-	GetMarkets() ([]*model.Market, error)
 
 	// FetchTicker 获取行情（单个）
 	FetchTicker(ctx context.Context, symbol string) (*model.Ticker, error)
 
 	// FetchTickers 批量获取行情
-	FetchTickers(ctx context.Context) (map[string]*model.Ticker, error)
+	FetchTickers(ctx context.Context, opts ...option.ArgsOption) (model.Tickers, error)
 
 	// FetchOrderBook 获取订单簿
 	// FetchOrderBook(ctx context.Context, symbol string, limit ...int) (*types.OrderBook, error)
 	// TODO: 添加 OrderBook 类型到 types 包后启用
 
 	// FetchOHLCVs 获取K线数据
-	FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error)
+	FetchOHLCVs(ctx context.Context, symbol string, timeframe string, limit int, opts ...option.ArgsOption) (model.OHLCVs, error)
 
 	// ========== 账户信息 ==========
 

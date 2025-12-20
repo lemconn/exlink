@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/exchange"
@@ -138,7 +137,13 @@ func (p *BinancePerp) LoadMarkets(ctx context.Context, reload bool) error {
 }
 
 // FetchMarkets 获取市场列表
-func (p *BinancePerp) FetchMarkets(ctx context.Context) ([]*model.Market, error) {
+func (p *BinancePerp) FetchMarkets(ctx context.Context, opts ...option.ArgsOption) (model.Markets, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	// 确保市场已加载
 	if err := p.LoadMarkets(ctx, false); err != nil {
 		return nil, err
@@ -147,7 +152,7 @@ func (p *BinancePerp) FetchMarkets(ctx context.Context) ([]*model.Market, error)
 	p.binance.mu.RLock()
 	defer p.binance.mu.RUnlock()
 
-	markets := make([]*model.Market, 0, len(p.binance.perpMarketsBySymbol))
+	markets := make(model.Markets, 0, len(p.binance.perpMarketsBySymbol))
 	for _, market := range p.binance.perpMarketsBySymbol {
 		markets = append(markets, market)
 	}
@@ -170,19 +175,6 @@ func (p *BinancePerp) GetMarket(symbol string) (*model.Market, error) {
 	}
 
 	return nil, fmt.Errorf("market not found: %s", symbol)
-}
-
-// GetMarkets 从内存中获取所有市场信息
-func (p *BinancePerp) GetMarkets() ([]*model.Market, error) {
-	p.binance.mu.RLock()
-	defer p.binance.mu.RUnlock()
-
-	markets := make([]*model.Market, 0, len(p.binance.perpMarketsBySymbol))
-	for _, market := range p.binance.perpMarketsBySymbol {
-		markets = append(markets, market)
-	}
-
-	return markets, nil
 }
 
 // FetchTicker 获取行情（单个）
@@ -239,7 +231,13 @@ func (p *BinancePerp) FetchTicker(ctx context.Context, symbol string) (*model.Ti
 }
 
 // FetchTickers 批量获取行情
-func (p *BinancePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticker, error) {
+func (p *BinancePerp) FetchTickers(ctx context.Context, opts ...option.ArgsOption) (model.Tickers, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	resp, err := p.binance.client.PerpClient.Get(ctx, "/fapi/v1/ticker/24hr", nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch tickers: %w", err)
@@ -251,7 +249,7 @@ func (p *BinancePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticke
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
 	}
 
-	tickers := make(map[string]*model.Ticker)
+	tickers := make(model.Tickers, 0, len(data))
 	for _, item := range data {
 		// 尝试从市场信息中查找标准化格式
 		market, err := p.GetMarket(item.Symbol)
@@ -270,7 +268,7 @@ func (p *BinancePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticke
 			ticker.Low = item.LowPrice
 			ticker.Volume = item.Volume
 			ticker.QuoteVolume = item.QuoteVolume
-			tickers[item.Symbol] = ticker
+			tickers = append(tickers, ticker)
 		} else {
 			ticker := &model.Ticker{
 				Symbol:    market.Symbol,
@@ -285,7 +283,7 @@ func (p *BinancePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticke
 			ticker.Low = item.LowPrice
 			ticker.Volume = item.Volume
 			ticker.QuoteVolume = item.QuoteVolume
-			tickers[market.Symbol] = ticker
+			tickers = append(tickers, ticker)
 		}
 	}
 
@@ -293,66 +291,59 @@ func (p *BinancePerp) FetchTickers(ctx context.Context) (map[string]*model.Ticke
 }
 
 // FetchOHLCVs 获取K线数据
-func (p *BinancePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, opts ...option.ArgsOption) (model.OHLCVs, error) {
+func (p *BinancePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe string, limit int, opts ...option.ArgsOption) (model.OHLCVs, error) {
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
 	}
 
-	// 获取参数值（带默认值）
-	limit := 100 // 默认值
-	if argsOpts.Limit != nil {
-		limit = *argsOpts.Limit
-	}
-
-	since := time.Time{} // 默认值
-	if argsOpts.Since != nil {
-		since = *argsOpts.Since
-	}
+	req := types.NewExValues()
 
 	// 获取市场信息
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
+	req.Set("symbol", market.ID)
+	req.Set("interval", common.BinanceTimeframe(timeframe))
+	req.Set("limit", limit)
 
-	// 标准化时间框架
-	normalizedTimeframe := common.BinanceTimeframe(timeframe)
-
-	params := map[string]interface{}{
-		"interval": normalizedTimeframe,
-		"limit":    limit,
-	}
-	if !since.IsZero() {
-		params["startTime"] = since.UnixMilli()
+	if since, ok := option.GetTime(argsOpts.Since); ok {
+		req.Set("startTime", since.UnixMilli())
 	}
 
-	// 获取交易所格式的 symbol ID（优先使用 market.ID）
-	binanceSymbol := market.ID
-	if binanceSymbol == "" {
-		// 如果 market.ID 为空，使用转换函数
-		var err error
-		binanceSymbol, err = ToBinanceSymbol(symbol, true)
-		if err != nil {
-			return nil, fmt.Errorf("get market ID: %w", err)
-		}
-	}
-	params["symbol"] = binanceSymbol
+	req.Set("timestamp", common.GetTimestamp())
+	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
+	reqPath := req.JoinPath("/fapi/v1/klines")
 	// 使用合约 API
-	resp, err := p.binance.client.PerpClient.Get(ctx, "/fapi/v1/klines", params)
+	resp, err := p.binance.client.PerpClient.Get(ctx, reqPath, map[string]interface{}{})
 	if err != nil {
 		return nil, fmt.Errorf("fetch ohlcv: %w", err)
 	}
 
-	var data binancePerpKlineResponse
-	if err := json.Unmarshal(resp, &data); err != nil {
+	var respData []struct {
+		OpenTime            types.ExTimestamp `json:"openTime"`            // Kline open time
+		Open                types.ExDecimal   `json:"open"`                // Open price
+		High                types.ExDecimal   `json:"high"`                // High price
+		Low                 types.ExDecimal   `json:"low"`                 // Low price
+		Close               types.ExDecimal   `json:"close"`               // Close price
+		Volume              types.ExDecimal   `json:"volume"`              // Volume
+		CloseTime           types.ExTimestamp `json:"closeTime"`           // Kline Close time
+		QuoteVolume         types.ExDecimal   `json:"quoteVolume"`         // Quote asset volume
+		Trades              int64             `json:"trades"`              // Number of trades
+		TakerBuyBaseVolume  types.ExDecimal   `json:"takerBuyBaseVolume"`  // Taker buy base asset volume
+		TakerBuyQuoteVolume types.ExDecimal   `json:"takerBuyQuoteVolume"` // Taker buy quote asset volume
+		Ignore              types.ExDecimal   `json:"ignore"`              // Unused field, ignore
+	}
+
+	if err := json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal ohlcv: %w", err)
 	}
 
-	ohlcvs := make(model.OHLCVs, 0, len(data))
-	for _, item := range data {
+	ohlcvs := make(model.OHLCVs, 0, len(respData))
+	for _, item := range respData {
 		ohlcv := &model.OHLCV{
 			Timestamp: item.OpenTime,
 			Open:      item.Open,
@@ -369,43 +360,63 @@ func (p *BinancePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe 
 
 // FetchPositions 获取持仓
 func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption) (model.Positions, error) {
+	if p.binance.client.SecretKey == "" {
+		return nil, fmt.Errorf("authentication required")
+	}
+
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
 		opt(argsOpts)
 	}
 
-	// 获取参数值（带默认值）
-	symbols := []string{} // 默认值
-	if argsOpts.Symbols != nil {
-		symbols = argsOpts.Symbols
+	req := types.NewExValues()
+
+	if symbol, ok := option.GetString(argsOpts.Symbol); ok {
+		market, err := p.GetMarket(symbol)
+		if err != nil {
+			return nil, err
+		}
+		req.Set("symbol", market.ID)
 	}
 
-	if p.binance.client.SecretKey == "" {
-		return nil, fmt.Errorf("authentication required")
-	}
+	// 设置 timestamp
+	req.Set("timestamp", common.GetTimestamp())
+	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
-	timestamp := common.GetTimestamp()
-	params := map[string]interface{}{
-		"timestamp": timestamp,
-	}
-
-	queryString := BuildQueryString(params)
-	signature := p.binance.signer.Sign(queryString)
-	params["signature"] = signature
-
-	resp, err := p.binance.client.PerpClient.Get(ctx, "/fapi/v2/positionRisk", params)
+	reqPath := req.JoinPath("/fapi/v2/positionRisk")
+	resp, err := p.binance.client.PerpClient.Get(ctx, reqPath, map[string]interface{}{})
 	if err != nil {
 		return nil, fmt.Errorf("fetch positions: %w", err)
 	}
 
-	var data binancePerpPositionResponse
-	if err := json.Unmarshal(resp, &data); err != nil {
+	var respData []struct {
+		Symbol           string            `json:"symbol"`
+		PositionAmt      types.ExDecimal   `json:"positionAmt"`
+		EntryPrice       types.ExDecimal   `json:"entryPrice"`
+		BreakEvenPrice   types.ExDecimal   `json:"breakEvenPrice"`
+		MarkPrice        types.ExDecimal   `json:"markPrice"`
+		UnRealizedProfit types.ExDecimal   `json:"unRealizedProfit"`
+		LiquidationPrice types.ExDecimal   `json:"liquidationPrice"`
+		Leverage         types.ExDecimal   `json:"leverage"`
+		MaxNotionalValue types.ExDecimal   `json:"maxNotionalValue"`
+		MarginType       string            `json:"marginType"`
+		IsolatedMargin   types.ExDecimal   `json:"isolatedMargin"`
+		IsAutoAddMargin  string            `json:"isAutoAddMargin"`
+		PositionSide     string            `json:"positionSide"`
+		Notional         types.ExDecimal   `json:"notional"`
+		IsolatedWallet   types.ExDecimal   `json:"isolatedWallet"`
+		UpdateTime       types.ExTimestamp `json:"updateTime"`
+		Isolated         bool              `json:"isolated"`
+		AdlQuantile      int               `json:"adlQuantile"`
+	}
+
+	if err := json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal positions: %w", err)
 	}
 
 	positions := make([]*model.Position, 0)
-	for _, item := range data {
+	for _, item := range respData {
 		positionAmt, _ := item.PositionAmt.Float64()
 		if positionAmt == 0 {
 			continue // 跳过空仓
@@ -415,20 +426,6 @@ func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOpt
 		market, err := p.GetMarket(item.Symbol)
 		if err != nil {
 			continue
-		}
-
-		// 如果指定了symbols，只返回匹配的
-		if len(symbols) > 0 {
-			found := false
-			for _, s := range symbols {
-				if s == market.Symbol {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
 		}
 
 		var side string

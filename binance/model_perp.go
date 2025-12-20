@@ -42,34 +42,3 @@ type binancePerpTickerResponse struct {
 	LastId             int64             `json:"lastId"`
 	Count              int64             `json:"count"`
 }
-
-// binancePerpKline Binance 永续合约 Kline 数据（类型别名）
-type binancePerpKline = binanceKline
-
-// binancePerpKlineResponse Binance 永续合约 Kline 响应（数组格式）
-type binancePerpKlineResponse []binancePerpKline
-
-// binancePerpPositionResponse Binance 永续合约持仓响应（数组格式）
-type binancePerpPositionResponse []binancePerpPosition
-
-// binancePerpPosition Binance 永续合约持仓信息
-type binancePerpPosition struct {
-	Symbol           string            `json:"symbol"`
-	PositionAmt      types.ExDecimal   `json:"positionAmt"`
-	EntryPrice       types.ExDecimal   `json:"entryPrice"`
-	BreakEvenPrice   types.ExDecimal   `json:"breakEvenPrice"`
-	MarkPrice        types.ExDecimal   `json:"markPrice"`
-	UnRealizedProfit types.ExDecimal   `json:"unRealizedProfit"`
-	LiquidationPrice types.ExDecimal   `json:"liquidationPrice"`
-	Leverage         types.ExDecimal   `json:"leverage"`
-	MaxNotionalValue types.ExDecimal   `json:"maxNotionalValue"`
-	MarginType       string            `json:"marginType"`
-	IsolatedMargin   types.ExDecimal   `json:"isolatedMargin"`
-	IsAutoAddMargin  string            `json:"isAutoAddMargin"`
-	PositionSide     string            `json:"positionSide"`
-	Notional         types.ExDecimal   `json:"notional"`
-	IsolatedWallet   types.ExDecimal   `json:"isolatedWallet"`
-	UpdateTime       types.ExTimestamp `json:"updateTime"`
-	Isolated         bool              `json:"isolated"`
-	AdlQuantile      int               `json:"adlQuantile"`
-}
