@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/lemconn/exlink/common"
 	"github.com/lemconn/exlink/exchange"
 	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/option"
 	"github.com/lemconn/exlink/types"
+	"github.com/shopspring/decimal"
 )
 
 // BinancePerp Binance 永续合约实现
@@ -38,21 +40,44 @@ func (p *BinancePerp) LoadMarkets(ctx context.Context, reload bool) error {
 	}
 	p.binance.mu.RUnlock()
 
+	req := types.NewExValues()
+	reqPath := req.JoinPath("/fapi/v1/exchangeInfo")
 	// 获取永续合约市场信息
-	resp, err := p.binance.client.PerpClient.Get(ctx, "/fapi/v1/exchangeInfo", map[string]interface{}{
-		"showPermissionSets": false,
-	})
+	resp, err := p.binance.client.PerpClient.Get(ctx, reqPath, nil)
 	if err != nil {
 		return fmt.Errorf("fetch fapi exchange info: %w", err)
 	}
 
-	var info binancePerpMarketsResponse
-	if err := json.Unmarshal(resp, &info); err != nil {
+	var respData struct {
+		Symbols []struct {
+			Symbol            string `json:"symbol"`
+			Pair              string `json:"pair"`
+			ContractType      string `json:"contractType"`
+			BaseAsset         string `json:"baseAsset"`
+			QuoteAsset        string `json:"quoteAsset"`
+			MarginAsset       string `json:"marginAsset"`
+			Status            string `json:"status"`
+			PricePrecision    int    `json:"pricePrecision"`
+			QuantityPrecision int    `json:"quantityPrecision"`
+			Filters           []struct {
+				FilterType  string          `json:"filterType"`
+				MinQty      types.ExDecimal `json:"minQty,omitempty"`
+				MaxQty      types.ExDecimal `json:"maxQty,omitempty"`
+				StepSize    types.ExDecimal `json:"stepSize,omitempty"`
+				MinPrice    types.ExDecimal `json:"minPrice,omitempty"`
+				MaxPrice    types.ExDecimal `json:"maxPrice,omitempty"`
+				TickSize    types.ExDecimal `json:"tickSize,omitempty"`
+				MinNotional types.ExDecimal `json:"minNotional,omitempty"`
+			} `json:"filters"`
+		} `json:"symbols"`
+	}
+
+	if err := json.Unmarshal(resp, &respData); err != nil {
 		return fmt.Errorf("unmarshal fapi exchange info: %w", err)
 	}
 
-	markets := make([]*model.Market, 0)
-	for _, s := range info.Symbols {
+	markets := make(model.Markets, 0)
+	for _, s := range respData.Symbols {
 		// 只处理永续合约
 		if s.ContractType != "PERPETUAL" {
 			continue
@@ -149,11 +174,23 @@ func (p *BinancePerp) FetchMarkets(ctx context.Context, opts ...option.ArgsOptio
 		return nil, err
 	}
 
+	var querySymbol string
+	if symbol, ok := option.GetString(argsOpts.Symbol); ok {
+		market, err := p.GetMarket(symbol)
+		if err != nil {
+			return nil, err
+		}
+		querySymbol = market.ID
+	}
+
 	p.binance.mu.RLock()
 	defer p.binance.mu.RUnlock()
 
 	markets := make(model.Markets, 0, len(p.binance.perpMarketsBySymbol))
 	for _, market := range p.binance.perpMarketsBySymbol {
+		if querySymbol != "" && market.Symbol != querySymbol {
+			continue
+		}
 		markets = append(markets, market)
 	}
 
@@ -238,53 +275,68 @@ func (p *BinancePerp) FetchTickers(ctx context.Context, opts ...option.ArgsOptio
 		opt(argsOpts)
 	}
 
-	resp, err := p.binance.client.PerpClient.Get(ctx, "/fapi/v1/ticker/24hr", nil)
+	req := types.NewExValues()
+
+	var querySymbol string
+	if symbol, ok := option.GetString(argsOpts.Symbol); ok {
+		market, err := p.GetMarket(symbol)
+		if err != nil {
+			return nil, err
+		}
+		querySymbol = market.ID
+	}
+
+	reqPath := req.JoinPath("/fapi/v1/ticker/24hr")
+	resp, err := p.binance.client.PerpClient.Get(ctx, reqPath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch tickers: %w", err)
 	}
 
-	var data []binancePerpTickerResponse
+	var respData []struct {
+		Symbol             string            `json:"symbol"`
+		PriceChange        types.ExDecimal   `json:"priceChange"`
+		PriceChangePercent types.ExDecimal   `json:"priceChangePercent"`
+		WeightedAvgPrice   types.ExDecimal   `json:"weightedAvgPrice"`
+		LastPrice          types.ExDecimal   `json:"lastPrice"`
+		LastQty            types.ExDecimal   `json:"lastQty"`
+		OpenPrice          types.ExDecimal   `json:"openPrice"`
+		HighPrice          types.ExDecimal   `json:"highPrice"`
+		LowPrice           types.ExDecimal   `json:"lowPrice"`
+		Volume             types.ExDecimal   `json:"volume"`
+		QuoteVolume        types.ExDecimal   `json:"quoteVolume"`
+		OpenTime           types.ExTimestamp `json:"openTime"`
+		CloseTime          types.ExTimestamp `json:"closeTime"`
+		Count              int64             `json:"count"`
+	}
 
-	if err := json.Unmarshal(resp, &data); err != nil {
+	if err := json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
 	}
 
-	tickers := make(model.Tickers, 0, len(data))
-	for _, item := range data {
+	tickers := make(model.Tickers, 0, len(respData))
+	for _, item := range respData {
 		// 尝试从市场信息中查找标准化格式
 		market, err := p.GetMarket(item.Symbol)
 		if err != nil {
-			// 如果找不到市场信息，使用 Binance 原始格式
-			ticker := &model.Ticker{
-				Symbol:    item.Symbol,
-				Timestamp: item.CloseTime,
-			}
-			// 注意：永续合约 API 可能不返回 bidPrice 和 askPrice，使用 lastPrice 作为近似值
-			ticker.Bid = item.LastPrice
-			ticker.Ask = item.LastPrice
-			ticker.Last = item.LastPrice
-			ticker.Open = item.OpenPrice
-			ticker.High = item.HighPrice
-			ticker.Low = item.LowPrice
-			ticker.Volume = item.Volume
-			ticker.QuoteVolume = item.QuoteVolume
-			tickers = append(tickers, ticker)
-		} else {
-			ticker := &model.Ticker{
-				Symbol:    market.Symbol,
-				Timestamp: item.CloseTime,
-			}
-			// 注意：永续合约 API 可能不返回 bidPrice 和 askPrice，使用 lastPrice 作为近似值
-			ticker.Bid = item.LastPrice
-			ticker.Ask = item.LastPrice
-			ticker.Last = item.LastPrice
-			ticker.Open = item.OpenPrice
-			ticker.High = item.HighPrice
-			ticker.Low = item.LowPrice
-			ticker.Volume = item.Volume
-			ticker.QuoteVolume = item.QuoteVolume
-			tickers = append(tickers, ticker)
+			continue
 		}
+		if querySymbol != "" && market.ID != querySymbol {
+			continue
+		}
+		ticker := &model.Ticker{
+			Symbol:    item.Symbol,
+			Timestamp: item.CloseTime,
+		}
+		// 注意：永续合约 API 可能不返回 bidPrice 和 askPrice，使用 lastPrice 作为近似值
+		ticker.Bid = item.LastPrice
+		ticker.Ask = item.LastPrice
+		ticker.Last = item.LastPrice
+		ticker.Open = item.OpenPrice
+		ticker.High = item.HighPrice
+		ticker.Low = item.LowPrice
+		ticker.Volume = item.Volume
+		ticker.QuoteVolume = item.QuoteVolume
+		tickers = append(tickers, ticker)
 	}
 
 	return tickers, nil
@@ -313,44 +365,36 @@ func (p *BinancePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe 
 		req.Set("startTime", since.UnixMilli())
 	}
 
-	req.Set("timestamp", common.GetTimestamp())
-	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
-
 	reqPath := req.JoinPath("/fapi/v1/klines")
 	// 使用合约 API
-	resp, err := p.binance.client.PerpClient.Get(ctx, reqPath, map[string]interface{}{})
+	resp, err := p.binance.client.PerpClient.Get(ctx, reqPath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch ohlcv: %w", err)
 	}
 
-	var respData []struct {
-		OpenTime            types.ExTimestamp `json:"openTime"`            // Kline open time
-		Open                types.ExDecimal   `json:"open"`                // Open price
-		High                types.ExDecimal   `json:"high"`                // High price
-		Low                 types.ExDecimal   `json:"low"`                 // Low price
-		Close               types.ExDecimal   `json:"close"`               // Close price
-		Volume              types.ExDecimal   `json:"volume"`              // Volume
-		CloseTime           types.ExTimestamp `json:"closeTime"`           // Kline Close time
-		QuoteVolume         types.ExDecimal   `json:"quoteVolume"`         // Quote asset volume
-		Trades              int64             `json:"trades"`              // Number of trades
-		TakerBuyBaseVolume  types.ExDecimal   `json:"takerBuyBaseVolume"`  // Taker buy base asset volume
-		TakerBuyQuoteVolume types.ExDecimal   `json:"takerBuyQuoteVolume"` // Taker buy quote asset volume
-		Ignore              types.ExDecimal   `json:"ignore"`              // Unused field, ignore
-	}
-
-	if err := json.Unmarshal(resp, &respData); err != nil {
+	var respData [][]interface{}
+	if err = json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal ohlcv: %w", err)
 	}
 
 	ohlcvs := make(model.OHLCVs, 0, len(respData))
 	for _, item := range respData {
-		ohlcv := &model.OHLCV{
-			Timestamp: item.OpenTime,
-			Open:      item.Open,
-			High:      item.High,
-			Low:       item.Low,
-			Close:     item.Close,
-			Volume:    item.Volume,
+		ohlcv := &model.OHLCV{}
+		ohlcv.Timestamp = types.ExTimestamp{Time: time.UnixMilli(int64(item[0].(float64)))}
+		if openPx, err := decimal.NewFromString(item[1].(string)); err == nil {
+			ohlcv.Open = types.ExDecimal{Decimal: openPx}
+		}
+		if highPx, err := decimal.NewFromString(item[2].(string)); err == nil {
+			ohlcv.High = types.ExDecimal{Decimal: highPx}
+		}
+		if lowPx, err := decimal.NewFromString(item[3].(string)); err == nil {
+			ohlcv.Low = types.ExDecimal{Decimal: lowPx}
+		}
+		if closePx, err := decimal.NewFromString(item[4].(string)); err == nil {
+			ohlcv.Close = types.ExDecimal{Decimal: closePx}
+		}
+		if volume, err := decimal.NewFromString(item[5].(string)); err == nil {
+			ohlcv.Volume = types.ExDecimal{Decimal: volume}
 		}
 		ohlcvs = append(ohlcvs, ohlcv)
 	}
@@ -385,7 +429,7 @@ func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOpt
 	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
 	reqPath := req.JoinPath("/fapi/v2/positionRisk")
-	resp, err := p.binance.client.PerpClient.Get(ctx, reqPath, map[string]interface{}{})
+	resp, err := p.binance.client.PerpClient.Get(ctx, reqPath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch positions: %w", err)
 	}
@@ -631,7 +675,7 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, orderId str
 	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
 	reqPath := req.JoinPath("/fapi/v1/order")
-	resp, err := p.binance.client.PerpClient.Get(ctx, reqPath, map[string]interface{}{})
+	resp, err := p.binance.client.PerpClient.Get(ctx, reqPath, nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
