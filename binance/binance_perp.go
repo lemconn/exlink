@@ -39,12 +39,12 @@ func (p *BinancePerp) signAndRequest(ctx context.Context, method, path string, r
 	}
 
 	// 添加 timestamp
-	req.Set("timestamp", common.GetTimestamp())
+	req.SetQuery("timestamp", common.GetTimestamp())
 
 	// 生成签名
 	queryString := req.EncodeQuery()
 	signature := p.binance.signer.Sign(queryString)
-	req.Set("signature", signature)
+	req.SetQuery("signature", signature)
 
 	// 构建完整路径
 	reqPath := req.JoinPath(path)
@@ -391,12 +391,12 @@ func (p *BinancePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe 
 	if err != nil {
 		return nil, err
 	}
-	req.Set("symbol", market.ID)
-	req.Set("interval", common.BinanceTimeframe(timeframe))
-	req.Set("limit", limit)
+	req.SetQuery("symbol", market.ID)
+	req.SetQuery("interval", common.BinanceTimeframe(timeframe))
+	req.SetQuery("limit", limit)
 
 	if since, ok := option.GetTime(argsOpts.Since); ok {
-		req.Set("startTime", since.UnixMilli())
+		req.SetQuery("startTime", since.UnixMilli())
 	}
 
 	reqPath := req.JoinPath("/fapi/v1/klines")
@@ -451,7 +451,7 @@ func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOpt
 		if err != nil {
 			return nil, err
 		}
-		req.Set("symbol", market.ID)
+		req.SetQuery("symbol", market.ID)
 	}
 
 	resp, err := p.signAndRequest(ctx, "GET", "/fapi/v2/positionRisk", req)
@@ -542,7 +542,7 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, amount str
 	if err != nil {
 		return nil, err
 	}
-	req.Set("symbol", market.ID)
+	req.SetQuery("symbol", market.ID)
 
 	// 设置限价单价格
 	if orderType == option.Limit {
@@ -550,46 +550,46 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, amount str
 		if !ok || price.IsZero() {
 			return nil, fmt.Errorf("limit order requires price")
 		}
-		req.Set("price", price.String())
+		req.SetQuery("price", price.String())
 		// Limit 单默认使用 GTC
-		req.Set("timeInForce", option.GTC.Upper())
+		req.SetQuery("timeInForce", option.GTC.Upper())
 	}
 
 	if argsOpts.TimeInForce != nil {
-		req.Set("timeInForce", argsOpts.TimeInForce.Upper())
+		req.SetQuery("timeInForce", argsOpts.TimeInForce.Upper())
 	}
 
 	// 设置数量
 	if quantity, ok := option.GetDecimalFromString(&amount); ok {
-		req.Set("quantity", quantity.String())
+		req.SetQuery("quantity", quantity.String())
 	} else {
 		return nil, fmt.Errorf("amount is required and must be a valid decimal")
 	}
 
 	// 设置订单方向和类型
-	req.Set("side", orderSide.ToSide())
+	req.SetQuery("side", orderSide.ToSide())
 	if orderSide.ToReduceOnly() {
-		req.Set("reduceOnly", "true")
+		req.SetQuery("reduceOnly", "true")
 	} else {
-		req.Set("reduceOnly", "false")
+		req.SetQuery("reduceOnly", "false")
 	}
-	req.Set("type", orderType.Upper())
+	req.SetQuery("type", orderType.Upper())
 
 	if hedgeMode, ok := option.GetBool(argsOpts.HedgeMode); hedgeMode && ok {
 		// 双向持仓模式
 		// 开多/平多: positionSide=LONG
 		// 开空/平空: positionSide=SHORT
-		req.Set("positionSide", orderSide.ToPositionSide())
+		req.SetQuery("positionSide", orderSide.ToPositionSide())
 	} else {
-		req.Set("positionSide", "BOTH")
+		req.SetQuery("positionSide", "BOTH")
 	}
 
 	if clientOrderId, ok := option.GetString(argsOpts.ClientOrderID); ok {
-		req.Set("newClientOrderId", clientOrderId)
+		req.SetQuery("newClientOrderId", clientOrderId)
 	} else {
 		// 生成订单 ID
 		generatedID := common.GenerateClientOrderID(p.binance.Name(), orderSide.ToSide())
-		req.Set("newClientOrderId", generatedID)
+		req.SetQuery("newClientOrderId", generatedID)
 	}
 
 	resp, err := p.signAndRequest(ctx, "POST", "/fapi/v1/order", req)
@@ -633,13 +633,13 @@ func (p *BinancePerp) CancelOrder(ctx context.Context, symbol string, orderId st
 	if err != nil {
 		return err
 	}
-	req.Set("symbol", market.ID)
+	req.SetQuery("symbol", market.ID)
 
 	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
 	if orderId != "" {
-		req.Set("orderId", orderId)
+		req.SetQuery("orderId", orderId)
 	} else if clientOrderId, ok := option.GetString(argsOpts.ClientOrderID); ok {
-		req.Set("origClientOrderId", clientOrderId)
+		req.SetQuery("origClientOrderId", clientOrderId)
 	} else {
 		return fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
@@ -662,13 +662,13 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, orderId str
 	if err != nil {
 		return nil, err
 	}
-	req.Set("symbol", market.ID)
+	req.SetQuery("symbol", market.ID)
 
 	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
 	if orderId != "" {
-		req.Set("orderId", orderId)
+		req.SetQuery("orderId", orderId)
 	} else if clientOrderId, ok := option.GetString(argsOpts.ClientOrderID); ok {
-		req.Set("origClientOrderId", clientOrderId)
+		req.SetQuery("origClientOrderId", clientOrderId)
 	} else {
 		return nil, fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
@@ -735,12 +735,12 @@ func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage i
 	if err != nil {
 		return err
 	}
-	req.Set("symbol", market.ID)
+	req.SetQuery("symbol", market.ID)
 
 	if leverage < 1 || leverage > 125 {
 		return fmt.Errorf("leverage must be between 1 and 125")
 	}
-	req.Set("leverage", leverage)
+	req.SetQuery("leverage", leverage)
 
 	_, err = p.signAndRequest(ctx, "POST", "/fapi/v1/leverage", req)
 	return err
@@ -754,8 +754,8 @@ func (p *BinancePerp) SetMarginType(ctx context.Context, symbol string, marginTy
 	if err != nil {
 		return err
 	}
-	req.Set("symbol", market.ID)
-	req.Set("marginType", marginType.Upper())
+	req.SetQuery("symbol", market.ID)
+	req.SetQuery("marginType", marginType.Upper())
 
 	_, err = p.signAndRequest(ctx, "POST", "/fapi/v1/marginType", req)
 	return err
