@@ -71,19 +71,35 @@ func TestExValues_AddQuery_AppendsAndExpands(t *testing.T) {
 	}
 }
 
-func TestExValues_EncodeHeader_AndJoinPath(t *testing.T) {
+func TestExValues_ToQueryMap(t *testing.T) {
+	v := NewExValues()
+
+	v.SetQuery("single", 1)
+	v.AddQuery("multi", "a")
+	v.AddQuery("multi", "b")
+
+	m := v.ToQueryMap()
+	if got, ok := m["single"].(string); !ok || got != "1" {
+		t.Fatalf("ToQueryMap()[single]=(%T)%v, want string %q", m["single"], m["single"], "1")
+	}
+	if got, ok := m["multi"].([]string); !ok || len(got) != 2 || got[0] != "a" || got[1] != "b" {
+		t.Fatalf("ToQueryMap()[multi]=(%T)%v, want []string{a,b}", m["multi"], m["multi"])
+	}
+}
+
+func TestExValues_ToHeaderMap_AndJoinPath(t *testing.T) {
 	v := NewExValues()
 
 	v.SetHeader("single", 1)
 	v.AddHeader("multi", "a")
 	v.AddHeader("multi", "b")
 
-	m := v.EncodeHeader()
+	m := v.ToHeaderMap()
 	if got, ok := m["single"].(string); !ok || got != "1" {
-		t.Fatalf("EncodeHeader()[single]=(%T)%v, want string %q", m["single"], m["single"], "1")
+		t.Fatalf("ToHeaderMap()[single]=(%T)%v, want string %q", m["single"], m["single"], "1")
 	}
 	if got, ok := m["multi"].([]string); !ok || len(got) != 2 || got[0] != "a" || got[1] != "b" {
-		t.Fatalf("EncodeHeader()[multi]=(%T)%v, want []string{a,b}", m["multi"], m["multi"])
+		t.Fatalf("ToHeaderMap()[multi]=(%T)%v, want []string{a,b}", m["multi"], m["multi"])
 	}
 
 	// Test JoinPath with query parameters
@@ -144,15 +160,15 @@ func TestExValues_Body(t *testing.T) {
 		t.Fatalf("GetBody(k)=%q, want %q", v.GetBody("k"), "123")
 	}
 
-	body := v.EncodeBody()
+	body := v.ToBodyMap()
 	if got, ok := body["k"].(string); !ok || got != "123" {
-		t.Fatalf("EncodeBody()[k]=(%T)%v, want string %q", body["k"], body["k"], "123")
+		t.Fatalf("ToBodyMap()[k]=(%T)%v, want string %q", body["k"], body["k"], "123")
 	}
 
 	v.AddBody("k", "value")
-	body = v.EncodeBody()
+	body = v.ToBodyMap()
 	if got, ok := body["k"].([]string); !ok || len(got) != 2 || got[0] != "123" || got[1] != "value" {
-		t.Fatalf("EncodeBody()[k]=(%T)%v, want []string{123,value}", body["k"], body["k"])
+		t.Fatalf("ToBodyMap()[k]=(%T)%v, want []string{123,value}", body["k"], body["k"])
 	}
 	if v.GetBody("k") != "123" {
 		t.Fatalf("GetBody(k)=%q, want %q", v.GetBody("k"), "123")
@@ -162,20 +178,20 @@ func TestExValues_Body(t *testing.T) {
 	v.AddBody("multi", 1)
 	v.AddBody("multi", 2)
 
-	body = v.EncodeBody()
+	body = v.ToBodyMap()
 	if got, ok := body["single"].(string); !ok || got != "test" {
-		t.Fatalf("EncodeBody()[single]=(%T)%v, want string %q", body["single"], body["single"], "test")
+		t.Fatalf("ToBodyMap()[single]=(%T)%v, want string %q", body["single"], body["single"], "test")
 	}
 	if got, ok := body["multi"].([]string); !ok || len(got) != 2 || got[0] != "1" || got[1] != "2" {
-		t.Fatalf("EncodeBody()[multi]=(%T)%v, want []string{1,2}", body["multi"], body["multi"])
+		t.Fatalf("ToBodyMap()[multi]=(%T)%v, want []string{1,2}", body["multi"], body["multi"])
 	}
 
 	v.Reset()
 	if v.HasBody("k") {
 		t.Fatalf("HasBody(k)=true after Reset, want false")
 	}
-	if len(v.EncodeBody()) != 0 {
-		t.Fatalf("EncodeBody() should be empty after Reset")
+	if len(v.ToBodyMap()) != 0 {
+		t.Fatalf("ToBodyMap() should be empty after Reset")
 	}
 }
 
@@ -197,15 +213,15 @@ func TestExValues_Header(t *testing.T) {
 		t.Fatalf("GetHeader(X-Test)=%q, want %q", v.GetHeader("X-Test"), "value1")
 	}
 
-	headers := v.EncodeHeader()
+	headers := v.ToHeaderMap()
 	if got, ok := headers["X-Test"].(string); !ok || got != "value1" {
-		t.Fatalf("EncodeHeader()[X-Test]=(%T)%v, want string %q", headers["X-Test"], headers["X-Test"], "value1")
+		t.Fatalf("ToHeaderMap()[X-Test]=(%T)%v, want string %q", headers["X-Test"], headers["X-Test"], "value1")
 	}
 
 	v.AddHeader("X-Test", "value2")
-	headers = v.EncodeHeader()
+	headers = v.ToHeaderMap()
 	if got, ok := headers["X-Test"].([]string); !ok || len(got) != 2 || got[0] != "value1" || got[1] != "value2" {
-		t.Fatalf("EncodeHeader()[X-Test]=(%T)%v, want []string{value1,value2}", headers["X-Test"], headers["X-Test"])
+		t.Fatalf("ToHeaderMap()[X-Test]=(%T)%v, want []string{value1,value2}", headers["X-Test"], headers["X-Test"])
 	}
 	if v.GetHeader("X-Test") != "value1" {
 		t.Fatalf("GetHeader(X-Test)=%q, want %q", v.GetHeader("X-Test"), "value1")
@@ -215,19 +231,19 @@ func TestExValues_Header(t *testing.T) {
 	v.AddHeader("X-Multi", "a")
 	v.AddHeader("X-Multi", "b")
 
-	headers = v.EncodeHeader()
+	headers = v.ToHeaderMap()
 	if got, ok := headers["X-Single"].(string); !ok || got != "single" {
-		t.Fatalf("EncodeHeader()[X-Single]=(%T)%v, want string %q", headers["X-Single"], headers["X-Single"], "single")
+		t.Fatalf("ToHeaderMap()[X-Single]=(%T)%v, want string %q", headers["X-Single"], headers["X-Single"], "single")
 	}
 	if got, ok := headers["X-Multi"].([]string); !ok || len(got) != 2 || got[0] != "a" || got[1] != "b" {
-		t.Fatalf("EncodeHeader()[X-Multi]=(%T)%v, want []string{a,b}", headers["X-Multi"], headers["X-Multi"])
+		t.Fatalf("ToHeaderMap()[X-Multi]=(%T)%v, want []string{a,b}", headers["X-Multi"], headers["X-Multi"])
 	}
 
 	v.Reset()
 	if v.HasHeader("X-Test") {
 		t.Fatalf("HasHeader(X-Test)=true after Reset, want false")
 	}
-	if len(v.EncodeHeader()) != 0 {
-		t.Fatalf("EncodeHeader() should be empty after Reset")
+	if len(v.ToHeaderMap()) != 0 {
+		t.Fatalf("ToHeaderMap() should be empty after Reset")
 	}
 }

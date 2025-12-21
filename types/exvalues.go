@@ -23,8 +23,9 @@ import (
 //   - headerOrder keeps the first-seen order of keys for headers.
 //   - headerValues stores one or more values per key for headers.
 //   - EncodeQuery preserves key order and value order.
-//   - EncodeBody returns body as map[string]any.
-//   - EncodeHeader returns headers as map[string]any.
+//   - ToQueryMap returns query as map[string]any.
+//   - ToBodyMap returns body as map[string]any.
+//   - ToHeaderMap returns headers as map[string]any.
 type ExValues struct {
 	queryOrder   []string
 	queryValues  map[string][]string
@@ -132,6 +133,27 @@ func (v *ExValues) EncodeQuery() string {
 	return buf.String()
 }
 
+// ToQueryMap converts query parameters into a map representation.
+//
+//   - single value  -> string
+//   - multiple values -> []string
+//
+// This representation is useful for JSON, logging, or custom encoders.
+func (v *ExValues) ToQueryMap() map[string]any {
+	m := make(map[string]any, len(v.queryValues))
+
+	for _, key := range v.queryOrder {
+		vs := v.queryValues[key]
+		if len(vs) == 1 {
+			m[key] = vs[0]
+		} else if len(vs) > 1 {
+			m[key] = vs
+		}
+	}
+
+	return m
+}
+
 // ============================================================================
 // Body methods
 // ============================================================================
@@ -188,13 +210,13 @@ func (v *ExValues) GetBody(key string) string {
 	return ""
 }
 
-// EncodeBody encodes body parameters into a map representation.
+// ToBodyMap converts body parameters into a map representation.
 //
 //   - single value  -> string
 //   - multiple values -> []string
 //
 // This representation is useful for JSON, logging, or custom encoders.
-func (v *ExValues) EncodeBody() map[string]any {
+func (v *ExValues) ToBodyMap() map[string]any {
 	m := make(map[string]any, len(v.bodyValues))
 
 	for _, key := range v.bodyOrder {
@@ -255,13 +277,13 @@ func (v *ExValues) GetHeader(key string) string {
 	return ""
 }
 
-// EncodeHeader encodes headers into a map representation.
+// ToHeaderMap converts headers into a map representation.
 //
 //   - single value  -> string
 //   - multiple values -> []string
 //
 // This representation is useful for JSON, logging, or custom encoders.
-func (v *ExValues) EncodeHeader() map[string]any {
+func (v *ExValues) ToHeaderMap() map[string]any {
 	m := make(map[string]any, len(v.headerValues))
 
 	for _, key := range v.headerOrder {

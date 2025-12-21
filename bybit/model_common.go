@@ -13,6 +13,7 @@ type bybitSymbol struct {
 	BaseCoin      string             `json:"baseCoin"`
 	QuoteCoin     string             `json:"quoteCoin"`
 	Status        string             `json:"status"`
+	ContractType  string             `json:"contractType"`
 	LotSizeFilter bybitLotSizeFilter `json:"lotSizeFilter"`
 	PriceFilter   bybitPriceFilter   `json:"priceFilter"`
 }
