@@ -25,4 +25,3 @@ func (s *Signer) Sign(queryString string) string {
 func BuildQueryString(params map[string]interface{}) string {
 	return common.BuildQueryString(params)
 }
-
