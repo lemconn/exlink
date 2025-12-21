@@ -13,6 +13,7 @@ import (
 	"github.com/lemconn/exlink/model"
 	"github.com/lemconn/exlink/option"
 	"github.com/lemconn/exlink/types"
+	"github.com/shopspring/decimal"
 )
 
 // BybitPerp Bybit 永续合约实现
@@ -39,25 +40,53 @@ func (p *BybitPerp) LoadMarkets(ctx context.Context, reload bool) error {
 	p.bybit.mu.RUnlock()
 
 	// 获取永续合约市场信息
-	resp, err := p.bybit.client.HTTPClient.Get(ctx, "/v5/market/instruments-info", map[string]interface{}{
-		"category": "linear",
-	})
+	req := types.NewExValues()
+	req.SetQuery("category", "linear")
+	resp, err := p.bybit.client.HTTPClient.Get(ctx, "/v5/market/instruments-info", req.ToQueryMap())
 	if err != nil {
 		return fmt.Errorf("fetch swap markets: %w", err)
 	}
 
-	var result bybitPerpMarketsResponse
-	if err := json.Unmarshal(resp, &result); err != nil {
+	var respData struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
+			Category string `json:"category"`
+			List     []struct {
+				Symbol        string `json:"symbol"`
+				BaseCoin      string `json:"baseCoin"`
+				QuoteCoin     string `json:"quoteCoin"`
+				Status        string `json:"status"`
+				ContractType  string `json:"contractType"`
+				LotSizeFilter struct {
+					BasePrecision  types.ExDecimal `json:"basePrecision"`
+					QuotePrecision types.ExDecimal `json:"quotePrecision"`
+					MinOrderQty    types.ExDecimal `json:"minOrderQty"`
+					MaxOrderQty    types.ExDecimal `json:"maxOrderQty"`
+					MinOrderAmt    types.ExDecimal `json:"minOrderAmt"`
+					MaxOrderAmt    types.ExDecimal `json:"maxOrderAmt"`
+				} `json:"lotSizeFilter"`
+				PriceFilter struct {
+					TickSize types.ExDecimal `json:"tickSize"`
+				} `json:"priceFilter"`
+			} `json:"list"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(resp, &respData); err != nil {
 		return fmt.Errorf("unmarshal swap markets: %w", err)
 	}
 
-	if result.RetCode != 0 {
-		return fmt.Errorf("bybit api error: %s", result.RetMsg)
+	if respData.RetCode != 0 {
+		return fmt.Errorf("bybit api error: %s", respData.RetMsg)
 	}
 
 	markets := make([]*model.Market, 0)
-	for _, s := range result.Result.List {
+	for _, s := range respData.Result.List {
 		if s.Status != "Trading" {
+			continue
+		}
+
+		if s.ContractType != "LinearPerpetual" && s.ContractType != "InversePerpetual" {
 			continue
 		}
 
@@ -76,8 +105,16 @@ func (p *BybitPerp) LoadMarkets(ctx context.Context, reload bool) error {
 			Type:     model.MarketTypeSwap,
 			Active:   s.Status == "Trading",
 			Contract: true,
-			Linear:   true, // U本位永续合约
-			Inverse:  false,
+		}
+
+		// U本位永续合约
+		if s.ContractType == "LinearPerpetual" {
+			market.Linear = true
+		}
+
+		// 币本位永续合约
+		if s.ContractType == "InversePerpetual" {
+			market.Inverse = true
 		}
 
 		// 解析精度
@@ -130,6 +167,14 @@ func (p *BybitPerp) FetchMarkets(ctx context.Context, opts ...option.ArgsOption)
 
 	p.bybit.mu.RLock()
 	defer p.bybit.mu.RUnlock()
+
+	if symbol, ok := option.GetString(argsOpts.Symbol); ok {
+		market, err := p.GetMarket(symbol)
+		if err != nil {
+			return nil, err
+		}
+		return model.Markets{market}, nil
+	}
 
 	markets := make(model.Markets, 0, len(p.bybit.perpMarketsBySymbol))
 	for _, market := range p.bybit.perpMarketsBySymbol {
@@ -220,25 +265,77 @@ func (p *BybitPerp) FetchTickers(ctx context.Context, opts ...option.ArgsOption)
 		opt(argsOpts)
 	}
 
-	resp, err := p.bybit.client.HTTPClient.Get(ctx, "/v5/market/tickers", map[string]interface{}{
-		"category": "linear",
-	})
+	var querySymbol string
+	if symbol, ok := option.GetString(argsOpts.Symbol); ok {
+		market, err := p.GetMarket(symbol)
+		if err != nil {
+			return nil, err
+		}
+		querySymbol = market.ID
+	}
+
+	req := types.NewExValues()
+	req.SetQuery("category", "linear")
+	if querySymbol != "" {
+		req.SetQuery("symbol", querySymbol)
+	}
+
+	resp, err := p.bybit.client.HTTPClient.Get(ctx, "/v5/market/tickers", req.ToQueryMap())
 	if err != nil {
 		return nil, fmt.Errorf("fetch tickers: %w", err)
 	}
 
-	var result bybitPerpTickerResponse
-
-	if err := json.Unmarshal(resp, &result); err != nil {
+	var respData struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
+			Category string `json:"category"`
+			List     []struct {
+				Symbol                 string            `json:"symbol"`
+				LastPrice              types.ExDecimal   `json:"lastPrice"`
+				IndexPrice             types.ExDecimal   `json:"indexPrice"`
+				MarkPrice              types.ExDecimal   `json:"markPrice"`
+				PrevPrice24h           types.ExDecimal   `json:"prevPrice24h"`
+				Price24hPcnt           types.ExDecimal   `json:"price24hPcnt"`
+				HighPrice24h           types.ExDecimal   `json:"highPrice24h"`
+				LowPrice24h            types.ExDecimal   `json:"lowPrice24h"`
+				PrevPrice1h            types.ExDecimal   `json:"prevPrice1h"`
+				OpenInterest           types.ExDecimal   `json:"openInterest"`
+				OpenInterestValue      types.ExDecimal   `json:"openInterestValue"`
+				Turnover24h            types.ExDecimal   `json:"turnover24h"`
+				Volume24h              types.ExDecimal   `json:"volume24h"`
+				FundingRate            types.ExDecimal   `json:"fundingRate"`
+				NextFundingTime        types.ExTimestamp `json:"nextFundingTime"`
+				PredictedDeliveryPrice types.ExDecimal   `json:"predictedDeliveryPrice"`
+				BasisRate              types.ExDecimal   `json:"basisRate"`
+				DeliveryFeeRate        types.ExDecimal   `json:"deliveryFeeRate"`
+				DeliveryTime           types.ExTimestamp `json:"deliveryTime"`
+				Ask1Size               types.ExDecimal   `json:"ask1Size"`
+				Bid1Price              types.ExDecimal   `json:"bid1Price"`
+				Ask1Price              types.ExDecimal   `json:"ask1Price"`
+				Bid1Size               types.ExDecimal   `json:"bid1Size"`
+				Basis                  types.ExDecimal   `json:"basis"`
+				PreOpenPrice           types.ExDecimal   `json:"preOpenPrice"`
+				PreQty                 types.ExDecimal   `json:"preQty"`
+				CurPreListingPhase     string            `json:"curPreListingPhase"`
+				FundingIntervalHour    string            `json:"fundingIntervalHour"`
+				BasisRateYear          types.ExDecimal   `json:"basisRateYear"`
+				FundingCap             types.ExDecimal   `json:"fundingCap"`
+			} `json:"list"`
+		} `json:"result"`
+		RetExtInfo map[string]interface{} `json:"retExtInfo"`
+		Time       types.ExTimestamp      `json:"time"`
+	}
+	if err := json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
 	}
 
-	if result.RetCode != 0 {
-		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
+	if respData.RetCode != 0 {
+		return nil, fmt.Errorf("bybit api error: %s", respData.RetMsg)
 	}
 
-	tickers := make(model.Tickers, 0, len(result.Result.List))
-	for _, item := range result.Result.List {
+	tickers := make(model.Tickers, 0, len(respData.Result.List))
+	for _, item := range respData.Result.List {
 		// 尝试从市场信息中查找标准化格式
 		market, err := p.GetMarket(item.Symbol)
 		if err != nil {
@@ -246,7 +343,7 @@ func (p *BybitPerp) FetchTickers(ctx context.Context, opts ...option.ArgsOption)
 		}
 		ticker := &model.Ticker{
 			Symbol:    market.Symbol,
-			Timestamp: result.Time,
+			Timestamp: respData.Time,
 		}
 		ticker.Bid = item.Bid1Price
 		ticker.Ask = item.Ask1Price
@@ -256,7 +353,7 @@ func (p *BybitPerp) FetchTickers(ctx context.Context, opts ...option.ArgsOption)
 		ticker.Low = item.LowPrice24h
 		ticker.Volume = item.Volume24h
 		ticker.QuoteVolume = item.Turnover24h
-		ticker.Timestamp = result.Time
+		ticker.Timestamp = respData.Time
 		tickers = append(tickers, ticker)
 	}
 
@@ -268,53 +365,67 @@ func (p *BybitPerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe st
 	for _, opt := range opts {
 		opt(argsOpts)
 	}
-	since := time.Time{}
-	if argsOpts.Since != nil {
-		since = *argsOpts.Since
-	}
 
 	// 获取市场信息
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
-
-	// 标准化时间框架
-	normalizedTimeframe := common.BybitTimeframe(timeframe)
-
-	params := map[string]interface{}{
-		"symbol":   market.ID,
-		"category": "linear",
-		"interval": normalizedTimeframe,
-		"limit":    limit,
-	}
-	if !since.IsZero() {
-		params["start"] = since.UnixMilli()
+	req := types.NewExValues()
+	req.SetQuery("category", "linear")
+	req.SetQuery("symbol", market.ID)
+	req.SetQuery("interval", common.BybitTimeframe(timeframe))
+	req.SetQuery("limit", limit)
+	if since, ok := option.GetTime(argsOpts.Since); ok {
+		req.SetQuery("start", since.UnixMilli())
 	}
 
-	resp, err := p.bybit.client.HTTPClient.Get(ctx, "/v5/market/kline", params)
+	resp, err := p.bybit.client.HTTPClient.Get(ctx, "/v5/market/kline", req.ToQueryMap())
 	if err != nil {
 		return nil, fmt.Errorf("fetch ohlcv: %w", err)
 	}
 
-	var result bybitPerpKlineResponse
-	if err := json.Unmarshal(resp, &result); err != nil {
+	var respData struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
+			Category string          `json:"category"`
+			Symbol   string          `json:"symbol"`
+			List     [][]interface{} `json:"list"`
+		} `json:"result"`
+		RetExtInfo map[string]interface{} `json:"retExtInfo"`
+		Time       types.ExTimestamp      `json:"time"`
+	}
+	if err := json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal ohlcv: %w", err)
 	}
 
-	if result.RetCode != 0 {
-		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
+	if respData.RetCode != 0 {
+		return nil, fmt.Errorf("bybit api error: %s", respData.RetMsg)
 	}
 
-	ohlcvs := make(model.OHLCVs, 0, len(result.Result.List))
-	for _, item := range result.Result.List {
-		ohlcv := &model.OHLCV{
-			Timestamp: item.StartTime,
-			Open:      item.Open,
-			High:      item.High,
-			Low:       item.Low,
-			Close:     item.Close,
-			Volume:    item.Volume,
+	ohlcvs := make(model.OHLCVs, 0, len(respData.Result.List))
+	for _, item := range respData.Result.List {
+		ohlcv := &model.OHLCV{}
+		ts, err := strconv.ParseInt(item[0].(string), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		ohlcv.Timestamp = types.ExTimestamp{Time: time.UnixMilli(ts)}
+		if openPx, err := decimal.NewFromString(item[1].(string)); err == nil {
+			ohlcv.Open = types.ExDecimal{Decimal: openPx}
+		}
+		if highPx, err := decimal.NewFromString(item[2].(string)); err == nil {
+			ohlcv.High = types.ExDecimal{Decimal: highPx}
+		}
+		if lowPx, err := decimal.NewFromString(item[3].(string)); err == nil {
+			ohlcv.Low = types.ExDecimal{Decimal: lowPx}
+		}
+		if closePx, err := decimal.NewFromString(item[4].(string)); err == nil {
+			ohlcv.Close = types.ExDecimal{Decimal: closePx}
+		}
+		if volume, err := decimal.NewFromString(item[5].(string)); err == nil {
+			ohlcv.Volume = types.ExDecimal{Decimal: volume}
 		}
 		ohlcvs = append(ohlcvs, ohlcv)
 	}
@@ -328,54 +439,88 @@ func (p *BybitPerp) FetchPositions(ctx context.Context, opts ...option.ArgsOptio
 		opt(argsOpts)
 	}
 
-	params := map[string]interface{}{
-		"category": "linear",
-	}
-
-	// 如果指定了 Symbol，在 API 请求中传入
-	var targetSymbol string
-	if argsOpts.Symbol != nil && *argsOpts.Symbol != "" {
-		targetSymbol = *argsOpts.Symbol
-		market, err := p.GetMarket(targetSymbol)
-		if err == nil {
-			params["symbol"] = market.ID
-		} else {
-			// 如果市场未加载，尝试转换
-			bybitSymbol, err := ToBybitSymbol(targetSymbol, true)
-			if err == nil {
-				params["symbol"] = bybitSymbol
-			}
+	var querySymbol string
+	if symbol, ok := option.GetString(argsOpts.Symbol); ok {
+		market, err := p.GetMarket(symbol)
+		if err != nil {
+			return nil, err
 		}
+		querySymbol = market.ID
+	}
+	req := types.NewExValues()
+	req.SetQuery("category", "linear")
+	if querySymbol != "" {
+		req.SetQuery("symbol", querySymbol)
+	} else {
+		req.SetQuery("settleCoin", "USDT")
 	}
 
-	resp, err := p.signAndRequest(ctx, "GET", "/v5/position/list", params, nil)
+	resp, err := p.signAndRequest(ctx, "GET", "/v5/position/list", req.ToQueryMap(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch positions: %w", err)
 	}
 
-	var result bybitPerpPositionResponse
-	if err := json.Unmarshal(resp, &result); err != nil {
+	var respData struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
+			Category string `json:"category"`
+			List     []struct {
+				Symbol                 string            `json:"symbol"`
+				Leverage               types.ExDecimal   `json:"leverage"`
+				AutoAddMargin          int               `json:"autoAddMargin"`
+				AvgPrice               types.ExDecimal   `json:"avgPrice"`
+				LiqPrice               types.ExDecimal   `json:"liqPrice"`
+				RiskLimitValue         types.ExDecimal   `json:"riskLimitValue"`
+				TakeProfit             types.ExDecimal   `json:"takeProfit"`
+				PositionValue          types.ExDecimal   `json:"positionValue"`
+				IsReduceOnly           bool              `json:"isReduceOnly"`
+				PositionIMByMp         types.ExDecimal   `json:"positionIMByMp"`
+				TpslMode               string            `json:"tpslMode"`
+				RiskId                 int               `json:"riskId"`
+				TrailingStop           types.ExDecimal   `json:"trailingStop"`
+				UnrealisedPnl          types.ExDecimal   `json:"unrealisedPnl"`
+				MarkPrice              types.ExDecimal   `json:"markPrice"`
+				AdlRankIndicator       int               `json:"adlRankIndicator"`
+				CumRealisedPnl         types.ExDecimal   `json:"cumRealisedPnl"`
+				PositionMM             types.ExDecimal   `json:"positionMM"`
+				CreatedTime            types.ExTimestamp `json:"createdTime"`
+				PositionIdx            int               `json:"positionIdx"`
+				PositionIM             types.ExDecimal   `json:"positionIM"`
+				PositionMMByMp         types.ExDecimal   `json:"positionMMByMp"`
+				Seq                    int64             `json:"seq"`
+				UpdatedTime            types.ExTimestamp `json:"updatedTime"`
+				Side                   string            `json:"side"`
+				BustPrice              types.ExDecimal   `json:"bustPrice"`
+				PositionBalance        types.ExDecimal   `json:"positionBalance"`
+				LeverageSysUpdatedTime types.ExTimestamp `json:"leverageSysUpdatedTime"`
+				CurRealisedPnl         types.ExDecimal   `json:"curRealisedPnl"`
+				Size                   types.ExDecimal   `json:"size"`
+				PositionStatus         string            `json:"positionStatus"`
+				MmrSysUpdatedTime      types.ExTimestamp `json:"mmrSysUpdatedTime"`
+				StopLoss               types.ExDecimal   `json:"stopLoss"`
+				TradeMode              int               `json:"tradeMode"`
+				SessionAvgPrice        types.ExDecimal   `json:"sessionAvgPrice"`
+			} `json:"list"`
+		} `json:"result"`
+		Time types.ExTimestamp `json:"time"`
+	}
+	if err := json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal positions: %w", err)
 	}
 
-	if result.RetCode != 0 {
-		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
+	if respData.RetCode != 0 {
+		return nil, fmt.Errorf("bybit api error: %s", respData.RetMsg)
 	}
 
 	positions := make([]*model.Position, 0)
-	for _, item := range result.Result.List {
-		size, _ := item.Size.Float64()
-		if size == 0 {
+	for _, item := range respData.Result.List {
+		if item.Size.IsZero() {
 			continue
 		}
 
 		market, err := p.GetMarket(item.Symbol)
 		if err != nil {
-			continue
-		}
-
-		// 如果指定了 Symbol，只返回匹配的
-		if targetSymbol != "" && market.Symbol != targetSymbol {
 			continue
 		}
 
@@ -407,6 +552,328 @@ func (p *BybitPerp) FetchPositions(ctx context.Context, opts ...option.ArgsOptio
 	return positions, nil
 }
 
+func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, amount string, orderSide option.PerpOrderSide, orderType option.OrderType, opts ...option.ArgsOption) (*model.NewOrder, error) {
+	// 解析选项
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 获取市场信息
+	market, err := p.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	req := types.NewExValues()
+	req.SetBody("category", "linear")
+	req.SetBody("symbol", market.ID)
+
+	// 设置限价单价格
+	if orderType == option.Limit {
+		price, ok := option.GetDecimalFromString(argsOpts.Price)
+		if !ok || price.IsZero() {
+			return nil, fmt.Errorf("limit order requires price")
+		}
+		req.SetBody("price", price.String())
+		// Limit 单默认使用 GTC
+		req.SetBody("timeInForce", option.GTC.Upper())
+	}
+
+	if argsOpts.TimeInForce != nil {
+		req.SetBody("timeInForce", argsOpts.TimeInForce.Upper())
+	}
+
+	// 设置数量
+	if quantity, ok := option.GetDecimalFromString(&amount); ok {
+		req.SetBody("qty", quantity.String())
+	} else {
+		return nil, fmt.Errorf("amount is required and must be a valid decimal")
+	}
+
+	// Bybit API requires "Buy" or "Sell" (capitalized)
+	sideStr := orderSide.ToSide()
+	if len(sideStr) > 0 {
+		sideStr = strings.ToUpper(sideStr[:1]) + strings.ToLower(sideStr[1:])
+	}
+	req.SetBody("side", sideStr)
+	req.SetBody("orderType", orderType.Capitalize())
+	req.SetBody("reduceOnly", orderSide.ToReduceOnly())
+
+	if hedgeMode, ok := option.GetBool(argsOpts.HedgeMode); hedgeMode && ok {
+		// 双向持仓模式
+		// 开多/平多: positionIdx=1
+		// 开空/平空: positionIdx=2
+		if orderSide.ToPositionSide() == "LONG" {
+			req.SetBody("positionIdx", 1)
+		} else {
+			req.SetBody("positionIdx", 2)
+		}
+	} else {
+		req.SetBody("positionIdx", 0)
+	}
+
+	if clientOrderId, ok := option.GetString(argsOpts.ClientOrderID); ok {
+		req.SetBody("orderLinkId", clientOrderId)
+	} else {
+		// 生成订单 ID
+		generatedID := common.GenerateClientOrderID(p.bybit.Name(), orderSide.ToSide())
+		req.SetBody("orderLinkId", generatedID)
+	}
+
+	resp, err := p.signAndRequest(ctx, "POST", "/v5/order/create", nil, req.ToBodyMap())
+	if err != nil {
+		return nil, fmt.Errorf("create order: %w", err)
+	}
+
+	var respData struct {
+		RetCode int    `json:"retCode"` // 返回码，0 表示成功
+		RetMsg  string `json:"retMsg"`  // 返回消息
+		Result  struct {
+			OrderID     string `json:"orderId"`     // 系统订单号
+			OrderLinkID string `json:"orderLinkId"` // 客户端订单ID
+		} `json:"result"`                                     // 订单结果
+		RetExtInfo map[string]interface{} `json:"retExtInfo"` // 扩展信息
+		Time       types.ExTimestamp      `json:"time"`       // 时间戳（毫秒）
+	}
+	if err := json.Unmarshal(resp, &respData); err != nil {
+		return nil, fmt.Errorf("unmarshal order: %w", err)
+	}
+
+	if respData.RetCode != 0 {
+		return nil, fmt.Errorf("bybit api error: %s", respData.RetMsg)
+	}
+
+	// 构建 NewOrder 对象
+	perpOrder := &model.NewOrder{
+		Symbol:        symbol,
+		OrderId:       respData.Result.OrderID,
+		ClientOrderID: respData.Result.OrderLinkID,
+		Timestamp:     respData.Time,
+	}
+
+	return perpOrder, nil
+}
+
+func (p *BybitPerp) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 获取市场信息
+	market, err := p.GetMarket(symbol)
+	if err != nil {
+		return err
+	}
+
+	req := types.NewExValues()
+	req.SetBody("category", "linear")
+	req.SetBody("symbol", market.ID)
+
+	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
+	if orderId != "" {
+		req.SetBody("orderId", orderId)
+	} else if clientOrderId, ok := option.GetString(argsOpts.ClientOrderID); ok {
+		req.SetBody("orderLinkId", clientOrderId)
+	} else {
+		return fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
+	}
+
+	resp, err := p.signAndRequest(ctx, "POST", "/v5/order/cancel", nil, req.ToBodyMap())
+	if err != nil {
+		return err
+	}
+
+	var respData struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+	}
+	if err := json.Unmarshal(resp, &respData); err != nil {
+		return fmt.Errorf("cancel order fail: %s", err.Error())
+	}
+
+	if respData.RetCode != 0 {
+		return fmt.Errorf("cancel order fail: %d %s", respData.RetCode, respData.RetMsg)
+	}
+
+	return nil
+}
+
+func (p *BybitPerp) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
+	// 解析参数
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
+	// 获取市场信息
+	market, err := p.GetMarket(symbol)
+	if err != nil {
+		return nil, err
+	}
+
+	req := types.NewExValues()
+	req.SetQuery("category", "linear")
+	req.SetQuery("symbol", market.ID)
+
+	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
+	if orderId != "" {
+		req.SetQuery("orderId", orderId)
+	} else if clientOrderId, ok := option.GetString(argsOpts.ClientOrderID); ok {
+		req.SetQuery("orderLinkId", clientOrderId)
+	} else {
+		return nil, fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
+	}
+
+	// First try to fetch from open orders (realtime)
+	resp, err := p.signAndRequest(ctx, "GET", "/v5/order/realtime", req.ToQueryMap(), nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetch order: %w", err)
+	}
+
+	var respData struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+		Result  struct {
+			List []struct {
+				OrderID     string            `json:"orderId"`     // 订单ID
+				OrderLinkID string            `json:"orderLinkId"` // 客户端自定义订单ID
+				Symbol      string            `json:"symbol"`      // 交易对 / 合约标的
+				Price       types.ExDecimal   `json:"price"`       // 下单价格
+				AvgPrice    types.ExDecimal   `json:"avgPrice"`    // 成交均价
+				Qty         types.ExDecimal   `json:"qty"`         // 下单数量
+				CumExecQty  types.ExDecimal   `json:"cumExecQty"`  // 实际成交数量
+				OrderStatus string            `json:"orderStatus"` // 订单状态
+				TimeInForce string            `json:"timeInForce"` // 订单有效方式
+				ReduceOnly  bool              `json:"reduceOnly"`  // 是否只减仓
+				OrderType   string            `json:"orderType"`   // 订单类型
+				Side        string            `json:"side"`        // 订单方向
+				PositionIdx int               `json:"positionIdx"` // 单向持仓 positionIdx 等于 0，双向持仓 开多/平多 → positionIdx 等于 1，开空/平空 → positionIdx 等于 2
+				CreatedTime types.ExTimestamp `json:"createdTime"` // 创建时间（毫秒）
+				UpdatedTime types.ExTimestamp `json:"updatedTime"` // 更新时间（毫秒）
+			} `json:"list"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(resp, &respData); err != nil {
+		return nil, fmt.Errorf("fetch order: %w", err)
+	}
+
+	if respData.RetCode != 0 {
+		return nil, fmt.Errorf("fetch order: %d %s", respData.RetCode, respData.RetMsg)
+	}
+
+	if len(respData.Result.List) == 0 {
+		return nil, fmt.Errorf("order not found")
+	}
+
+	originOrder := respData.Result.List[0]
+	var positionSide string
+	switch originOrder.PositionIdx {
+	case 1:
+		positionSide = "LONG"
+	case 2:
+		positionSide = "SHORT"
+	default:
+		positionSide = "NET"
+	}
+
+	order := &model.PerpOrder{
+		ID:               originOrder.OrderID,
+		ClientID:         originOrder.OrderLinkID,
+		Type:             originOrder.OrderType,
+		Side:             originOrder.Side,
+		PositionSide:     positionSide,
+		Symbol:           symbol,
+		Price:            originOrder.Price,
+		AvgPrice:         originOrder.AvgPrice,
+		Quantity:         originOrder.Qty,
+		ExecutedQuantity: originOrder.CumExecQty,
+		Status:           originOrder.OrderStatus,
+		TimeInForce:      originOrder.TimeInForce,
+		ReduceOnly:       originOrder.ReduceOnly,
+		CreateTime:       originOrder.CreatedTime,
+		UpdateTime:       originOrder.UpdatedTime,
+	}
+
+	return order, nil
+}
+
+func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
+	market, err := p.GetMarket(symbol)
+	if err != nil {
+		return err
+	}
+
+	if leverage < 1 || leverage > 100 {
+		return fmt.Errorf("leverage must be between 1 and 100")
+	}
+
+	req := types.NewExValues()
+	req.SetBody("category", "linear")
+	req.SetBody("symbol", market.ID)
+	req.SetBody("buyLeverage", leverage)
+	req.SetBody("sellLeverage", leverage)
+
+	resp, err := p.signAndRequest(ctx, "POST", "/v5/position/set-leverage", nil, req.ToBodyMap())
+	if err != nil {
+		return err
+	}
+
+	var respData struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+	}
+	if err := json.Unmarshal(resp, &respData); err != nil {
+		return fmt.Errorf("set leverage fail: %s", err.Error())
+	}
+
+	if respData.RetCode != 0 {
+		return fmt.Errorf("set leverage fail: %d %s", respData.RetCode, respData.RetMsg)
+	}
+
+	return nil
+}
+
+func (p *BybitPerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType) error {
+	market, err := p.GetMarket(symbol)
+	if err != nil || market == nil {
+		return err
+	}
+
+	req := types.NewExValues()
+
+	switch marginType {
+	case option.ISOLATED:
+		req.SetBody("setMarginMode", "ISOLATED_MARGIN")
+	case option.CROSSED:
+		req.SetBody("setMarginMode", "REGULAR_MARGIN")
+	default:
+		return fmt.Errorf("margin type not supported")
+	}
+
+	resp, err := p.signAndRequest(ctx, "POST", "/v5/account/set-margin-mode", nil, req.ToBodyMap())
+	if err != nil {
+		return err
+	}
+
+	var respData struct {
+		RetCode int    `json:"retCode"`
+		RetMsg  string `json:"retMsg"`
+	}
+	if err := json.Unmarshal(resp, &respData); err != nil {
+		return fmt.Errorf("set margin type fail: %s", err.Error())
+	}
+
+	if respData.RetCode != 0 {
+		return fmt.Errorf("set margin type fail: %d %s", respData.RetCode, respData.RetMsg)
+	}
+
+	return nil
+}
+
 // ========== 内部辅助方法 ==========
 
 // signAndRequest 签名并发送请求（Bybit v5 API）
@@ -431,458 +898,6 @@ func (p *BybitPerp) signAndRequest(ctx context.Context, method, path string, par
 	} else {
 		return p.bybit.client.HTTPClient.Post(ctx, path, body)
 	}
-}
-
-func (p *BybitPerp) CreateOrder(ctx context.Context, symbol string, amount string, orderSide option.PerpOrderSide, orderType option.OrderType, opts ...option.ArgsOption) (*model.NewOrder, error) {
-	// 解析选项
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-
-	// 如果订单类型为 Limit，必须设置价格
-	var priceStr string
-	if orderType == option.Limit {
-		if argsOpts.Price == nil || *argsOpts.Price == "" {
-			return nil, fmt.Errorf("limit order requires price")
-		}
-		priceStr = *argsOpts.Price
-	} else if argsOpts.Price != nil && *argsOpts.Price != "" {
-		// 市价单也可以设置价格（用于某些交易所的限价市价单）
-		priceStr = *argsOpts.Price
-	} else {
-		priceStr = ""
-	}
-
-	market, err := p.GetMarket(symbol)
-	if err != nil {
-		return nil, err
-	}
-
-	bybitSymbol := market.ID
-	if bybitSymbol == "" {
-		var err error
-		bybitSymbol, err = ToBybitSymbol(symbol, true)
-		if err != nil {
-			return nil, fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	// Bybit API requires "Buy" or "Sell" (capitalized)
-	sideStr := orderSide.ToSide()
-	if len(sideStr) > 0 {
-		sideStr = strings.ToUpper(sideStr[:1]) + strings.ToLower(sideStr[1:])
-	}
-
-	// 构建请求结构体
-	req := bybitPerpCreateOrderRequest{
-		Category: "linear",
-		Symbol:   bybitSymbol,
-		Side:     sideStr,
-	}
-
-	// 格式化数量
-	precision := market.Precision.Amount
-	if precision <= 0 {
-		precision = 8
-	}
-	amountFloat, err := strconv.ParseFloat(amount, 64)
-	if err != nil {
-		return nil, fmt.Errorf("invalid amount: %w", err)
-	}
-	req.Qty = strconv.FormatFloat(amountFloat, 'f', precision, 64)
-
-	if orderType == option.Limit {
-		req.OrderType = "Limit"
-		priceFloat, err := strconv.ParseFloat(priceStr, 64)
-		if err != nil {
-			return nil, fmt.Errorf("invalid price: %w", err)
-		}
-		pricePrecision := market.Precision.Price
-		if pricePrecision <= 0 {
-			pricePrecision = 8
-		}
-		req.Price = strconv.FormatFloat(priceFloat, 'f', pricePrecision, 64)
-
-		// 处理 timeInForce
-		if argsOpts.TimeInForce != nil {
-			req.TimeInForce = argsOpts.TimeInForce.Upper()
-		} else {
-			req.TimeInForce = "GTC"
-		}
-	} else {
-		req.OrderType = "Market"
-	}
-
-	// 从 PerpOrderSide 自动推断 PositionSide 和 reduceOnly
-	positionSideStr := orderSide.ToPositionSide()
-	reduceOnly := orderSide.ToReduceOnly()
-
-	// 获取持仓模式：从 hedgeMode 选项获取，未设置时默认为 false（单向持仓模式）
-	isDualMode := false
-	if argsOpts.HedgeMode != nil {
-		isDualMode = *argsOpts.HedgeMode
-	}
-
-	if isDualMode {
-		// 双向持仓模式
-		// 开多/平多: positionIdx=1
-		// 开空/平空: positionIdx=2
-		if positionSideStr == "LONG" {
-			req.PositionIdx = 1
-		} else {
-			req.PositionIdx = 2
-		}
-	} else {
-		// 单向持仓模式
-		req.PositionIdx = 0
-
-		// 如果是平仓操作，设置 reduceOnly
-		req.ReduceOnly = reduceOnly
-	}
-
-	// 客户端订单ID
-	if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
-		req.OrderLinkID = *argsOpts.ClientOrderID
-	} else {
-		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
-		req.OrderLinkID = common.GenerateClientOrderID(p.bybit.Name(), orderSide.ToSide())
-	}
-
-	// 将结构体转换为 map
-	reqBytes, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-	var reqBody map[string]interface{}
-	if err := json.Unmarshal(reqBytes, &reqBody); err != nil {
-		return nil, fmt.Errorf("unmarshal request: %w", err)
-	}
-
-	resp, err := p.signAndRequest(ctx, "POST", "/v5/order/create", nil, reqBody)
-	if err != nil {
-		return nil, fmt.Errorf("create order: %w", err)
-	}
-
-	var result bybitPerpCreateOrderResponse
-	if err := json.Unmarshal(resp, &result); err != nil {
-		return nil, fmt.Errorf("unmarshal order: %w", err)
-	}
-
-	if result.RetCode != 0 {
-		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
-	}
-
-	// 构建 NewOrder 对象
-	perpOrder := &model.NewOrder{
-		Symbol:        symbol,
-		OrderId:       result.Result.OrderID,
-		ClientOrderID: result.Result.OrderLinkID,
-		Timestamp:     result.Time,
-	}
-
-	return perpOrder, nil
-}
-
-func (p *BybitPerp) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
-	// 解析参数
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-
-	// 获取市场信息
-	market, err := p.GetMarket(symbol)
-	if err != nil {
-		return err
-	}
-
-	// 获取交易所格式的 symbol ID
-	bybitSymbol := market.ID
-	if bybitSymbol == "" {
-		var err error
-		bybitSymbol, err = ToBybitSymbol(symbol, true)
-		if err != nil {
-			return fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	reqBody := map[string]interface{}{
-		"category": "linear",
-		"symbol":   bybitSymbol,
-	}
-
-	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
-	if orderId != "" {
-		reqBody["orderId"] = orderId
-	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
-		reqBody["orderLinkId"] = *argsOpts.ClientOrderID
-	} else {
-		return fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
-	}
-
-	_, err = p.signAndRequest(ctx, "POST", "/v5/order/cancel", nil, reqBody)
-	return err
-}
-
-func (p *BybitPerp) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
-	// 解析参数
-	argsOpts := &option.ExchangeArgsOptions{}
-	for _, opt := range opts {
-		opt(argsOpts)
-	}
-
-	// 获取市场信息
-	market, err := p.GetMarket(symbol)
-	if err != nil {
-		return nil, err
-	}
-
-	// 获取交易所格式的 symbol ID
-	bybitSymbol := market.ID
-	if bybitSymbol == "" {
-		var err error
-		bybitSymbol, err = ToBybitSymbol(symbol, true)
-		if err != nil {
-			return nil, fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	params := map[string]interface{}{
-		"category": "linear",
-		"symbol":   bybitSymbol,
-	}
-
-	// 确定要匹配的 ID
-	var targetOrderID string
-	var targetOrderLinkID string
-
-	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
-	if orderId != "" {
-		params["orderId"] = orderId
-		targetOrderID = orderId
-	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
-		params["orderLinkId"] = *argsOpts.ClientOrderID
-		targetOrderLinkID = *argsOpts.ClientOrderID
-	} else {
-		return nil, fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
-	}
-
-	// First try to fetch from open orders (realtime)
-	resp, err := p.signAndRequest(ctx, "GET", "/v5/order/realtime", params, nil)
-	if err == nil {
-		var realtimeResult bybitPerpFetchOrderResponse
-
-		if err := json.Unmarshal(resp, &realtimeResult); err == nil && realtimeResult.RetCode == 0 {
-			for _, item := range realtimeResult.Result.List {
-				if targetOrderID != "" && item.OrderID == targetOrderID {
-					// 将 Bybit 响应转换为 model.PerpOrder
-					var positionSide string
-					switch item.PositionIdx {
-					case 1:
-						positionSide = "LONG"
-					case 2:
-						positionSide = "SHORT"
-					default:
-						positionSide = "BOTH"
-					}
-
-					order := &model.PerpOrder{
-						ID:               item.OrderID,
-						ClientID:         item.OrderLinkID,
-						Type:             item.OrderType,
-						Side:             item.Side,
-						PositionSide:     positionSide,
-						Symbol:           symbol,
-						Price:            item.Price,
-						AvgPrice:         item.AvgPrice,
-						Quantity:         item.Qty,
-						ExecutedQuantity: item.CumExecQty,
-						Status:           item.OrderStatus,
-						TimeInForce:      item.TimeInForce,
-						ReduceOnly:       item.ReduceOnly,
-						CreateTime:       item.CreatedTime,
-						UpdateTime:       item.UpdatedTime,
-					}
-					return order, nil
-				}
-				if targetOrderLinkID != "" && item.OrderLinkID == targetOrderLinkID {
-					// 将 Bybit 响应转换为 model.PerpOrder
-					var positionSide string
-					switch item.PositionIdx {
-					case 1:
-						positionSide = "LONG"
-					case 2:
-						positionSide = "SHORT"
-					default:
-						positionSide = "BOTH"
-					}
-
-					order := &model.PerpOrder{
-						ID:               item.OrderID,
-						ClientID:         item.OrderLinkID,
-						Type:             item.OrderType,
-						Side:             item.Side,
-						PositionSide:     positionSide,
-						Symbol:           symbol,
-						Price:            item.Price,
-						AvgPrice:         item.AvgPrice,
-						Quantity:         item.Qty,
-						ExecutedQuantity: item.CumExecQty,
-						Status:           item.OrderStatus,
-						TimeInForce:      item.TimeInForce,
-						ReduceOnly:       item.ReduceOnly,
-						CreateTime:       item.CreatedTime,
-						UpdateTime:       item.UpdatedTime,
-					}
-					return order, nil
-				}
-			}
-		}
-	}
-
-	// If not found in open orders, try history
-	resp, err = p.signAndRequest(ctx, "GET", "/v5/order/history", params, nil)
-	if err != nil {
-		return nil, fmt.Errorf("fetch order: %w", err)
-	}
-
-	var result bybitPerpFetchOrderResponse
-
-	if err := json.Unmarshal(resp, &result); err != nil {
-		return nil, fmt.Errorf("unmarshal order: %w", err)
-	}
-
-	if result.RetCode != 0 {
-		return nil, fmt.Errorf("bybit api error: %s", result.RetMsg)
-	}
-
-	if len(result.Result.List) == 0 {
-		return nil, fmt.Errorf("order not found")
-	}
-
-	// Find the order by ID
-	for _, item := range result.Result.List {
-		if targetOrderID != "" && item.OrderID == targetOrderID {
-			// 将 Bybit 响应转换为 model.PerpOrder
-			var positionSide string
-			switch item.PositionIdx {
-			case 1:
-				positionSide = "LONG"
-			case 2:
-				positionSide = "SHORT"
-			default:
-				positionSide = "BOTH"
-			}
-
-			order := &model.PerpOrder{
-				ID:               item.OrderID,
-				ClientID:         item.OrderLinkID,
-				Type:             item.OrderType,
-				Side:             item.Side,
-				PositionSide:     positionSide,
-				Symbol:           symbol,
-				Price:            item.Price,
-				AvgPrice:         item.AvgPrice,
-				Quantity:         item.Qty,
-				ExecutedQuantity: item.CumExecQty,
-				Status:           item.OrderStatus,
-				TimeInForce:      item.TimeInForce,
-				ReduceOnly:       item.ReduceOnly,
-				CreateTime:       item.CreatedTime,
-				UpdateTime:       item.UpdatedTime,
-			}
-			return order, nil
-		}
-		if targetOrderLinkID != "" && item.OrderLinkID == targetOrderLinkID {
-			// 将 Bybit 响应转换为 model.PerpOrder
-			var positionSide string
-			switch item.PositionIdx {
-			case 1:
-				positionSide = "LONG"
-			case 2:
-				positionSide = "SHORT"
-			default:
-				positionSide = "BOTH"
-			}
-
-			order := &model.PerpOrder{
-				ID:               item.OrderID,
-				ClientID:         item.OrderLinkID,
-				Type:             item.OrderType,
-				Side:             item.Side,
-				PositionSide:     positionSide,
-				Symbol:           symbol,
-				Price:            item.Price,
-				AvgPrice:         item.AvgPrice,
-				Quantity:         item.Qty,
-				ExecutedQuantity: item.CumExecQty,
-				Status:           item.OrderStatus,
-				TimeInForce:      item.TimeInForce,
-				ReduceOnly:       item.ReduceOnly,
-				CreateTime:       item.CreatedTime,
-				UpdateTime:       item.UpdatedTime,
-			}
-			return order, nil
-		}
-	}
-
-	return nil, fmt.Errorf("order not found")
-}
-
-func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
-	market, err := p.GetMarket(symbol)
-	if err != nil {
-		return err
-	}
-
-	if !market.Contract {
-		return fmt.Errorf("leverage only supported for contracts")
-	}
-
-	reqBody := map[string]interface{}{
-		"category":     "linear",
-		"symbol":       market.ID,
-		"buyLeverage":  strconv.Itoa(leverage),
-		"sellLeverage": strconv.Itoa(leverage),
-	}
-
-	_, err = p.signAndRequest(ctx, "POST", "/v5/position/set-leverage", nil, reqBody)
-	return err
-}
-
-func (p *BybitPerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType) error {
-	market, err := p.GetMarket(symbol)
-	if err != nil {
-		return err
-	}
-
-	if !market.Contract {
-		return fmt.Errorf("margin mode only supported for contracts")
-	}
-
-	// 验证类型
-	if marginType != option.ISOLATED && marginType != option.CROSSED {
-		return fmt.Errorf("invalid margin type: %s, must be 'ISOLATED' or 'CROSSED'", marginType)
-	}
-
-	bybitSymbol := market.ID
-	if bybitSymbol == "" {
-		var err error
-		bybitSymbol, err = ToBybitSymbol(symbol, true)
-		if err != nil {
-			return fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	reqBody := map[string]interface{}{
-		"category":  "linear",
-		"symbol":    bybitSymbol,
-		"tradeMode": marginType.Upper(),
-	}
-
-	_, err = p.signAndRequest(ctx, "POST", "/v5/position/switch-mode", nil, reqBody)
-	return err
 }
 
 var _ exchange.PerpExchange = (*BybitPerp)(nil)

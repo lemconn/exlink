@@ -208,23 +208,19 @@ func (p *BinancePerp) FetchMarkets(ctx context.Context, opts ...option.ArgsOptio
 		return nil, err
 	}
 
-	var querySymbol string
+	p.binance.mu.RLock()
+	defer p.binance.mu.RUnlock()
+
 	if symbol, ok := option.GetString(argsOpts.Symbol); ok {
 		market, err := p.GetMarket(symbol)
 		if err != nil {
 			return nil, err
 		}
-		querySymbol = market.ID
+		return model.Markets{market}, nil
 	}
-
-	p.binance.mu.RLock()
-	defer p.binance.mu.RUnlock()
 
 	markets := make(model.Markets, 0, len(p.binance.perpMarketsBySymbol))
 	for _, market := range p.binance.perpMarketsBySymbol {
-		if querySymbol != "" && market.Symbol != querySymbol {
-			continue
-		}
 		markets = append(markets, market)
 	}
 
