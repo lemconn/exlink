@@ -28,6 +28,40 @@ func NewBinancePerp(b *Binance) *BinancePerp {
 	}
 }
 
+// signAndRequest 统一处理签名和发送请求
+// method: HTTP 方法，支持 "GET", "POST", "DELETE"
+// path: API 路径，例如 "/fapi/v1/order"
+// req: 已设置好参数的 ExValues 对象（不包含 timestamp 和 signature）
+func (p *BinancePerp) signAndRequest(ctx context.Context, method, path string, req *types.ExValues) ([]byte, error) {
+	// 检查认证
+	if p.binance.client.SecretKey == "" {
+		return nil, fmt.Errorf("authentication required")
+	}
+
+	// 添加 timestamp
+	req.Set("timestamp", common.GetTimestamp())
+
+	// 生成签名
+	queryString := req.EncodeQuery()
+	signature := p.binance.signer.Sign(queryString)
+	req.Set("signature", signature)
+
+	// 构建完整路径
+	reqPath := req.JoinPath(path)
+
+	// 根据方法发送请求
+	switch method {
+	case "GET":
+		return p.binance.client.PerpClient.Get(ctx, reqPath, nil)
+	case "POST":
+		return p.binance.client.PerpClient.Post(ctx, reqPath, nil)
+	case "DELETE":
+		return p.binance.client.PerpClient.Delete(ctx, reqPath, map[string]interface{}{}, nil)
+	default:
+		return nil, fmt.Errorf("unsupported HTTP method: %s", method)
+	}
+}
+
 // ========== PerpExchange 接口实现 ==========
 
 // LoadMarkets 加载市场信息
@@ -404,10 +438,6 @@ func (p *BinancePerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe 
 
 // FetchPositions 获取持仓
 func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption) (model.Positions, error) {
-	if p.binance.client.SecretKey == "" {
-		return nil, fmt.Errorf("authentication required")
-	}
-
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
@@ -424,12 +454,7 @@ func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOpt
 		req.Set("symbol", market.ID)
 	}
 
-	// 设置 timestamp
-	req.Set("timestamp", common.GetTimestamp())
-	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
-
-	reqPath := req.JoinPath("/fapi/v2/positionRisk")
-	resp, err := p.binance.client.PerpClient.Get(ctx, reqPath, nil)
+	resp, err := p.signAndRequest(ctx, "GET", "/fapi/v2/positionRisk", req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch positions: %w", err)
 	}
@@ -504,10 +529,6 @@ func (p *BinancePerp) FetchPositions(ctx context.Context, opts ...option.ArgsOpt
 
 // CreateOrder 创建订单
 func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, amount string, orderSide option.PerpOrderSide, orderType option.OrderType, opts ...option.ArgsOption) (*model.NewOrder, error) {
-	if p.binance.client.SecretKey == "" {
-		return nil, fmt.Errorf("authentication required")
-	}
-
 	// 解析订单选项
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
@@ -571,13 +592,7 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, amount str
 		req.Set("newClientOrderId", generatedID)
 	}
 
-	// 设置 timestamp
-	req.Set("timestamp", common.GetTimestamp())
-	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
-
-	reqPath := req.JoinPath("/fapi/v1/order")
-	resp, err := p.binance.client.PerpClient.Post(ctx, reqPath, nil)
-
+	resp, err := p.signAndRequest(ctx, "POST", "/fapi/v1/order", req)
 	if err != nil {
 		return nil, fmt.Errorf("create order: %w", err)
 	}
@@ -605,10 +620,6 @@ func (p *BinancePerp) CreateOrder(ctx context.Context, symbol string, amount str
 
 // CancelOrder 取消订单
 func (p *BinancePerp) CancelOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) error {
-	if p.binance.client.SecretKey == "" {
-		return fmt.Errorf("authentication required")
-	}
-
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
@@ -633,21 +644,12 @@ func (p *BinancePerp) CancelOrder(ctx context.Context, symbol string, orderId st
 		return fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
 
-	// 设置 timestamp
-	req.Set("timestamp", common.GetTimestamp())
-	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
-
-	reqPath := req.JoinPath("/fapi/v1/order")
-	_, err = p.binance.client.PerpClient.Delete(ctx, reqPath, map[string]interface{}{}, nil)
+	_, err = p.signAndRequest(ctx, "DELETE", "/fapi/v1/order", req)
 	return err
 }
 
 // FetchOrder 查询订单
 func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
-	if p.binance.client.SecretKey == "" {
-		return nil, fmt.Errorf("authentication required")
-	}
-
 	// 解析参数
 	argsOpts := &option.ExchangeArgsOptions{}
 	for _, opt := range opts {
@@ -671,11 +673,7 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, orderId str
 		return nil, fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
 
-	req.Set("timestamp", common.GetTimestamp())
-	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
-
-	reqPath := req.JoinPath("/fapi/v1/order")
-	resp, err := p.binance.client.PerpClient.Get(ctx, reqPath, nil)
+	resp, err := p.signAndRequest(ctx, "GET", "/fapi/v1/order", req)
 	if err != nil {
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
@@ -731,10 +729,6 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, orderId str
 
 // SetLeverage 设置杠杆
 func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
-	if p.binance.client.SecretKey == "" {
-		return fmt.Errorf("authentication required")
-	}
-
 	req := types.NewExValues()
 
 	market, err := p.GetMarket(symbol)
@@ -747,20 +741,13 @@ func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage i
 		return fmt.Errorf("leverage must be between 1 and 125")
 	}
 	req.Set("leverage", leverage)
-	req.Set("timestamp", common.GetTimestamp())
-	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
-	reqPath := req.JoinPath("/fapi/v1/leverage")
-	_, err = p.binance.client.PerpClient.Post(ctx, reqPath, nil)
+	_, err = p.signAndRequest(ctx, "POST", "/fapi/v1/leverage", req)
 	return err
 }
 
 // SetMarginType 设置保证金类型
 func (p *BinancePerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType) error {
-	if p.binance.client.SecretKey == "" {
-		return fmt.Errorf("authentication required")
-	}
-
 	req := types.NewExValues()
 
 	market, err := p.GetMarket(symbol)
@@ -769,11 +756,8 @@ func (p *BinancePerp) SetMarginType(ctx context.Context, symbol string, marginTy
 	}
 	req.Set("symbol", market.ID)
 	req.Set("marginType", marginType.Upper())
-	req.Set("timestamp", common.GetTimestamp())
-	req.Set("signature", p.binance.signer.Sign(req.EncodeQuery()))
 
-	reqPath := req.JoinPath("/fapi/v1/marginType")
-	_, err = p.binance.client.PerpClient.Post(ctx, reqPath, nil)
+	_, err = p.signAndRequest(ctx, "POST", "/fapi/v1/marginType", req)
 	return err
 }
 
