@@ -39,79 +39,68 @@ func (p *OKXPerp) LoadMarkets(ctx context.Context, reload bool) error {
 	}
 	p.okx.mu.RUnlock()
 
+	req := types.NewExValues()
+	req.SetQuery("instType", "SWAP")
+
 	// 获取永续合约市场信息
-	resp, err := p.okx.client.HTTPClient.Get(ctx, "/api/v5/public/instruments", map[string]interface{}{
-		"instType": "SWAP",
-	})
+	resp, err := p.okx.client.HTTPClient.Get(ctx, "/api/v5/public/instruments", req.ToQueryMap())
 	if err != nil {
 		return fmt.Errorf("fetch swap instruments: %w", err)
 	}
 
-	var result okxPerpMarketsResponse
-	if err := json.Unmarshal(resp, &result); err != nil {
+	var respData struct {
+		Code string `json:"code"`
+		Msg  string `json:"msg"`
+		Data []struct {
+			InstType   string          `json:"instType"`
+			InstID     string          `json:"instId"`
+			BaseCcy    string          `json:"baseCcy"`
+			QuoteCcy   string          `json:"quoteCcy"`
+			SettleCcy  string          `json:"settleCcy"`
+			Uly        string          `json:"uly"`    // underlying，用于合约市场
+			CtType     string          `json:"ctType"` // linear, inverse
+			CtVal      string          `json:"ctVal"`  // 合约面值（1张合约等于多少个币）
+			CtValCcy   string          `json:"ctValCcy"`
+			InstFamily string          `json:"instFamily"`
+			State      string          `json:"state"`
+			MinSz      types.ExDecimal `json:"minSz"`
+			MaxSz      types.ExDecimal `json:"maxSz"`
+			LotSz      types.ExDecimal `json:"lotSz"`
+			TickSz     types.ExDecimal `json:"tickSz"`
+			MinSzVal   types.ExDecimal `json:"minSzVal"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp, &respData); err != nil {
 		return fmt.Errorf("unmarshal swap instruments: %w", err)
 	}
 
-	if result.Code != "0" {
-		return fmt.Errorf("okx api error: %s", result.Msg)
+	if respData.Code != "0" {
+		return fmt.Errorf("okx api error: %s", respData.Msg)
 	}
 
 	markets := make([]*model.Market, 0)
-	for _, item := range result.Data {
+	for _, item := range respData.Data {
 		if item.State != "live" {
 			continue
 		}
 
-		// 对于非现货市场，如果 uly (underlying) 不为空，则从 uly 中解析 base 和 quote
-		baseCcy := item.BaseCcy
-		quoteCcy := item.QuoteCcy
-
-		if item.Uly != "" {
-			// 从 underlying 解析，例如 "BTC-USDT" -> base="BTC", quote="USDT"
-			parts := strings.Split(item.Uly, "-")
-			if len(parts) >= 2 {
-				baseCcy = parts[0]
-				quoteCcy = parts[1]
-			}
+		ccy := strings.Split(item.InstFamily, "-")
+		if len(ccy) != 2 {
+			continue
 		}
-
-		// 如果 baseCcy 或 quoteCcy 仍为空，从 instId 解析
-		if baseCcy == "" || quoteCcy == "" {
-			parts := strings.Split(item.InstID, "-")
-			if len(parts) >= 2 {
-				if baseCcy == "" {
-					baseCcy = parts[0]
-				}
-				if quoteCcy == "" {
-					quoteCcy = parts[1]
-				}
-			}
-		}
-
-		// 对于 OKX 永续合约，settleCcy 可能为空，需要从 instId 或根据 ctType 推断
-		settle := item.SettleCcy
-		if settle == "" {
-			// 根据 ctType 判断：linear (U本位) settle=quote, inverse (币本位) settle=base
-			switch item.CtType {
-			case "linear":
-				settle = quoteCcy
-			case "inverse":
-				settle = baseCcy
-			default:
-				// 默认 U 本位
-				settle = quoteCcy
-			}
-		}
+		baseCcy := ccy[0]
+		quoteCcy := ccy[1]
+		settleCcy := item.SettleCcy
 
 		// 转换为标准化格式 BTC/USDT:USDT
-		normalizedSymbol := common.NormalizeContractSymbol(baseCcy, quoteCcy, settle)
+		normalizedSymbol := common.NormalizeContractSymbol(baseCcy, quoteCcy, settleCcy)
 
 		market := &model.Market{
 			ID:            item.InstID,
 			Symbol:        normalizedSymbol,
 			Base:          baseCcy,
 			Quote:         quoteCcy,
-			Settle:        settle,
+			Settle:        settleCcy,
 			Type:          model.MarketTypeSwap,
 			Active:        item.State == "live",
 			Contract:      true,
@@ -175,6 +164,14 @@ func (p *OKXPerp) FetchMarkets(ctx context.Context, opts ...option.ArgsOption) (
 	// 确保市场已加载
 	if err := p.LoadMarkets(ctx, false); err != nil {
 		return nil, err
+	}
+
+	if symbol, ok := option.GetString(argsOpts.Symbol); ok {
+		market, err := p.GetMarket(symbol)
+		if err != nil {
+			return nil, err
+		}
+		return model.Markets{market}, nil
 	}
 
 	p.okx.mu.RLock()
@@ -263,30 +260,65 @@ func (p *OKXPerp) FetchTickers(ctx context.Context, opts ...option.ArgsOption) (
 		opt(argsOpts)
 	}
 
-	resp, err := p.okx.client.HTTPClient.Get(ctx, "/api/v5/market/tickers", map[string]interface{}{
-		"instType": "SWAP",
-	})
+	var querySymbol string
+	if symbol, ok := option.GetString(argsOpts.Symbol); ok {
+		market, err := p.GetMarket(symbol)
+		if err != nil {
+			return nil, err
+		}
+		querySymbol = market.ID
+	}
+
+	req := types.NewExValues()
+	req.SetQuery("instType", "SWAP")
+
+	resp, err := p.okx.client.HTTPClient.Get(ctx, "/api/v5/market/tickers", req.ToQueryMap())
 	if err != nil {
 		return nil, fmt.Errorf("fetch tickers: %w", err)
 	}
 
-	var result okxPerpTickerResponse
-
-	if err := json.Unmarshal(resp, &result); err != nil {
+	var respData struct {
+		Code string `json:"code"`
+		Msg  string `json:"msg"`
+		Data []struct {
+			InstType  string            `json:"instType"`
+			InstID    string            `json:"instId"`
+			Last      types.ExDecimal   `json:"last"`
+			LastSz    types.ExDecimal   `json:"lastSz"`
+			AskPx     types.ExDecimal   `json:"askPx"`
+			AskSz     types.ExDecimal   `json:"askSz"`
+			BidPx     types.ExDecimal   `json:"bidPx"`
+			BidSz     types.ExDecimal   `json:"bidSz"`
+			Open24h   types.ExDecimal   `json:"open24h"`
+			High24h   types.ExDecimal   `json:"high24h"`
+			Low24h    types.ExDecimal   `json:"low24h"`
+			VolCcy24h types.ExDecimal   `json:"volCcy24h"`
+			Vol24h    types.ExDecimal   `json:"vol24h"`
+			Ts        types.ExTimestamp `json:"ts"`
+			SodUtc0   types.ExDecimal   `json:"sodUtc0"`
+			SodUtc8   types.ExDecimal   `json:"sodUtc8"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal tickers: %w", err)
 	}
 
-	if result.Code != "0" {
-		return nil, fmt.Errorf("okx api error: %s", result.Msg)
+	if respData.Code != "0" {
+		return nil, fmt.Errorf("okx api error: %s", respData.Msg)
 	}
 
-	tickers := make(model.Tickers, 0, len(result.Data))
-	for _, item := range result.Data {
+	tickers := make(model.Tickers, 0, len(respData.Data))
+	for _, item := range respData.Data {
 		// 尝试从市场信息中查找标准化格式
 		market, err := p.GetMarket(item.InstID)
 		if err != nil {
 			continue
 		}
+
+		if querySymbol != "" && market.ID != querySymbol {
+			continue
+		}
+
 		ticker := &model.Ticker{
 			Symbol:    market.Symbol,
 			Timestamp: item.Ts,
@@ -310,52 +342,59 @@ func (p *OKXPerp) FetchOHLCVs(ctx context.Context, symbol string, timeframe stri
 	for _, opt := range opts {
 		opt(argsOpts)
 	}
-	since := time.Time{}
-	if argsOpts.Since != nil {
-		since = *argsOpts.Since
-	}
 
-	// 获取市场信息
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
-
-	// 标准化时间框架
-	normalizedTimeframe := common.OKXTimeframe(timeframe)
-
-	params := map[string]interface{}{
-		"instId": market.ID,
-		"bar":    normalizedTimeframe,
-		"limit":  limit,
-	}
-	if !since.IsZero() {
-		params["after"] = since.UnixMilli()
+	req := types.NewExValues()
+	req.SetQuery("instId", market.ID)
+	req.SetQuery("bar", common.OKXTimeframe(timeframe))
+	req.SetQuery("limit", limit)
+	if since, ok := option.GetTime(argsOpts.Since); ok {
+		req.SetQuery("after", since.UnixMilli())
 	}
 
-	resp, err := p.okx.client.HTTPClient.Get(ctx, "/api/v5/market/candles", params)
+	resp, err := p.okx.client.HTTPClient.Get(ctx, "/api/v5/market/candles", req.ToQueryMap())
 	if err != nil {
 		return nil, fmt.Errorf("fetch ohlcv: %w", err)
 	}
 
-	var result okxPerpKlineResponse
-	if err := json.Unmarshal(resp, &result); err != nil {
+	var respData struct {
+		Code string          `json:"code"`
+		Msg  string          `json:"msg"`
+		Data [][]interface{} `json:"data"`
+	}
+	if err = json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal ohlcv: %w", err)
 	}
 
-	if result.Code != "0" {
-		return nil, fmt.Errorf("okx api error: %s", result.Msg)
+	if respData.Code != "0" {
+		return nil, fmt.Errorf("okx api error: %s", respData.Msg)
 	}
 
-	ohlcvs := make(model.OHLCVs, 0, len(result.Data))
-	for _, item := range result.Data {
-		ohlcv := &model.OHLCV{
-			Timestamp: item.Ts,
-			Open:      item.Open,
-			High:      item.High,
-			Low:       item.Low,
-			Close:     item.Close,
-			Volume:    item.Volume,
+	ohlcvs := make(model.OHLCVs, 0, len(respData.Data))
+	for _, item := range respData.Data {
+		ohlcv := &model.OHLCV{}
+		ts, err := strconv.ParseInt(item[0].(string), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		ohlcv.Timestamp = types.ExTimestamp{Time: time.UnixMilli(ts)}
+		if openPx, err := decimal.NewFromString(item[1].(string)); err == nil {
+			ohlcv.Open = types.ExDecimal{Decimal: openPx}
+		}
+		if highPx, err := decimal.NewFromString(item[2].(string)); err == nil {
+			ohlcv.High = types.ExDecimal{Decimal: highPx}
+		}
+		if lowPx, err := decimal.NewFromString(item[3].(string)); err == nil {
+			ohlcv.Low = types.ExDecimal{Decimal: lowPx}
+		}
+		if closePx, err := decimal.NewFromString(item[4].(string)); err == nil {
+			ohlcv.Close = types.ExDecimal{Decimal: closePx}
+		}
+		if volume, err := decimal.NewFromString(item[5].(string)); err == nil {
+			ohlcv.Volume = types.ExDecimal{Decimal: volume}
 		}
 		ohlcvs = append(ohlcvs, ohlcv)
 	}
@@ -369,44 +408,108 @@ func (p *OKXPerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption)
 		opt(argsOpts)
 	}
 
-	params := map[string]interface{}{
-		"instType": "SWAP",
-	}
-
-	// 如果指定了 Symbol，在 API 请求中传入
-	var targetSymbol string
-	if argsOpts.Symbol != nil && *argsOpts.Symbol != "" {
-		targetSymbol = *argsOpts.Symbol
-		market, err := p.GetMarket(targetSymbol)
-		if err == nil {
-			params["instId"] = market.ID
-		} else {
-			// 如果市场未加载，尝试转换
-			okxSymbol, err := ToOKXSymbol(targetSymbol, true)
-			if err == nil {
-				params["instId"] = okxSymbol
-			}
+	var querySymbol string
+	if symbol, ok := option.GetString(argsOpts.Symbol); ok {
+		market, err := p.GetMarket(symbol)
+		if err != nil {
+			return nil, err
 		}
+		querySymbol = market.ID
 	}
 
-	resp, err := p.signAndRequest(ctx, "GET", "/api/v5/account/positions", params, nil)
+	req := types.NewExValues()
+	req.SetQuery("instType", "SWAP")
+	if querySymbol != "" {
+		req.SetQuery("instId", querySymbol)
+	}
+
+	resp, err := p.signAndRequest(ctx, "GET", "/api/v5/account/positions", req.ToQueryMap(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch positions: %w", err)
 	}
 
 	var result okxPerpPositionResponse
-	if err := json.Unmarshal(resp, &result); err != nil {
+	var respData struct {
+		Code string `json:"code"`
+		Msg  string `json:"msg"`
+		Data []struct {
+			Adl                    types.ExDecimal   `json:"adl"`
+			AvailPos               types.ExDecimal   `json:"availPos"`
+			AvgPx                  types.ExDecimal   `json:"avgPx"`
+			BaseBal                types.ExDecimal   `json:"baseBal"`
+			BaseBorrowed           types.ExDecimal   `json:"baseBorrowed"`
+			BaseInterest           types.ExDecimal   `json:"baseInterest"`
+			BePx                   types.ExDecimal   `json:"bePx"`
+			BizRefId               string            `json:"bizRefId"`
+			BizRefType             string            `json:"bizRefType"`
+			CTime                  types.ExTimestamp `json:"cTime"`
+			Ccy                    string            `json:"ccy"`
+			ClSpotInUseAmt         types.ExDecimal   `json:"clSpotInUseAmt"`
+			CloseOrderAlgo         []interface{}     `json:"closeOrderAlgo"`
+			DeltaBS                types.ExDecimal   `json:"deltaBS"`
+			DeltaPA                types.ExDecimal   `json:"deltaPA"`
+			Fee                    types.ExDecimal   `json:"fee"`
+			FundingFee             types.ExDecimal   `json:"fundingFee"`
+			GammaBS                types.ExDecimal   `json:"gammaBS"`
+			GammaPA                types.ExDecimal   `json:"gammaPA"`
+			HedgedPos              types.ExDecimal   `json:"hedgedPos"`
+			IdxPx                  types.ExDecimal   `json:"idxPx"`
+			Imr                    types.ExDecimal   `json:"imr"`
+			InstID                 string            `json:"instId"`
+			InstType               string            `json:"instType"`
+			Interest               types.ExDecimal   `json:"interest"`
+			Last                   types.ExDecimal   `json:"last"`
+			Lever                  types.ExDecimal   `json:"lever"`
+			Liab                   types.ExDecimal   `json:"liab"`
+			LiabCcy                string            `json:"liabCcy"`
+			LiqPenalty             types.ExDecimal   `json:"liqPenalty"`
+			LiqPx                  types.ExDecimal   `json:"liqPx"`
+			Margin                 types.ExDecimal   `json:"margin"`
+			MarkPx                 types.ExDecimal   `json:"markPx"`
+			MaxSpotInUseAmt        types.ExDecimal   `json:"maxSpotInUseAmt"`
+			MgnMode                string            `json:"mgnMode"`
+			MgnRatio               types.ExDecimal   `json:"mgnRatio"`
+			Mmr                    types.ExDecimal   `json:"mmr"`
+			NonSettleAvgPx         types.ExDecimal   `json:"nonSettleAvgPx"`
+			NotionalUsd            types.ExDecimal   `json:"notionalUsd"`
+			OptVal                 types.ExDecimal   `json:"optVal"`
+			PendingCloseOrdLiabVal types.ExDecimal   `json:"pendingCloseOrdLiabVal"`
+			Pnl                    types.ExDecimal   `json:"pnl"`
+			Pos                    types.ExDecimal   `json:"pos"`
+			PosCcy                 string            `json:"posCcy"`
+			PosID                  string            `json:"posId"`
+			PosSide                string            `json:"posSide"`
+			QuoteBal               types.ExDecimal   `json:"quoteBal"`
+			QuoteBorrowed          types.ExDecimal   `json:"quoteBorrowed"`
+			QuoteInterest          types.ExDecimal   `json:"quoteInterest"`
+			RealizedPnl            types.ExDecimal   `json:"realizedPnl"`
+			SettledPnl             types.ExDecimal   `json:"settledPnl"`
+			SpotInUseAmt           types.ExDecimal   `json:"spotInUseAmt"`
+			SpotInUseCcy           string            `json:"spotInUseCcy"`
+			ThetaBS                types.ExDecimal   `json:"thetaBS"`
+			ThetaPA                types.ExDecimal   `json:"thetaPA"`
+			TradeID                string            `json:"tradeId"`
+			UTime                  types.ExTimestamp `json:"uTime"`
+			Upl                    types.ExDecimal   `json:"upl"`
+			UplLastPx              types.ExDecimal   `json:"uplLastPx"`
+			UplRatio               types.ExDecimal   `json:"uplRatio"`
+			UplRatioLastPx         types.ExDecimal   `json:"uplRatioLastPx"`
+			UsdPx                  types.ExDecimal   `json:"usdPx"`
+			VegaBS                 types.ExDecimal   `json:"vegaBS"`
+			VegaPA                 types.ExDecimal   `json:"vegaPA"`
+		} `json:"data"`
+	}
+	if err = json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal positions: %w", err)
 	}
 
-	if result.Code != "0" {
+	if respData.Code != "0" {
 		return nil, fmt.Errorf("okx api error: %s", result.Msg)
 	}
 
 	positions := make([]*model.Position, 0)
-	for _, item := range result.Data {
-		pos, _ := item.Pos.Float64()
-		if pos == 0 {
+	for _, item := range respData.Data {
+		if item.Pos.IsZero() {
 			continue
 		}
 
@@ -415,14 +518,9 @@ func (p *OKXPerp) FetchPositions(ctx context.Context, opts ...option.ArgsOption)
 			continue
 		}
 
-		// 如果指定了 Symbol，只返回匹配的
-		if targetSymbol != "" && market.Symbol != targetSymbol {
-			continue
-		}
-
 		var side string
 		// 根据 posSide 确定持仓方向
-		if item.PosSide == "long" || (item.PosSide == "net" && pos > 0) {
+		if item.PosSide == "long" || (item.PosSide == "net" && item.Pos.GreaterThan(decimal.Zero)) {
 			side = string(types.PositionSideLong)
 		} else {
 			side = string(types.PositionSideShort)
@@ -456,146 +554,102 @@ func (p *OKXPerp) CreateOrder(ctx context.Context, symbol string, amount string,
 		opt(argsOpts)
 	}
 
-	// 如果订单类型为 Limit，必须设置价格
-	var priceStr string
-	if orderType == option.Limit {
-		if argsOpts.Price == nil || *argsOpts.Price == "" {
-			return nil, fmt.Errorf("limit order requires price")
-		}
-		priceStr = *argsOpts.Price
-	} else if argsOpts.Price != nil && *argsOpts.Price != "" {
-		// 市价单也可以设置价格（用于某些交易所的限价市价单）
-		priceStr = *argsOpts.Price
-	} else {
-		priceStr = ""
-	}
-
 	// 获取市场信息
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return nil, err
 	}
 
-	// 获取交易所格式的 symbol ID
-	okxSymbol := market.ID
-	if okxSymbol == "" {
-		var err error
-		okxSymbol, err = ToOKXSymbol(symbol, true)
-		if err != nil {
-			return nil, fmt.Errorf("get market ID: %w", err)
+	req := types.NewExValues()
+	req.SetBody("instId", market.ID)
+
+	marginType := argsOpts.MarginType
+	if marginType == nil {
+		return nil, fmt.Errorf("MarginType cannot be empty, use option.WithMarginType to setting it")
+	}
+	switch *marginType {
+	case option.ISOLATED:
+		req.SetBody("tdMode", "isolated")
+	case option.CROSSED:
+		req.SetBody("tdMode", "cross")
+	default:
+		return nil, fmt.Errorf("MarginType must be either ISOLATED or CROSSED")
+	}
+
+	timeInForce := argsOpts.TimeInForce
+	// 限价单，必须设置价格
+	if orderType == option.Limit || *timeInForce == option.FOK || *timeInForce == option.IOC {
+		price, ok := option.GetDecimalFromString(argsOpts.Price)
+		if !ok || price.IsZero() {
+			return nil, fmt.Errorf("limit order requires price")
+		}
+		req.SetBody("px", price)
+		if timeInForce != nil {
+			req.SetBody("ordType", timeInForce.Lower())
 		}
 	}
 
-	// 确定交易模式（合约默认全仓）
-	tdMode := "cross"
-
-	// 计算 sz（数量）
-	// 合约需要将币数量转换为张数
-	// 转换公式：张数 = 币的个数 / ctVal
-	sz := amount
-	if market.ContractValue != "" {
-		exContractValue, err := decimal.NewFromString(market.ContractValue)
-		if err != nil || exContractValue.LessThanOrEqual(decimal.Zero) {
-			return nil, fmt.Errorf("invalid contract value: %s", market.ContractValue)
-		}
-
-		amountDecimal, err := decimal.NewFromString(amount)
-		if err != nil {
-			return nil, fmt.Errorf("invalid amount: %w", err)
-		}
-
-		contractSizeDecimal := amountDecimal.Div(exContractValue)
-		szPrecision := market.Precision.Amount
-		if szPrecision == 0 {
-			szPrecision = 8
-		}
-		sz = contractSizeDecimal.StringFixed(int32(szPrecision))
+	// 设置数量（合约张数）
+	if quantity, ok := option.GetDecimalFromString(&amount); ok {
+		req.SetBody("sz", quantity.String())
+	} else {
+		return nil, fmt.Errorf("amount is required and must be a valid decimal")
 	}
 
-	// 构建请求结构体
-	req := okxPerpCreateOrderRequest{
-		InstID:  okxSymbol,
-		TdMode:  tdMode,
-		Side:    strings.ToLower(orderSide.ToSide()),
-		OrdType: orderType.Lower(),
-		Sz:      sz,
+	if !req.HasBody("ordType") {
+		req.SetBody("ordType", orderType.Lower())
 	}
+	req.SetBody("side", strings.ToLower(orderSide.ToSide()))
+	req.SetBody("reduceOnly", orderSide.ToReduceOnly())
 
-	// 限价单设置价格
-	if orderType == option.Limit {
-		req.Px = priceStr
-	}
-
-	// 从 PerpOrderSide 自动推断 PositionSide 和 reduceOnly
-	positionSideStr := orderSide.ToPositionSide()
-	reduceOnly := orderSide.ToReduceOnly()
-
-	// 获取持仓模式：从 hedgeMode 选项获取，未设置时默认为 net_mode（单向持仓模式）
-	posMode := "net_mode"
-	if argsOpts.HedgeMode != nil {
-		if *argsOpts.HedgeMode {
-			posMode = "long_short_mode"
-		} else {
-			posMode = "net_mode"
-		}
-	}
-
-	if posMode == "long_short_mode" {
+	if hedgeMode, ok := option.GetBool(argsOpts.HedgeMode); hedgeMode && ok {
 		// 双向持仓模式
 		// 开多/平多: posSide=long
 		// 开空/平空: posSide=short
-		req.PosSide = strings.ToLower(positionSideStr)
-	} else {
-		// 单向持仓模式
-		req.PosSide = "net"
-
-		// 如果是平仓操作，设置 reduceOnly
-		if reduceOnly {
-			req.ReduceOnly = true
+		if orderSide.ToPositionSide() == "LONG" {
+			req.SetBody("posSide", "long")
+		} else {
+			req.SetBody("posSide", "short")
 		}
-	}
-
-	// 客户端订单ID
-	if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
-		req.ClOrdID = *argsOpts.ClientOrderID
 	} else {
-		// 将 PerpOrderSide 转换为 OrderSide 用于生成订单ID
-		req.ClOrdID = common.GenerateClientOrderID(p.okx.Name(), orderSide.ToSide())
+		req.SetBody("posSide", "net")
 	}
 
-	// 将结构体转换为 map
-	reqBytes, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("marshal request: %w", err)
-	}
-	var reqBody map[string]interface{}
-	if err := json.Unmarshal(reqBytes, &reqBody); err != nil {
-		return nil, fmt.Errorf("unmarshal request: %w", err)
+	if clientOrderId, ok := option.GetString(argsOpts.ClientOrderID); ok {
+		req.SetBody("clOrdId", clientOrderId)
+	} else {
+		// 生成订单 ID
+		generatedID := common.GenerateClientOrderID(p.okx.Name(), orderSide.ToSide())
+		req.SetBody("clOrdId", generatedID)
 	}
 
-	resp, err := p.signAndRequest(ctx, "POST", "/api/v5/trade/order", nil, reqBody)
+	resp, err := p.signAndRequest(ctx, "POST", "/api/v5/trade/order", nil, req.ToBodyMap())
 	if err != nil {
 		return nil, fmt.Errorf("create order: %w", err)
 	}
 
-	var result okxPerpCreateOrderResponse
-	if err := json.Unmarshal(resp, &result); err != nil {
+	var respData struct {
+		Code string `json:"code"` // 返回码，"0" 表示成功
+		Data []struct {
+			ClOrdID string            `json:"clOrdId"` // 客户端订单ID
+			OrdID   string            `json:"ordId"`   // 系统订单号
+			TS      types.ExTimestamp `json:"ts"`      // 时间戳（毫秒）
+		} `json:"data"` // 订单数据数组
+		Msg string `json:"msg,omitempty"` // 返回消息
+	}
+	if err = json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
-	if result.Code != "0" {
-		errMsg := result.Msg
-		if len(result.Data) > 0 {
-			errMsg = result.Msg
-		}
-		return nil, fmt.Errorf("okx api error: %s", errMsg)
+	if respData.Code != "0" {
+		return nil, fmt.Errorf("okx api error: %s", respData.Msg)
 	}
 
-	if len(result.Data) == 0 {
+	if len(respData.Data) == 0 {
 		return nil, fmt.Errorf("okx api error: no order data returned")
 	}
 
-	data := result.Data[0]
+	data := respData.Data[0]
 
 	// 构建 NewOrder 对象
 	perpOrder := &model.NewOrder{
@@ -621,31 +675,36 @@ func (p *OKXPerp) CancelOrder(ctx context.Context, symbol string, orderId string
 		return err
 	}
 
-	// 获取交易所格式的 symbol ID
-	okxSymbol := market.ID
-	if okxSymbol == "" {
-		var err error
-		okxSymbol, err = ToOKXSymbol(symbol, true)
-		if err != nil {
-			return fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	reqBody := map[string]interface{}{
-		"instId": okxSymbol,
-	}
+	req := types.NewExValues()
+	req.SetBody("instId", market.ID)
 
 	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
 	if orderId != "" {
-		reqBody["ordId"] = orderId
-	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
-		reqBody["clOrdId"] = *argsOpts.ClientOrderID
+		req.SetBody("ordId", orderId)
+	} else if clientOrderId, ok := option.GetString(argsOpts.ClientOrderID); ok {
+		req.SetBody("clOrdId", clientOrderId)
 	} else {
 		return fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
 
-	_, err = p.signAndRequest(ctx, "POST", "/api/v5/trade/cancel-order", nil, reqBody)
-	return err
+	resp, err := p.signAndRequest(ctx, "POST", "/api/v5/trade/cancel-order", nil, req.ToBodyMap())
+	if err != nil {
+		return err
+	}
+
+	var respData struct {
+		Code string `json:"code"`
+		Msg  string `json:"msg"`
+	}
+	if err = json.Unmarshal(resp, &respData); err != nil {
+		return err
+	}
+
+	if respData.Code != "0" {
+		return fmt.Errorf("okx api error: %s", respData.Msg)
+	}
+
+	return nil
 }
 
 func (p *OKXPerp) FetchOrder(ctx context.Context, symbol string, orderId string, opts ...option.ArgsOption) (*model.PerpOrder, error) {
@@ -661,47 +720,57 @@ func (p *OKXPerp) FetchOrder(ctx context.Context, symbol string, orderId string,
 		return nil, err
 	}
 
-	// 获取交易所格式的 symbol ID
-	okxSymbol := market.ID
-	if okxSymbol == "" {
-		var err error
-		okxSymbol, err = ToOKXSymbol(symbol, true)
-		if err != nil {
-			return nil, fmt.Errorf("get market ID: %w", err)
-		}
-	}
-
-	params := map[string]interface{}{
-		"instType": "SWAP",
-		"instId":   okxSymbol,
-	}
+	req := types.NewExValues()
+	req.SetQuery("instId", market.ID)
 
 	// 优先使用 orderId 参数，如果没有则使用 ClientOrderID
 	if orderId != "" {
-		params["ordId"] = orderId
-	} else if argsOpts.ClientOrderID != nil && *argsOpts.ClientOrderID != "" {
-		params["clOrdId"] = *argsOpts.ClientOrderID
+		req.SetQuery("ordId", orderId)
+	} else if clientOrderId, ok := option.GetString(argsOpts.ClientOrderID); ok {
+		req.SetQuery("clOrdId", clientOrderId)
 	} else {
 		return nil, fmt.Errorf("either orderId parameter or ClientOrderID option must be provided")
 	}
 
-	resp, err := p.signAndRequest(ctx, "GET", "/api/v5/trade/order", params, nil)
+	resp, err := p.signAndRequest(ctx, "GET", "/api/v5/trade/order", req.ToQueryMap(), nil)
 	if err != nil {
 		return nil, fmt.Errorf("fetch order: %w", err)
 	}
 
-	var result okxPerpFetchOrderResponse
-
-	if err := json.Unmarshal(resp, &result); err != nil {
+	var respData struct {
+		Code string `json:"code"`
+		Msg  string `json:"msg"`
+		Data []struct {
+			OrdID      string            `json:"ordId"`      // 订单ID
+			ClOrdID    string            `json:"clOrdId"`    // 客户端自定义订单ID
+			InstID     string            `json:"instId"`     // 合约标的
+			Px         types.ExDecimal   `json:"px"`         // 下单价格（市价单为空）
+			AvgPx      types.ExDecimal   `json:"avgPx"`      // 成交均价
+			Sz         types.ExDecimal   `json:"sz"`         // 下单数量
+			AccFillSz  types.ExDecimal   `json:"accFillSz"`  // 实际成交数量
+			State      string            `json:"state"`      // 订单状态
+			ReduceOnly string            `json:"reduceOnly"` // 是否只减仓（字符串 "true"/"false"）
+			OrdType    string            `json:"ordType"`    // 订单类型
+			Side       string            `json:"side"`       // 订单方向
+			PosSide    string            `json:"posSide"`    // 单向持仓 net, 双向持仓 long / short
+			CTime      types.ExTimestamp `json:"cTime"`      // 创建时间（毫秒）
+			UTime      types.ExTimestamp `json:"uTime"`      // 更新时间（毫秒）
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(resp, &respData); err != nil {
 		return nil, fmt.Errorf("unmarshal order: %w", err)
 	}
 
-	if result.Code != "0" || len(result.Data) == 0 {
-		return nil, fmt.Errorf("okx api error: %s", result.Msg)
+	if respData.Code != "0" {
+		return nil, fmt.Errorf("okx api error: %s", respData.Msg)
+	}
+
+	if len(respData.Data) == 0 {
+		return nil, fmt.Errorf("order not found")
 	}
 
 	// 将 OKX 响应转换为 model.PerpOrder
-	item := result.Data[0]
+	item := respData.Data[0]
 	// 转换 reduceOnly 字符串为 bool
 	reduceOnly := strings.ToLower(item.ReduceOnly) == "true"
 
@@ -726,47 +795,59 @@ func (p *OKXPerp) FetchOrder(ctx context.Context, symbol string, orderId string,
 	return order, nil
 }
 
-func (p *OKXPerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
+func (p *OKXPerp) SetLeverage(ctx context.Context, symbol string, leverage int, opts ...option.ArgsOption) error {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
 	}
 
-	if !market.Contract {
-		return fmt.Errorf("leverage only supported for contracts")
+	req := types.NewExValues()
+	req.SetBody("instId", market.ID)
+	if leverage < 1 || leverage > 125 {
+		return fmt.Errorf("leverage must be between 1 and 125")
+	}
+	req.SetBody("lever", leverage)
+
+	switch *argsOpts.MarginType {
+	case option.ISOLATED:
+		req.SetBody("mgnMode", "isolated")
+	case option.CROSSED:
+		req.SetBody("mgnMode", "cross")
+	default:
+		return fmt.Errorf("MarginType cannot be empty, use option.WithMarginType to setting it")
 	}
 
-	reqBody := map[string]interface{}{
-		"instId": market.ID,
-		"lever":  strconv.Itoa(leverage),
+	resp, err := p.signAndRequest(ctx, "POST", "/api/v5/account/set-leverage", nil, req.ToBodyMap())
+	if err != nil {
+		return err
 	}
 
-	_, err = p.signAndRequest(ctx, "POST", "/api/v5/account/set-leverage", nil, reqBody)
-	return err
+	var respData struct {
+		Code string `json:"code"`
+		Msg  string `json:"msg"`
+	}
+	if err = json.Unmarshal(resp, &respData); err != nil {
+		return err
+	}
+
+	if respData.Code != "0" {
+		return fmt.Errorf(respData.Msg)
+	}
+
+	return nil
 }
 
-func (p *OKXPerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType) error {
-	market, err := p.GetMarket(symbol)
-	if err != nil {
-		return err
+func (p *OKXPerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType, opts ...option.ArgsOption) error {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
 	}
-
-	if !market.Contract {
-		return fmt.Errorf("margin mode only supported for contracts")
-	}
-
-	// 验证类型
-	if marginType != option.ISOLATED && marginType != option.CROSSED {
-		return fmt.Errorf("invalid margin type: %s, must be 'ISOLATED' or 'CROSSED'", marginType)
-	}
-
-	reqBody := map[string]interface{}{
-		"instId":  market.ID,
-		"mgnMode": marginType.Upper(),
-	}
-
-	_, err = p.signAndRequest(ctx, "POST", "/api/v5/account/set-margin-mode", nil, reqBody)
-	return err
+	return fmt.Errorf("not supported: OKX does not support setting margin type via API")
 }
 
 var _ exchange.PerpExchange = (*OKXPerp)(nil)

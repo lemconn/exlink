@@ -29,6 +29,8 @@ type ExchangeArgsOptions struct {
 	TimeInForce *TimeInForce
 	// HedgeMode 是否为双向持仓模式（合约订单）
 	HedgeMode *bool
+	// MarginType 保证金类型
+	MarginType *MarginType
 }
 
 // ArgsOption 方法调用参数选项函数类型
@@ -105,5 +107,12 @@ func WithTimeInForce(timeInForce TimeInForce) ArgsOption {
 func WithHedgeMode(hedgeMode bool) ArgsOption {
 	return func(opts *ExchangeArgsOptions) {
 		opts.HedgeMode = &hedgeMode
+	}
+}
+
+// WithMarginType 设置保证金类型
+func WithMarginType(marginType MarginType) ArgsOption {
+	return func(opts *ExchangeArgsOptions) {
+		opts.MarginType = &marginType
 	}
 }

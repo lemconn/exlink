@@ -724,7 +724,12 @@ func (p *BinancePerp) FetchOrder(ctx context.Context, symbol string, orderId str
 }
 
 // SetLeverage 设置杠杆
-func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
+func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage int, opts ...option.ArgsOption) error {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	req := types.NewExValues()
 
 	market, err := p.GetMarket(symbol)
@@ -743,7 +748,12 @@ func (p *BinancePerp) SetLeverage(ctx context.Context, symbol string, leverage i
 }
 
 // SetMarginType 设置保证金类型
-func (p *BinancePerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType) error {
+func (p *BinancePerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType, opts ...option.ArgsOption) error {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	req := types.NewExValues()
 
 	market, err := p.GetMarket(symbol)
