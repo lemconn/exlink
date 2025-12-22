@@ -801,14 +801,19 @@ func (p *BybitPerp) FetchOrder(ctx context.Context, symbol string, orderId strin
 	return order, nil
 }
 
-func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
+func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int, opts ...option.ArgsOption) error {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
 	}
 
-	if leverage < 1 || leverage > 100 {
-		return fmt.Errorf("leverage must be between 1 and 100")
+	if leverage < 1 || leverage > 125 {
+		return fmt.Errorf("leverage must be between 1 and 125")
 	}
 
 	req := types.NewExValues()
@@ -837,7 +842,12 @@ func (p *BybitPerp) SetLeverage(ctx context.Context, symbol string, leverage int
 	return nil
 }
 
-func (p *BybitPerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType) error {
+func (p *BybitPerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType, opts ...option.ArgsOption) error {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	market, err := p.GetMarket(symbol)
 	if err != nil || market == nil {
 		return err

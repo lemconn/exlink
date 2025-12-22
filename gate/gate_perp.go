@@ -665,7 +665,12 @@ func (p *GatePerp) FetchOrder(ctx context.Context, symbol string, orderId string
 	return order, nil
 }
 
-func (p *GatePerp) SetLeverage(ctx context.Context, symbol string, leverage int) error {
+func (p *GatePerp) SetLeverage(ctx context.Context, symbol string, leverage int, opts ...option.ArgsOption) error {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
+
 	market, err := p.GetMarket(symbol)
 	if err != nil {
 		return err
@@ -695,7 +700,11 @@ func (p *GatePerp) SetLeverage(ctx context.Context, symbol string, leverage int)
 	return err
 }
 
-func (p *GatePerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType) error {
+func (p *GatePerp) SetMarginType(ctx context.Context, symbol string, marginType option.MarginType, opts ...option.ArgsOption) error {
+	argsOpts := &option.ExchangeArgsOptions{}
+	for _, opt := range opts {
+		opt(argsOpts)
+	}
 	// Gate 不支持通过 API 设置保证金类型，需要在网页端设置
 	return fmt.Errorf("not supported: Gate does not support setting margin type via API")
 }
@@ -744,4 +753,3 @@ func (p *GatePerp) signAndRequest(ctx context.Context, method, path string, para
 		return p.gate.client.HTTPClient.Post(ctx, path, body)
 	}
 }
-
